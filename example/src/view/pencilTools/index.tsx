@@ -9,8 +9,8 @@ import { StrokePencilIcon, NormPencilIcon, DottedPencilIcon, DottedPencilLongIco
 import { ColorPicker, Divider, Popover, Button, Slider } from 'antd';
 import type { Color } from 'antd/es/color-picker';
 import { AppContext } from "../../App";
-import { EToolsKey } from '../../core/enum';
-import { EStrokeType } from '../../plugin/types';
+import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core/enum';
+import { EStrokeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
 export const PencilTools = () => {
     const {toolsKey} = useContext(AppContext);
     const [strokeType, setStrokeType] = useState<EStrokeType>(EStrokeType.Stroke);

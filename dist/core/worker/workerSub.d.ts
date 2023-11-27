@@ -1,0 +1,30 @@
+import { WorkThreadEngine } from "../base";
+import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, IMainMessage, IOffscreenCanvasOptionType, IWorkerMessage } from "../types";
+import { EDataType } from "../enum";
+import { Scene, Layer } from "spritejs";
+import { SubLocalDrawWorkForWorker } from "./localSubDraw";
+export declare class SubWorkThreadEngineByWorker extends WorkThreadEngine {
+    static _self: Worker;
+    private lockId?;
+    protected dpr: number;
+    protected scene: Scene;
+    protected drawLayer: Layer;
+    protected fullLayer: Layer;
+    protected localWork: SubLocalDrawWorkForWorker;
+    constructor();
+    private init;
+    getOffscreen(): OffscreenCanvas;
+    private register;
+    protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): IMainMessage;
+    setToolsOpt(opt: IActiveToolsDataType): void;
+    setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
+    private clearAll;
+    private setTransform;
+    private getRectImageBitmap;
+    post(msg: IBatchMainMessage): void;
+    on(callBack: (msg: IWorkerMessage[]) => void): void;
+    consumeDraw(type: EDataType, data: IWorkerMessage): IMainMessage | undefined;
+    consumeDrawAll(_type: EDataType, data: IWorkerMessage): undefined;
+    consumeFull(): void;
+}
+export declare const worker: SubWorkThreadEngineByWorker;

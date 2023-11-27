@@ -3,7 +3,7 @@ import { BaseCollectorReducerAction, DiffOne } from "../../collector/types";
 import { MainEngine, WorkThreadEngine } from "../base";
 import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IBatchMainMessage, IworkId, IUpdateNodeOpt, IMainMessage, IMainMessageRenderData } from "../types";
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import Worker from './worker.ts?worker';
+import Worker from './worker.ts?worker&inline';
 import SubWorker from './workerSub.ts?worker&inline';
 import { BezierPencilPluginOptions } from "../../plugin";
 

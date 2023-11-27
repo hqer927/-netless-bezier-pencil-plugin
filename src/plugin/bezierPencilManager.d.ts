@@ -1,0 +1,31 @@
+import { BezierPencilPlugin, BezierPencilPluginOptions } from "./bezierPencilPlugin";
+import { MemberState } from "./types";
+import { CameraState, SceneState } from "white-web-sdk";
+export declare class BezierPencilManager {
+    private plugin;
+    private pluginOptions?;
+    private collector?;
+    private worker?;
+    private room?;
+    private disposeDisplayerSubscribe;
+    constructor(plugin: BezierPencilPlugin, options?: BezierPencilPluginOptions);
+    init(): void;
+    cleanCurrentScene(): void;
+    destroy(): void;
+    onCameraChange(cameraState: CameraState): void;
+    onSceneChange(sceneState: SceneState): void;
+    onMemberChange(memberState: MemberState): void;
+    onWritableChange(isWritable: boolean): void;
+    private onMountDisplayer;
+    private onUnMountDisplayer;
+    private resizeChange;
+    private _throttled;
+    private mousedown;
+    private mousemove;
+    private mouseup;
+    private touchstart;
+    private touchmove;
+    private touchend;
+    private bindDisplayerEvent;
+    private removeDisplayerEvent;
+}

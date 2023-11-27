@@ -1,6 +1,6 @@
 import { MainEngine } from "../base";
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import Worker from './worker.ts?worker';
+import Worker from './worker.ts?worker&inline';
 import SubWorker from './workerSub.ts?worker&inline';
 export class MainEngineForWorker extends MainEngine {
     constructor(bgCanvas, floatCanvas, collector, options) {

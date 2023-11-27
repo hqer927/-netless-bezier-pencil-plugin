@@ -2,10 +2,12 @@
 import './App.css';
 import { useState, useEffect, createContext} from 'react';
 import { FloatTools } from './view/floatTools';
-import { EToolsKey } from './core/enum';
+import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core/enum';
 import { ZoomController } from './view/zoomController';
-import { EStrokeType, ApplianceNames } from './plugin/types';
-// import { PencilTools } from './view/pencilTools';
+import { EStrokeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
+import { ApplianceNames } from 'white-web-sdk';
+import '@hqer/bezier-pencil-plugin/dist/style.css'
+
 export const AppContext = createContext<{
   toolsKey:EToolsKey;
   setToolsKey:(key:EToolsKey)=>void;

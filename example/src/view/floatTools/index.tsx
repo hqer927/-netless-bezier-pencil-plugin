@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { FloatButton } from 'antd';
 import { AppContext } from "../../App";
-import { EToolsKey } from '../../core/enum';
+import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core/enum';
 import { ArrowIcon, ClickerIcon, ErasersIcon, HandIcon, LaserPenIcon } from '../../assets/svg';
 import { PencilTools } from '../pencilTools';
 export const FloatTools = () => {

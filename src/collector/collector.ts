@@ -10,7 +10,6 @@ import { BezierPencilPluginAttributes } from "../plugin/types";
 import { BezierPencilPlugin } from "../plugin";
 import isEqual from "lodash/isEqual";
 import cloneDeep from "lodash/cloneDeep";
-import { IworkId } from "../core/types";
 /**
  * 服务端事件/状态同步收集器
  */

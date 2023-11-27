@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 3000",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
+    "@hqer/bezier-pencil-plugin": "0.0.1",
     "antd": "^5.11.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
