@@ -1,0 +1,31 @@
+{
+  "name": "@netless/bezier-pencil-plugin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "types": "cross-env NODE_ENV=production tsc --declaration --emitDeclarationOnly --jsx react --esModuleInterop --outDir dist",
+    "build": "tsc && vite build && npm run types",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.202",
+    "@types/react": "^18.2.38",
+    "cross-env": "^7.0.3",
+    "less": "^4.2.0",
+    "react": "^18.2.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  },
+  "peerDependencies": {
+    "white-web-sdk": ">= 2.16"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "lz-string": "^1.5.0",
+    "spritejs": "^3.8.3",
+    "value-enhancer": "^3.1.4",
+    "white-web-sdk": "^2.16.47"
+  }
+}
