@@ -10,6 +10,7 @@ import { BezierPencilPluginAttributes } from "../plugin/types";
 import { BezierPencilPlugin } from "../plugin";
 import isEqual from "lodash/isEqual";
 import cloneDeep from "lodash/cloneDeep";
+import { IworkId } from "../core/types";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -101,42 +102,60 @@ export class Collector extends BaseCollector {
                 break;
             case EPostMessageType.UpdateScene:
                 if(w && h){
-                    const state = { 
-                        scene: {
-                            uid:this.uid,
-                            w,
-                            h,
-                        }
-                    };
-                    this.setState(state);
+                    // const state = { 
+                    //     scene: {
+                    //         uid:this.uid,
+                    //         w,
+                    //         h,
+                    //     }
+                    // };
+                    // this.setState(state);
+                    this.updateValue('scene',{
+                        uid:this.uid,
+                        w,
+                        h,
+                    }); 
                 }
                 break;
             case EPostMessageType.CreateWork:
                 if (workId && toolstype && opt) {
                     const key =  this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const work:ISerializableStorageData = {}
-                    work[key] = {
+                    // const work:ISerializableStorageData = {}
+                    // work[key] = {
+                    //     type: EPostMessageType.CreateWork,
+                    //     workId,
+                    //     toolstype,
+                    //     opt
+                    // };
+                    // this.setState(work); 
+                    this.updateValue(key.toString(),{
                         type: EPostMessageType.CreateWork,
                         workId,
                         toolstype,
                         opt
-                    };
-                    this.setState(work);                  
+                    });                 
                 }
                 break;    
             case EPostMessageType.UpdateWork:
                 if (workId && toolstype && opt) {
                     const key =  this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
-                    const work:ISerializableStorageData = {}
-                    work[key] = {
+                    // const work:ISerializableStorageData = {}
+                    // work[key] = {
+                    //     ...old,
+                    //     type: EPostMessageType.UpdateWork,
+                    //     workId,
+                    //     toolstype,
+                    //     opt
+                    // };
+                    // this.setState(work);
+                    this.updateValue(key.toString(),{
                         ...old,
                         type: EPostMessageType.UpdateWork,
                         workId,
                         toolstype,
                         opt
-                    };
-                    this.setState(work);                  
+                    });               
                 }
                 break;
             case EPostMessageType.DrawWork:
@@ -146,14 +165,20 @@ export class Collector extends BaseCollector {
                     // console.log('DrawWork', (old?.op || []), index * 3, op, (old?.op || []).slice(0,index * 3).concat(op))
                     const _op = (old?.op || []).slice(0, index).concat(op);
                     if (old && _op) {
-                        const state:ISerializableStorageData = {}
-                        state[key] = {
-                            ...old,
+                        // const state:ISerializableStorageData = {}
+                        // state[key] = {
+                        //     ...old,
+                        //     type: EPostMessageType.DrawWork,
+                        //     op: _op,
+                        //     index
+                        // };
+                        // this.setState(state);
+                        this.updateValue(key.toString(),{
+                           ...old,
                             type: EPostMessageType.DrawWork,
                             op: _op,
                             index
-                        };
-                        this.setState(state);                          
+                        });                         
                     }
                 }
                 break;
@@ -164,21 +189,28 @@ export class Collector extends BaseCollector {
                     const _toolstype = toolstype || old?.toolstype;
                     const _opt = opt || old?.opt;
                     if (old && _toolstype && _opt  && ops) {
-                        const state:ISerializableStorageData = {}
-                        state[key] = {
+                        // const state:ISerializableStorageData = {}
+                        // state[key] = {
+                        //     type: EPostMessageType.FullWork,
+                        //     workId: key,
+                        //     toolstype: _toolstype,
+                        //     opt: _opt,
+                        //     ops
+                        // }; 
+                        // this.setState(state); 
+                        this.updateValue(key.toString(),{
                             type: EPostMessageType.FullWork,
                             workId: key,
                             toolstype: _toolstype,
                             opt: _opt,
                             ops
-                        }; 
-                        this.setState(state);                           
+                        });                       
                     }
                 }
                 break;
             case EPostMessageType.RemoveNode:
                 if (removeIds?.length) {
-                    const state1: ISerializableStorageData = {};
+                    // const state1: ISerializableStorageData = {};
                     const _removeIds = removeIds.map(id => {
                         if (this.isLocalId(id + '')) {
                             return this.transformKey(id);
@@ -187,10 +219,12 @@ export class Collector extends BaseCollector {
                     })
                     Object.keys(this.storage).filter(f=>f !== 'scene').map(key => {
                         if (_removeIds?.includes(key)) {
-                            state1[key] = undefined;
+                            // state1[key] = undefined;
+                            this.updateValue(key,undefined);
                         }
                     })
-                    this.setState(state1);
+                    // this.setState(state1);
+                    
                 }
                 break
             case EPostMessageType.UpdateNode:
@@ -198,10 +232,11 @@ export class Collector extends BaseCollector {
                     const old = this.storage[workId];
                     if (old) {
                         old.updateNodeOpt = updateNodeOpt;
-                        const work:ISerializableStorageData = {
-                            [workId]: old
-                        };
-                        this.setState(work);
+                        // const work:ISerializableStorageData = {
+                        //     [workId]: old
+                        // };
+                        // this.setState(work);
+                        this.updateValue(workId.toString(),old);
                     }
                 }
                 break;
@@ -223,7 +258,11 @@ export class Collector extends BaseCollector {
         const attr:BezierPencilPluginAttributes = {};
         attr[this.namespace] = this.storage;
         this.plugin.setAttributes(attr);
-      }
+    }
+    private updateValue(key:string, value:BaseCollectorReducerAction|undefined){
+        this.storage[key] = value;
+        this.plugin.updateAttributes([this.namespace,key],value);
+    }
     transformToSerializableData(data: IStorageValueItem): string {
         return transformToSerializableData(data);
     }
