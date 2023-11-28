@@ -2,7 +2,7 @@
 import { WhiteWebSdk, DeviceType} from "white-web-sdk";
 import { BezierPencilPlugin } from "@hqer/bezier-pencil-plugin";
 import { BezierPencilDisplayer } from "@hqer/bezier-pencil-plugin";
-import { ECanvasContextType } from "@hqer/bezier-pencil-plugin/src/core/enum";
+import { ECanvasContextType } from "@hqer/bezier-pencil-plugin";
 
 export async function createWhiteWebSdk(elm:HTMLDivElement) {
     const uuid = 'c28edec08d0511ee90cba7667d54b7f2';
