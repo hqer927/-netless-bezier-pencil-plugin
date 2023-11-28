@@ -46,8 +46,8 @@ export class PencilShape extends BaseShapeTool {
         dataType: EDataType.Local
       }
     }
-    setWorkOptions(setWorkOptions: PencilOptions) {
-        this.workOptions = setWorkOptions;
+    setWorkOptions(workOptions: PencilOptions) {
+        super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
     consume(data: IWorkerMessage, isFullWork?:boolean): IMainMessage{

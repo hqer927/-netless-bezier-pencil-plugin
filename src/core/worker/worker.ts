@@ -7,7 +7,6 @@ import { computRect } from "../utils";
 import { SubServiceWorkForWorker } from "./service";
 import { Scene, Layer } from "spritejs";
 
-
 export class WorkThreadEngineByWorker extends WorkThreadEngine {
     static _self: Worker = self as unknown as Worker;
     // private lockId?: number;
@@ -83,7 +82,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                     if (!this.localWork.getTmpWorkShapeNode() && toolsType) {
                         this.setToolsOpt({
                             toolsType,
-                            toolsOpt: opt
+                            toolsOpt: opt,
                         })
                     }
                     this.setWorkOpt({

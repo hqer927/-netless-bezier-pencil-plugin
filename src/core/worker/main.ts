@@ -431,8 +431,8 @@ export class MainEngineForWorker extends MainEngine {
                 msgType,
                 workId,
                 toolsType: this.currentToolsData.toolsType,
-                opt: this.currentToolsData.toolsOpt,
-                dataType: EDataType.Local
+                opt: {...this.currentToolsData.toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime},
+                dataType: EDataType.Local,
             })
             this.runAnimation();
         }
@@ -443,7 +443,7 @@ export class MainEngineForWorker extends MainEngine {
             msgType: EPostMessageType.UpdateTools,
             dataType: EDataType.Local,
             toolsType: currentToolsData.toolsType,
-            opt: currentToolsData.toolsOpt,
+            opt: {...currentToolsData.toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime },
         })
         if (currentToolsData?.toolsType === EToolsKey.Eraser) {
             this.isRunSubWork = false;

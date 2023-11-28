@@ -8,6 +8,7 @@ export interface BaseShapeOptions {
     opacity?: number;
     vertex?: string;
     fragment?: string;
+    syncUnitTime?: number;
 }
 
 export interface CombineConsumeResult {
@@ -38,8 +39,10 @@ export abstract class BaseShapeTool {
     public getWorkOptions(){
         return this.workOptions;
     }
-    // abstract pushOriginPoints(data:IWorkerMessage):void;
-    abstract setWorkOptions(workOptions: BaseShapeOptions):void;
+    setWorkOptions(workOptions: BaseShapeOptions) {
+        this.workOptions = workOptions;
+        this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
+    }
     abstract consume(data: IWorkerMessage, isFullWork?:boolean): IMainMessage;
     abstract consumeAll(data?: IWorkerMessage): IMainMessage;
     abstract consumeService(data: number[], isFullWork?:boolean): IRectType | undefined;

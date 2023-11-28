@@ -27,7 +27,7 @@ export class EraserShape extends BaseShapeTool{
       return undefined;
     }
     public setWorkOptions(setWorkOptions: EraserOptions) {
-        this.workOptions = setWorkOptions as EraserOptions;
+        super.setWorkOptions(setWorkOptions);
         this.syncTimestamp = Date.now();
     }
     public consume(data: IWorkerMessage): IMainMessage {
