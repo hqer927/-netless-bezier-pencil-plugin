@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
-    "@hqer/bezier-pencil-plugin": "0.0.1",
+    "@hqer/bezier-pencil-plugin": "0.0.2",
     "antd": "^5.11.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
