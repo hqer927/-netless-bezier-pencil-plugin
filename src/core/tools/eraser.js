@@ -44,7 +44,7 @@ export class EraserShape extends BaseShapeTool {
         return undefined;
     }
     setWorkOptions(setWorkOptions) {
-        this.workOptions = setWorkOptions;
+        super.setWorkOptions(setWorkOptions);
         this.syncTimestamp = Date.now();
     }
     consume(data) {

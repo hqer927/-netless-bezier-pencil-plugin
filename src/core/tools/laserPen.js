@@ -45,8 +45,8 @@ export class LaserPenShape extends BaseShapeTool {
         this.syncTimestamp = 0;
     }
     combineConsume() { }
-    setWorkOptions(setWorkOptions) {
-        this.workOptions = setWorkOptions;
+    setWorkOptions(workOptions) {
+        super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
     consume(data, isUnDraw) {

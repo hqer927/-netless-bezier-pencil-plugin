@@ -17,7 +17,7 @@ export declare class LaserPenShape extends BaseShapeTool {
     protected workOptions: LaserPenOptions;
     constructor(workOptions: LaserPenOptions, fullLayer: Layer);
     combineConsume(): undefined;
-    setWorkOptions(setWorkOptions: LaserPenOptions): void;
+    setWorkOptions(workOptions: LaserPenOptions): void;
     consume(data: IWorkerMessage, isUnDraw: boolean): IMainMessage;
     consumeAll(): IMainMessage;
     clearTmpPoints(): void;

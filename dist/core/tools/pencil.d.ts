@@ -19,7 +19,7 @@ export declare class PencilShape extends BaseShapeTool {
     protected workOptions: PencilOptions;
     constructor(workOptions: PencilOptions, fullLayer: Layer, drawlayer?: Layer);
     combineConsume(): IMainMessage | undefined;
-    setWorkOptions(setWorkOptions: PencilOptions): void;
+    setWorkOptions(workOptions: PencilOptions): void;
     consume(data: IWorkerMessage, isFullWork?: boolean): IMainMessage;
     consumeAll(data?: IWorkerMessage): IMainMessage;
     clearTmpPoints(): void;

@@ -75,8 +75,8 @@ export class PencilShape extends BaseShapeTool {
             dataType: EDataType.Local
         };
     }
-    setWorkOptions(setWorkOptions) {
-        this.workOptions = setWorkOptions;
+    setWorkOptions(workOptions) {
+        super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
     consume(data, isFullWork) {

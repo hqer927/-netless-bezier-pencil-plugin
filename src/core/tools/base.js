@@ -36,4 +36,8 @@ export class BaseShapeTool {
     getWorkOptions() {
         return this.workOptions;
     }
+    setWorkOptions(workOptions) {
+        this.workOptions = workOptions;
+        this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
+    }
 }

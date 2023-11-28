@@ -7,6 +7,7 @@ export interface BaseShapeOptions {
     opacity?: number;
     vertex?: string;
     fragment?: string;
+    syncUnitTime?: number;
 }
 export interface CombineConsumeResult {
     type: EPostMessageType;
@@ -26,7 +27,7 @@ export declare abstract class BaseShapeTool {
     setWorkId(id: number | string | undefined): void;
     getWorkId(): string | number | undefined;
     getWorkOptions(): BaseShapeOptions;
-    abstract setWorkOptions(workOptions: BaseShapeOptions): void;
+    setWorkOptions(workOptions: BaseShapeOptions): void;
     abstract consume(data: IWorkerMessage, isFullWork?: boolean): IMainMessage;
     abstract consumeAll(data?: IWorkerMessage): IMainMessage;
     abstract consumeService(data: number[], isFullWork?: boolean): IRectType | undefined;

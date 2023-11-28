@@ -107,7 +107,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                     if (!this.localWork.getTmpWorkShapeNode() && toolsType) {
                         this.setToolsOpt({
                             toolsType,
-                            toolsOpt: opt
+                            toolsOpt: opt,
                         });
                     }
                     this.setWorkOpt({
