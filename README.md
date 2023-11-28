@@ -1,5 +1,7 @@
  # bezier-pencil-plugin 
  
+[中文文档](https://github.com/hqer927/-netless-bezier-pencil-plugin/blob/main/READMA.zh-CN.md)
+
 The plug-in is attached to the plug-in mechanism of white-web-sdk, and encapsulates Bessel pencil drawing as a whiteboard custom invisible plug-in type. All status synchronization is synchronized by the attributes of the plug-in to realize status synchronization between users. 
  
 In the example folder, the plug-in is imported as a dependency. You can use the access method in the example folder to access the whiteboard. 

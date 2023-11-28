@@ -10,8 +10,8 @@ example 文件夹下是将该插件作为依赖引入，用户可以参考该文
 
 ## 原理
 
-1、该插件主要是基于SpriteJS的Path类实现,通过Path类实现了绘制贝塞尔曲线的功能,同时通过transition实现了激光笔的过渡动画.
-2、该插件通过双worker+offscreenCanvas机制,把绘制计算+渲染逻辑都放在独立的worker线程中处理.做到了高性能优化.
+1. 该插件主要是基于SpriteJS的Path类实现,通过Path类实现了绘制贝塞尔曲线的功能,同时通过transition实现了激光笔的过渡动画.
+2. 该插件通过双worker+offscreenCanvas机制,把绘制计算+渲染逻辑都放在独立的worker线程中处理.做到了高性能优化.
 
 ## 插件用法
 
