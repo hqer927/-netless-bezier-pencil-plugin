@@ -20290,7 +20290,8 @@ class fW extends bb {
     c[this.namespace] = this.storage, this.plugin.setAttributes(c);
   }
   updateValue(l, i) {
-    this.storage[l] = i, this.plugin.updateAttributes([this.namespace, l], i);
+    const c = Object.keys(this.storage).length;
+    this.storage[l] = i, c ? this.plugin.updateAttributes([this.namespace, l], i) : this.setState(this.storage);
   }
   transformToSerializableData(l) {
     return Q0(l);

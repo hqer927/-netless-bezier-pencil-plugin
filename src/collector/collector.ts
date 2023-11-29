@@ -259,8 +259,13 @@ export class Collector extends BaseCollector {
         this.plugin.setAttributes(attr);
     }
     private updateValue(key:string, value:BaseCollectorReducerAction|undefined){
+        const length = Object.keys(this.storage).length;
         this.storage[key] = value;
-        this.plugin.updateAttributes([this.namespace,key],value);
+        if (!length) {
+            this.setState(this.storage);
+        } else {
+            this.plugin.updateAttributes([this.namespace,key],value);
+        }
     }
     transformToSerializableData(data: IStorageValueItem): string {
         return transformToSerializableData(data);
