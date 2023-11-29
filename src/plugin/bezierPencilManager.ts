@@ -2,7 +2,6 @@ import { BezierPencilPlugin, BezierPencilPluginOptions } from "./bezierPencilPlu
 import { BezierPencilDisplayer } from "./bezierPencilDisplayer";
 import { Collector } from "../collector";
 import { DisplayStateEnum, EStrokeType, MemberState } from "./types";
-import type {ValDisposer} from 'value-enhancer';
 import { Room, isRoom, CameraState, toJS, SceneState, ApplianceNames } from "white-web-sdk";
 import { EDataType, EToolsKey } from "../core/enum";
 import { BaseShapeOptions, EraserOptions, PencilOptions } from "../core/tools";
@@ -17,7 +16,6 @@ export class BezierPencilManager {
     private collector?: Collector;
     private worker?: MainEngineForWorker;
     private room?:Room;
-    private disposeDisplayerSubscribe: ValDisposer = ()=>{}; 
     
     constructor(plugin: BezierPencilPlugin, options?: BezierPencilPluginOptions) {
         this.plugin = plugin;
@@ -25,21 +23,21 @@ export class BezierPencilManager {
         this.pluginOptions = options;
     }
     public init() {
-        this.disposeDisplayerSubscribe = BezierPencilDisplayer.displayState$.subscribe(displayState => {
-            // console.log(`subscribe: ${displayState}`);
-            if (displayState === DisplayStateEnum.mounted) {
-                this.onMountDisplayer();
-            }
-            if (displayState === DisplayStateEnum.unmounted) {
-                this.onUnMountDisplayer();
-            }
-        });
+        BezierPencilDisplayer.InternalMsgEmitter.on('displayState', this.displayStateListener);
     }
     public cleanCurrentScene() {
         this.worker?.clearAll();
     }
     public destroy() {
-        this.disposeDisplayerSubscribe();
+        BezierPencilDisplayer.InternalMsgEmitter.off('displayState',this.displayStateListener);
+    }
+    private displayStateListener(value: DisplayStateEnum) {
+        if (value === DisplayStateEnum.mounted) {
+            this.onMountDisplayer();
+        }
+        if (value === DisplayStateEnum.unmounted) {
+            this.onUnMountDisplayer();
+        }
     }
     public onCameraChange(cameraState: CameraState){
         this.worker?.setCameraOpt(toJS(cameraState))
@@ -103,7 +101,7 @@ export class BezierPencilManager {
             bgCanvas.width = div.offsetWidth;
             bgCanvas.height = div.offsetHeight;
             this.collector = new Collector(this.plugin);
-            this.worker = new MainEngineForWorker(bgCanvas, floatCanvas, this.collector, this.pluginOptions);
+            this.worker = new MainEngineForWorker(bgCanvas, floatCanvas, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
             this.collector.addStorageStateListener((key,diffOne)=>{
                 // console.log('STATE',key,diffOne)
                 if (key === 'screen' && diffOne.newValue) {

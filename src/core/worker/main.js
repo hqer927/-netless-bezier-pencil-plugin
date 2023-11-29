@@ -3,8 +3,14 @@ import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, ETool
 import Worker from './worker.ts?worker&inline';
 import SubWorker from './workerSub.ts?worker&inline';
 export class MainEngineForWorker extends MainEngine {
-    constructor(bgCanvas, floatCanvas, collector, options) {
+    constructor(bgCanvas, floatCanvas, collector, options, InternalMsgEmitter) {
         super(bgCanvas, floatCanvas, collector);
+        Object.defineProperty(this, "InternalMsgEmitter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "threadEngine", {
             enumerable: true,
             configurable: true,
@@ -133,6 +139,7 @@ export class MainEngineForWorker extends MainEngine {
         this.createThreadEngine();
         this.on();
         this.createOptimizationWorker();
+        this.InternalMsgEmitter = InternalMsgEmitter;
     }
     createOptimizationWorker() {
         this.subWorker = new SubWorker();

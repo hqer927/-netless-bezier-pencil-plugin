@@ -21,9 +21,13 @@ export default function App() {
   useEffect(()=>{
     if (window.room) {
       switch (toolsKey) {
-        case EToolsKey.Pencil:
+          case EToolsKey.Pencil:
             // window.room.disableDeviceInputs = true;
           window.room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: false, strokeType: EStrokeType.Stroke});
+          break;
+          case EToolsKey.Selector:
+            // window.room.disableDeviceInputs = true;
+            window.room.setMemberState({currentApplianceName: ApplianceNames.selector});
           break;
           case EToolsKey.Eraser:
             // window.room.disableDeviceInputs = true;

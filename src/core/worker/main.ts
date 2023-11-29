@@ -6,8 +6,10 @@ import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, ETool
 import Worker from './worker.ts?worker&inline';
 import SubWorker from './workerSub.ts?worker&inline';
 import { BezierPencilPluginOptions } from "../../plugin";
+import EventEmitter2 from "eventemitter2";
 
 export class MainEngineForWorker extends MainEngine {
+    private InternalMsgEmitter?: EventEmitter2;
     protected threadEngine?: WorkThreadEngine;
     private pluginOptions?: BezierPencilPluginOptions;
     static defaultScreenCanvasOpt = {
@@ -37,7 +39,7 @@ export class MainEngineForWorker extends MainEngine {
     // private isUseSubWorker: boolean = false;
     private wokerDrawCount: number = 0;
     private reRenders: Array<IMainMessageRenderData> = [];
-    constructor(bgCanvas: HTMLCanvasElement, floatCanvas: HTMLCanvasElement, collector: BaseCollector, options?: BezierPencilPluginOptions){
+    constructor(bgCanvas: HTMLCanvasElement, floatCanvas: HTMLCanvasElement, collector: BaseCollector, options?: BezierPencilPluginOptions, InternalMsgEmitter?: EventEmitter2){
         super(bgCanvas, floatCanvas, collector);
         this.pluginOptions = options;
         MainEngineForWorker.maxLastSyncTime = options?.syncOpt?.interval || MainEngineForWorker.maxLastSyncTime;
@@ -58,6 +60,7 @@ export class MainEngineForWorker extends MainEngine {
         this.createThreadEngine();
         this.on();
         this.createOptimizationWorker();
+        this.InternalMsgEmitter = InternalMsgEmitter;
     }
     private createOptimizationWorker () {
         this.subWorker = new SubWorker();

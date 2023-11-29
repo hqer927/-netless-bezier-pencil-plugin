@@ -43,3 +43,34 @@ export type CanvasOpt = {
     /** 画布上下文类型 */
     contextType: ECanvasContextType,
 }
+
+export enum EInternalEventType {
+    /** 显示悬浮栏 */
+    ShowFloatBar = 'ShowFloatBar',
+    /** 隐藏悬浮栏 */
+    HidFloatBar = 'HidFloatBar',
+    /** 显示悬浮栏按钮组 */
+    ShowFloatBtns = 'ShowFloatBtns',
+    /** 显示悬浮栏按钮组 */
+    HidFloatBtns = 'HidFloatBtns',
+    /** 删除节点 */
+    DeleteNode = 'DeleteNode',
+    /** 复制节点 */
+    CopyNode = 'CopyNode',
+    /** 设置节点层级 */
+    ZIndexNode = 'ZIndexNode',
+    /** 旋转节点 */
+    RotateNode = 'RotateNode',
+    /** 设置节点颜色 */
+    SetColorNode = 'SetColorNode',
+    /** 移动节点 */
+    TranslateNode = 'TranslateNode',
+    /** 拉伸节点 */
+    ScaleNode = 'ScaleNode',
+}
+
+export type InternalEventValue = {
+    id: string;
+    value?: boolean | number[]
+}
+

@@ -38,12 +38,6 @@ export class BezierPencilManager {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "disposeDisplayerSubscribe", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: () => { }
-        });
         Object.defineProperty(this, "resizeChange", {
             enumerable: true,
             configurable: true,
@@ -131,21 +125,21 @@ export class BezierPencilManager {
         this.pluginOptions = options;
     }
     init() {
-        this.disposeDisplayerSubscribe = BezierPencilDisplayer.displayState$.subscribe(displayState => {
-            // console.log(`subscribe: ${displayState}`);
-            if (displayState === DisplayStateEnum.mounted) {
-                this.onMountDisplayer();
-            }
-            if (displayState === DisplayStateEnum.unmounted) {
-                this.onUnMountDisplayer();
-            }
-        });
+        BezierPencilDisplayer.InternalMsgEmitter.on('displayState', this.displayStateListener);
     }
     cleanCurrentScene() {
         this.worker?.clearAll();
     }
     destroy() {
-        this.disposeDisplayerSubscribe();
+        BezierPencilDisplayer.InternalMsgEmitter.off('displayState', this.displayStateListener);
+    }
+    displayStateListener(value) {
+        if (value === DisplayStateEnum.mounted) {
+            this.onMountDisplayer();
+        }
+        if (value === DisplayStateEnum.unmounted) {
+            this.onUnMountDisplayer();
+        }
     }
     onCameraChange(cameraState) {
         this.worker?.setCameraOpt(toJS(cameraState));
@@ -213,7 +207,7 @@ export class BezierPencilManager {
             bgCanvas.width = div.offsetWidth;
             bgCanvas.height = div.offsetHeight;
             this.collector = new Collector(this.plugin);
-            this.worker = new MainEngineForWorker(bgCanvas, floatCanvas, this.collector, this.pluginOptions);
+            this.worker = new MainEngineForWorker(bgCanvas, floatCanvas, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
             this.collector.addStorageStateListener((key, diffOne) => {
                 // console.log('STATE',key,diffOne)
                 if (key === 'screen' && diffOne.newValue) {
