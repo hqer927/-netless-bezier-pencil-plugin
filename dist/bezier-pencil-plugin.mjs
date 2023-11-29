@@ -20155,7 +20155,7 @@ class fW extends bb {
   }
   addStorageStateListener(l) {
     this.stateDisposer = M0(async () => {
-      const i = gd(this.plugin.attributes[this.namespace]), c = this.diffFun(this.storage, i);
+      const i = gd(this.plugin.attributes[this.namespace]) || {}, c = this.diffFun(this.storage, i);
       this.storage = i;
       for (const m of Object.keys(c)) {
         const L = c[m];

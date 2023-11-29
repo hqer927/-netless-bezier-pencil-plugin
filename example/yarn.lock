@@ -424,10 +424,10 @@
   resolved "https://registry.npmmirror.com/@eslint/js/-/js-8.54.0.tgz#4fab9a2ff7860082c304f750e94acd644cf984cf"
   integrity sha512-ut5V+D+fOoWPgGGNj83GGjnntO39xDy6DWxO0wb7Jp3DcMX0TfIqdzHF85VTQkerdyGmuuMD9AKAo5KiNlf/AQ==
 
-"@hqer/bezier-pencil-plugin@0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.2.tgz#40caf2dbc70aabf09d55752cd2785b74979be813"
-  integrity sha512-uIWuONxDvARytq+5ijyYfLDk7ox3bDzxmG/ylH3Yo5+ISnDdz6ugpHcuda50VaIvbhY42s8xdEsnQhBS8mz+Ng==
+"@hqer/bezier-pencil-plugin@0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.4.tgz#45e8141fef8c666ded3faf727d4ff58f6630500b"
+  integrity sha512-2lHKbAr4ryuczRBihgJ7/pzvaIo3qzE8YmZNTw4xPdEGk5+s2yuMPxJSX5vnj8/DpIc6iBWyLDjeUrGWlSDf5g==
   dependencies:
     lodash "^4.17.21"
     lz-string "^1.5.0"

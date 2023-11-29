@@ -50,7 +50,7 @@ export class Collector extends BaseCollector {
     }
     addStorageStateListener(callBack) {
         this.stateDisposer = autorun(async () => {
-            const storage = toJS(this.plugin.attributes[this.namespace]);
+            const storage = toJS(this.plugin.attributes[this.namespace]) || {};
             const diff = this.diffFun(this.storage, storage);
             this.storage = storage;
             // console.log('storage1', diff);

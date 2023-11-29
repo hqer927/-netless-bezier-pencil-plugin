@@ -29,7 +29,7 @@ export class Collector extends BaseCollector {
     }
     public addStorageStateListener(callBack:(key:string, value:DiffOne<BaseCollectorReducerAction | undefined>)=>void){
         this.stateDisposer = autorun(async () => {
-            const storage = toJS(this.plugin.attributes[this.namespace]);
+            const storage = toJS(this.plugin.attributes[this.namespace]) || {};
             const diff = this.diffFun(this.storage, storage);
             this.storage = storage;
             // console.log('storage1', diff);
