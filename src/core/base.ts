@@ -208,7 +208,10 @@ export abstract class SubLocalWork {
             if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
                 this.blurSelector();
             }
-            this.clearAllWorkShapesCache();
+            if (this.tmpOpt?.toolsType) {
+                // console.log('firsthis.tmpOpt?.toolsTypet', this.tmpOpt?.toolsType, opt.toolsType)
+                this.clearAllWorkShapesCache();
+            }
             if (opt.toolsType === EToolsKey.Selector) {
                 canEffect = true
             }

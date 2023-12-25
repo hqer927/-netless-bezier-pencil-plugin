@@ -111,7 +111,8 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
         BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
         const div = BezierPencilDisplayer.instance?.containerRef;
         if (div) {
-            this.removeDisplayerEvent(div);
+            const eventTraget = div.parentNode?.children[0] as HTMLDivElement;
+            this.removeDisplayerEvent(eventTraget);
         }
     }
     private getRatioWithContext(context: CanvasRenderingContext2D): number {
@@ -140,10 +141,10 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
                 bgCanvas.width = width * dpr;
                 bgCanvas.height = height * dpr;
                 BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], div.offsetWidth, div.offsetHeight, dpr);
-                const eventTraget = document.getElementsByClassName('netless-whiteboard') as unknown as HTMLDivElement[];
-                if (eventTraget && eventTraget[0]) {
-                    this.containerOffset = this.getContainerOffset(eventTraget[0],this.containerOffset);
-                    this.bindDisplayerEvent(eventTraget[0]);
+                const eventTraget = div.parentNode?.children[0] as HTMLDivElement;
+                if (eventTraget) {
+                    this.containerOffset = this.getContainerOffset(div,this.containerOffset);
+                    this.bindDisplayerEvent(eventTraget);
                 }
                 this.setState({dpr});
             }
@@ -192,12 +193,12 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
     }
     private removeDisplayerEvent(div:HTMLDivElement) {
         div.removeEventListener('mousedown',this.mousedown);
-        div.removeEventListener('mousemove',this.mousemove);
-        div.removeEventListener('mouseup',this.mouseup);
-        div.removeEventListener('mouseleave',this.mouseup);
+        window.removeEventListener('mousemove',this.mousemove);
+        window.removeEventListener('mouseup',this.mouseup);
+        window.removeEventListener('mouseleave',this.mouseup);
         div.removeEventListener('touchstart',this.touchstart);
-        div.removeEventListener('touchmove',this.touchmove);
-        div.removeEventListener('touchend',this.touchend);
+        window.removeEventListener('touchmove',this.touchmove);
+        window.removeEventListener('touchend',this.touchend);
     }
     private setPosition = (point:{x:number,y:number}) => {
         this.setState({position:point});
@@ -219,16 +220,16 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
             <React.Fragment>
                 {this.props.children}
                 <div id="bezier-pencil-plugin" className={styles['Container']} 
+                    ref={(ref) => this.containerRef = ref}
                     onMouseDown={(e)=>{
                         e.preventDefault();
                         e.stopPropagation();
                     }}
                     onTouchStart={(e)=>{
-                        e.preventDefault();
                         e.stopPropagation();
                     }}
                 >
-                    <div className={styles['CanvasBox']} ref={(ref) => this.containerRef = ref}>
+                    <div className={styles['CanvasBox']}>
                         <canvas id="bezier-pencil-float-canvas" className={styles['FloatCanvas']} ref={(ref) => this.canvasFloatRef = ref}/>
                         <canvas id="bezier-pencil-bg-canvas" ref={(ref) => this.canvasBgRef = ref}/>
                     </div>

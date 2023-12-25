@@ -7,10 +7,11 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 const SubBtn = (props: {
     icon:string;
     onClickHandler:(e: any)=>void;
+    onTouchEndHandler:(e: any)=>void;
 }) => {
-    const { icon, onClickHandler } = props;
+    const { icon, onClickHandler, onTouchEndHandler } = props;
     return (
-        <div className="button normal-button" onClick={onClickHandler} onTouchEnd={onClickHandler}>
+        <div className="button normal-button" onClick={onClickHandler} onTouchEnd={onTouchEndHandler}>
             <img src={IconURL(icon)}/>
         </div>
     )
@@ -22,28 +23,47 @@ export const Layer = () => {
         if (showSubBtn) {
             return (
                 <div className="image-layer-menu">
-                    <SubBtn icon={'to-top'} onClickHandler={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode], ['selector'], +11 )
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
-                            EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
-                    }}/>
-                    <SubBtn icon={'to-bottom'} onClickHandler={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode], ['selector'], -11 )
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
-                            EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
-                    }}/>
+                    <SubBtn icon={'to-top'} 
+                        onClickHandler={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
+                        }}
+                        onTouchEndHandler={(e) => {
+                            e.stopPropagation();
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
+                        }}
+                    />
+                    <SubBtn icon={'to-bottom'} 
+                        onClickHandler={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
+                        }}
+                        onTouchEndHandler={(e) => {
+                            e.stopPropagation();
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
+                        }}
+                    />
                 </div>
             )
         }
         return null
     }, [InternalMsgEmitter, showSubBtn])
     const onClickHandler = (e:any) => {
-        //console.log('Layer-onClick', e)
         e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+        const isActive = !showSubBtn;
+        setShowSubBtn(!showSubBtn)
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            EmitEventType.ZIndexActive, {workId:'selector', isActive})
+    }
+    const onTouchEndHandler = (e:any) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
@@ -63,7 +83,7 @@ export const Layer = () => {
     return (
         <div className={`button normal-button ${showSubBtn && 'active'}`}
             onClick={onClickHandler}
-            onTouchEnd={onClickHandler}
+            onTouchEnd={onTouchEndHandler}
         >
             {SubBtns}
             <img alt="icon" src={IconURL(showSubBtn ? 'layer-pressed': 'layer')}/>

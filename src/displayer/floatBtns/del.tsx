@@ -11,7 +11,11 @@ export const Del = () => {
             onClick={(e)=>{
                 e.preventDefault();
                 e.stopPropagation();
-                // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode], ['selector']);
+                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                    EmitEventType.DeleteNode, {workIds: ['selector']})
+            }}
+	    onTouchEnd={(e)=>{
+                e.stopPropagation();
                 InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
                     EmitEventType.DeleteNode, {workIds: ['selector']})
             }}

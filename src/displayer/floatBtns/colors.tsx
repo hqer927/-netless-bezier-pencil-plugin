@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useContext, useEffect, useMemo, useState } from "react";
+import React, { MouseEventHandler, TouchEventHandler, useContext, useEffect, useMemo, useState } from "react";
 import { IconURL } from "../icons"
 import { DisplayerContext } from "../../plugin";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
@@ -13,11 +13,12 @@ const ColorBtn = (props: {
     opacity: number;
     activeColor?: string;
     onClickHandler: MouseEventHandler<HTMLDivElement>;
+    onTouchEndHandler: TouchEventHandler<HTMLDivElement>;
 }) => {
-    const { color, opacity, activeColor, onClickHandler } = props;
+    const { color, opacity, activeColor, onClickHandler, onTouchEndHandler } = props;
     return (
         <div className={`font-color-button ${color === activeColor ? 'active' : ''}`} 
-            onClick={onClickHandler}>
+            onClick={onClickHandler} onTouchEnd={onTouchEndHandler}>
             <div className="circle" style={{backgroundColor: activeColor && hexToRgba(color, opacity)}} ></div>
         </div>
     )
@@ -100,8 +101,7 @@ export const Colors = () => {
         if (showSubBtn) {
             return (
                 <div className="font-colors-menu" 
-                    onTouchStart={(e)=>{
-                        e.preventDefault();
+                    onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -116,6 +116,12 @@ export const Colors = () => {
                             const curColor = rgbToHex(...c);
                             return (
                                 <ColorBtn key={index} color={curColor} opacity={opacity} activeColor={activeColor} 
+                                    onTouchEndHandler={(e) => {
+                                        e.stopPropagation();
+                                        setColor(curColor);
+                                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                            EmitEventType.SetColorNode, {workIds: ['selector'], color: curColor})
+                                    }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
@@ -143,8 +149,7 @@ export const Colors = () => {
     },[activeColor, opacity])
     return (
         <div className={`button normal-button font-colors-icon ${showSubBtn && 'active'}`}
-            onTouchStart={(e)=>{
-                e.preventDefault();
+            onTouchEnd={(e)=>{
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);

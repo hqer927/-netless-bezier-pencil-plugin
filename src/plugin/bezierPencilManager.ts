@@ -47,7 +47,7 @@ export class BezierPencilManager {
     }
     onCameraChange = debounce((cameraState: CameraState) => {
         this.worker?.setCameraOpt(toJS(cameraState))
-    }, 100, {'leading':false})
+    }, 50, {'leading':false})
     onSceneChange = throttle((sceneState: SceneState) => {
         this.collector?.setNamespace(sceneState.sceneName);
         this.worker?.clearAll(true);
@@ -155,7 +155,9 @@ export class BezierPencilManager {
                     }
                 }
             })
-            this.worker.initSyncData()
+            setTimeout(() => {
+                this.worker?.initSyncData()
+            }, 200);
         }
     }
     private onUnMountDisplayer(){
