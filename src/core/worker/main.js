@@ -1,10 +1,19 @@
 import { MainEngine } from "../base";
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import Worker from './worker.ts?worker&inline';
+import SWorker from './worker.ts?worker&inline';
 import SubWorker from './workerSub.ts?worker&inline';
+import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
+import cloneDeep from "lodash/cloneDeep";
+import { MethodBuilderMain } from "../msgEvent";
 export class MainEngineForWorker extends MainEngine {
-    constructor(bgCanvas, floatCanvas, collector, options, InternalMsgEmitter) {
-        super(bgCanvas, floatCanvas, collector);
+    constructor(displayer, collector, options, InternalMsgEmitter) {
+        super(displayer, collector);
+        Object.defineProperty(this, "dpr", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
         Object.defineProperty(this, "InternalMsgEmitter", {
             enumerable: true,
             configurable: true,
@@ -41,17 +50,18 @@ export class MainEngineForWorker extends MainEngine {
             writable: true,
             value: void 0
         });
+        // 坐标系原点
+        Object.defineProperty(this, "originalPoint", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: [0, 0]
+        });
         Object.defineProperty(this, "cameraOpt", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
-        });
-        Object.defineProperty(this, "translate", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: [0, 0]
         });
         Object.defineProperty(this, "localPointsBatchData", {
             enumerable: true,
@@ -63,7 +73,7 @@ export class MainEngineForWorker extends MainEngine {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: []
+            value: new Map()
         });
         Object.defineProperty(this, "currentToolsData", {
             enumerable: true,
@@ -89,12 +99,6 @@ export class MainEngineForWorker extends MainEngine {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "isRunSubWork", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: true
-        });
         Object.defineProperty(this, "subWorker", {
             enumerable: true,
             configurable: true,
@@ -107,7 +111,6 @@ export class MainEngineForWorker extends MainEngine {
             writable: true,
             value: 0
         });
-        // private isUseSubWorker: boolean = false;
         Object.defineProperty(this, "wokerDrawCount", {
             enumerable: true,
             configurable: true,
@@ -120,33 +123,128 @@ export class MainEngineForWorker extends MainEngine {
             writable: true,
             value: []
         });
-        this.pluginOptions = options;
-        MainEngineForWorker.maxLastSyncTime = options?.syncOpt?.interval || MainEngineForWorker.maxLastSyncTime;
-        this.msgEmitter = new Worker();
-        const screenCanvasOpt = {
-            ...MainEngineForWorker.defaultScreenCanvasOpt,
-            ...this.pluginOptions?.canvasOpt,
-            width: bgCanvas.offsetWidth,
-            height: bgCanvas.offsetHeight,
-        };
-        this.offscreenCanvasOpt = screenCanvasOpt;
-        this.layerOpt = MainEngineForWorker.defauleLayerOpt;
-        this.setLayerOpt(this.layerOpt);
-        this.setCurrentLocalWorkData({
-            workId: undefined,
-            workState: EvevtWorkState.Pending
+        Object.defineProperty(this, "bgCanvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
+        Object.defineProperty(this, "floatCanvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "maxLayerIndex", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "methodBuilder", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.bgCanvas = displayer.canvasBgRef;
+        this.floatCanvas = displayer.canvasFloatRef;
+        if (this.bgCanvas && this.floatCanvas) {
+            this.pluginOptions = options;
+            MainEngineForWorker.maxLastSyncTime = options?.syncOpt?.interval || MainEngineForWorker.maxLastSyncTime;
+            this.msgEmitter = new SWorker();
+            const screenCanvasOpt = {
+                ...MainEngineForWorker.defaultScreenCanvasOpt,
+                ...this.pluginOptions?.canvasOpt,
+                width: this.bgCanvas.offsetWidth,
+                height: this.bgCanvas.offsetHeight,
+            };
+            this.offscreenCanvasOpt = screenCanvasOpt;
+            this.layerOpt = MainEngineForWorker.defauleLayerOpt;
+            this.setLayerOpt(this.layerOpt);
+            this.setCurrentLocalWorkData({
+                workId: undefined,
+                workState: EvevtWorkState.Pending
+            });
+            this.InternalMsgEmitter = InternalMsgEmitter;
+            this.internalMsgEmitterListener();
+            this.on();
+        }
+    }
+    internalMsgEmitterListener() {
+        if (this.InternalMsgEmitter && this.collector) {
+            this.methodBuilder = new MethodBuilderMain([
+                EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
+                EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
+                EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode
+            ]).registerForMainEngine(this.InternalMsgEmitter, InternalMsgEmitterType.MainEngine, this, this.collector);
+        }
+        this.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
+        this.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
+        this.InternalMsgEmitter?.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
+    }
+    showFloatBar(show) {
+        if (show) {
+            window.addEventListener('beforeunload', this.removeSelectorFromStore.bind(this));
+        }
+        else {
+            window.removeEventListener('beforeunload', this.removeSelectorFromStore.bind(this));
+        }
+    }
+    removeSelectorFromStore() {
+        this.collector.dispatch({
+            type: EPostMessageType.Select,
+            selectIds: undefined
+        });
+    }
+    internalMsgEmitterRemoveListener() {
+        this.methodBuilder?.destroy();
+        this.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
+        this.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
+    }
+    createSceneLintener(width, height, dpr) {
+        this.offscreenCanvasOpt = {
+            ...this.offscreenCanvasOpt,
+            width,
+            height
+        };
+        this.dpr = dpr;
+        this.originalPoint = [width / 2, height / 2];
+        this.cameraOpt = {
+            centerX: 0,
+            centerY: 0,
+            scale: 1,
+            width: width,
+            height: height,
+        };
         this.createThreadEngine();
-        this.on();
         this.createOptimizationWorker();
-        this.InternalMsgEmitter = InternalMsgEmitter;
+    }
+    originalEventLintener(workState, point) {
+        switch (workState) {
+            case EvevtWorkState.Start:
+                this.onLocalEventStart(point);
+                break;
+            case EvevtWorkState.Doing:
+                this.onLocalEventDoing(point);
+                break;
+            case EvevtWorkState.Done:
+                this.onLocalEventEnd(point);
+                break;
+            default:
+                break;
+        }
     }
     createOptimizationWorker() {
         this.subWorker = new SubWorker();
         this.subWorker.onmessage = (e) => {
             if (e.data) {
-                const { render, drawCount } = e.data;
-                // console.log('rect111666-s', drawCount)
+                const { render, drawCount, sp } = e.data;
+                // console.log('submsg', sp)
+                if (sp?.length) {
+                    // console.log('subSp', sp )
+                    this.collectorSyncData(sp);
+                }
                 if (!drawCount && render) {
                     this.render(render);
                     return;
@@ -166,54 +264,52 @@ export class MainEngineForWorker extends MainEngine {
             }
         };
     }
-    subPost(msg) {
-        // this.subWorkerLockId = Date.now();
-        // console.log('subPost', this.subWorkerLockId)
-        const filterMsg = msg.filter(m => m.msgType === EPostMessageType.UpdateScene || m.dataType === EDataType.Local);
-        if (filterMsg.length) {
-            this.subWorker?.postMessage(filterMsg);
-        }
-    }
     destroySubWorker() {
         if (this.subWorker) {
             this.subWorker.terminate();
             this.subWorker = undefined;
-            this.isRunSubWork = false;
         }
     }
     createThreadEngine() {
-        this.taskBatchData.push({
+        this.taskBatchData.set('Init', {
             msgType: EPostMessageType.Init,
             dataType: EDataType.Local,
             offscreenCanvasOpt: this.offscreenCanvasOpt,
             layerOpt: this.layerOpt,
             dpr: this.dpr,
+            isRunSubWork: true,
         });
         this.runAnimation();
     }
     render(data) {
         const { rect, imageBitmap, isClear, isUnClose, drawCanvas, clearCanvas } = data;
-        const ctx = drawCanvas === ECanvasShowType.Float ? this.floatCanvas.getContext('2d') : this.displayCanvas.getContext('2d');
-        if (rect && ctx && imageBitmap) {
-            const scale = this.cameraOpt?.scale || 1;
-            const _scale = scale < 1 ? scale : 1 + Math.abs(scale - 1);
-            const width = scale < 1 ? rect.w / scale : rect.w * _scale;
-            const height = scale < 1 ? rect.h / scale : rect.h * _scale;
-            const x = (rect.x + this.translate[0]) * scale * this.dpr;
-            const y = (rect.y + this.translate[1]) * scale * this.dpr;
-            const w = width * this.dpr;
-            const h = height * this.dpr;
+        if (rect) {
+            const w = rect.w * this.dpr;
+            const h = rect.h * this.dpr;
+            const x = rect.x * this.dpr;
+            const y = rect.y * this.dpr;
             if (isClear) {
-                const removeCtx = clearCanvas === ECanvasShowType.Float ? this.floatCanvas.getContext('2d') : this.displayCanvas.getContext('2d');
-                removeCtx?.clearRect(x, y, w, h);
+                if (clearCanvas === ECanvasShowType.Selector) {
+                    this.displayer.floatBarCanvasRef.current?.getContext('2d')?.clearRect(0, 0, w, h);
+                }
+                else {
+                    const removeCtx = clearCanvas === ECanvasShowType.Float ? this.floatCanvas?.getContext('2d') : this.bgCanvas?.getContext('2d');
+                    removeCtx?.clearRect(x, y, w, h);
+                }
             }
-            // ctx.imageSmoothingEnabled = true;
-            // ctx.imageSmoothingQuality = "low";
-            ctx.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
+            if (drawCanvas && imageBitmap) {
+                if (drawCanvas === ECanvasShowType.Selector) {
+                    this.displayer.floatBarCanvasRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, 0, 0, w, h);
+                }
+                else {
+                    const ctx = drawCanvas === ECanvasShowType.Float ? this.floatCanvas?.getContext('2d') : this.bgCanvas?.getContext('2d');
+                    ctx?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
+                }
+            }
             if (isUnClose) {
                 return;
             }
-            imageBitmap.close();
+            imageBitmap?.close();
         }
     }
     runAnimation() {
@@ -230,25 +326,20 @@ export class MainEngineForWorker extends MainEngine {
             return;
         }
         const { width, height } = opt;
-        this.displayCanvas.width = width * this.dpr;
-        this.displayCanvas.height = height * this.dpr;
-        this.floatCanvas.width = width * this.dpr;
-        this.floatCanvas.height = height * this.dpr;
+        if (this.bgCanvas && this.floatCanvas) {
+            this.bgCanvas.width = width * this.dpr;
+            this.bgCanvas.height = height * this.dpr;
+            this.floatCanvas.width = width * this.dpr;
+            this.floatCanvas.height = height * this.dpr;
+        }
         this.offscreenCanvasOpt = opt;
         const setOffscreenTaskOpt = {
             msgType: EPostMessageType.UpdateScene,
             offscreenCanvasOpt: this.offscreenCanvasOpt,
-            workId: '',
-            dataType
+            dataType,
+            isRunSubWork: true,
         };
-        this.taskBatchData.push(setOffscreenTaskOpt);
-        if (dataType === EDataType.Local) {
-            this.collector?.dispatch({
-                type: EPostMessageType.UpdateScene,
-                w: width,
-                h: height
-            });
-        }
+        this.taskBatchData.set('UpdateScene', setOffscreenTaskOpt);
         this.runAnimation();
     }
     pushPoint(point) {
@@ -256,35 +347,40 @@ export class MainEngineForWorker extends MainEngine {
     }
     transformToScenePoint(p) {
         const point = p;
-        if (this.cameraOpt?.scale && this.translate) {
-            point[0] = p[0] / this.cameraOpt.scale - this.translate[0];
-            point[1] = p[1] / this.cameraOpt.scale - this.translate[1];
+        const { scale, centerX, centerY } = this.cameraOpt;
+        if (this.originalPoint) {
+            point[0] = (p[0] - this.originalPoint[0]) / scale + centerX;
+            point[1] = (p[1] - this.originalPoint[1]) / scale + centerY;
         }
         return point;
     }
     initSyncData(callBack) {
         const store = this.collector?.storage;
         if (store) {
-            for (const key of Object.keys(store)) {
-                callBack(key, store[key]);
-                if (key === 'screen') {
-                    const { w, h } = store[key];
-                    if (store[key] && w && h) {
-                        this.updateCanvas({
-                            ...this.offscreenCanvasOpt,
-                            width: w,
-                            height: h
-                        }, EDataType.Service);
-                    }
-                    continue;
-                }
+            // why ???
+            // const hasSelector = store['selector'];
+            // if (hasSelector) {
+            //     Promise.resolve().then(()=>{
+            //         this.collector.dispatch({
+            //             ...hasSelector,
+            //             selectIds: undefined
+            //         })
+            //     })
+            // }
+            for (const key of Object.keys(store).filter(f => this.collector.getLocalId(f) !== 'selector')) {
+                callBack && callBack(key, store[key]);
                 const msgType = store[key]?.type;
                 if (msgType && key) {
-                    const data = store[key];
+                    const data = cloneDeep(store[key]);
                     data.workId = key;
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
-                    this.taskBatchData.push(data);
+                    data.useAnimation = false;
+                    //console.log('data', data)
+                    this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`, data);
+                    if (data.opt?.zIndex) {
+                        this.maxLayerIndex = Math.max(this.maxLayerIndex, data.opt.zIndex);
+                    }
                 }
             }
             this.runAnimation();
@@ -292,12 +388,12 @@ export class MainEngineForWorker extends MainEngine {
     }
     onServiceDerive(key, data) {
         const { newValue, oldValue } = data;
-        const msg = newValue || {};
+        const msg = cloneDeep(newValue) || {};
         const workId = key;
         let msgType = msg.type;
         if (!newValue && oldValue) {
             msgType = EPostMessageType.RemoveNode;
-            if (oldValue.toolstype === EToolsKey.LaserPen) {
+            if (oldValue.toolsType === EToolsKey.LaserPen) {
                 return;
             }
         }
@@ -306,8 +402,8 @@ export class MainEngineForWorker extends MainEngine {
             data.workId = this.collector.isOwn(key) ? this.collector.getLocalId(key) : workId;
             data.msgType = msgType;
             data.dataType = EDataType.Service;
-            // console.log('workShapes2---111',data)
-            this.taskBatchData.push(data);
+            // console.log('service-data', data)
+            this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`, data);
         }
         this.runAnimation();
     }
@@ -322,8 +418,10 @@ export class MainEngineForWorker extends MainEngine {
             this.maxDrawCount = 0;
             this.wokerDrawCount = 0;
             this.reRenders.length = 0;
-            // console.log('mouseUp')
             this.setCurrentLocalWorkData({ workId: this.currentLocalWorkData.workId, workState: EvevtWorkState.Done });
+            if (this.currentToolsData.toolsType === EToolsKey.Selector) {
+                this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], 2);
+            }
         }
     }
     onLocalEventDoing(point) {
@@ -345,63 +443,81 @@ export class MainEngineForWorker extends MainEngine {
         if (workState === EvevtWorkState.Freeze || workState === EvevtWorkState.Unwritable) {
             return;
         }
-        const workId = Date.now();
+        const workId = this.currentToolsData.toolsType === EToolsKey.Selector ? "selector" : Date.now();
+        const opt = this.currentToolsData.toolsOpt;
+        if (this.currentToolsData.toolsType === EToolsKey.Pencil) {
+            this.maxLayerIndex = this.maxLayerIndex + 10;
+            opt.zIndex = this.maxLayerIndex;
+        }
         this.setCurrentLocalWorkData({
             workId,
-            workState: EvevtWorkState.Start
+            workState: EvevtWorkState.Start,
         }, EPostMessageType.CreateWork);
         const _point = this.transformToScenePoint(point);
         this.pushPoint(_point);
-        // console.log('mousedown')
+        // this.consume();
         this.runAnimation();
-        this.collector?.dispatch({
-            type: EPostMessageType.CreateWork,
-            workId,
-            toolstype: this.currentToolsData.toolsType,
-            opt: this.currentToolsData.toolsOpt
-        });
+        if (this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen) {
+            this.collector?.dispatch({
+                type: EPostMessageType.CreateWork,
+                workId,
+                toolsType: this.currentToolsData.toolsType,
+                opt: this.currentToolsData.toolsOpt
+            });
+        }
+        else if (this.currentToolsData.toolsType === EToolsKey.Selector) {
+            this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], -1);
+        }
     }
     consume() {
         this.animationId = undefined;
         const workState = this.currentLocalWorkData.workState;
         if (!this.workerLockId) {
             if (this.localPointsBatchData.length) {
-                this.taskBatchData.push({
+                // console.log('this.taskBatchData', this.localPointsBatchData.map(p=>p))
+                this.taskBatchData.set(this.currentLocalWorkData.workId, {
                     op: this.localPointsBatchData,
                     workState,
                     workId: this.currentLocalWorkData.workId,
                     dataType: EDataType.Local,
                     msgType: EPostMessageType.DrawWork,
-                    drawCount: this.maxDrawCount
+                    drawCount: this.maxDrawCount,
+                    isRunSubWork: this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen,
                 });
             }
-            if (this.taskBatchData.length) {
+            if (this.taskBatchData.size) {
+                // console.log('this.taskBatchData', [...this.taskBatchData.values()])
                 this.post(this.taskBatchData);
-                this.taskBatchData.length = 0;
+                this.taskBatchData.clear();
                 this.localPointsBatchData.length = 0;
             }
         }
         if (workState === EvevtWorkState.Doing ||
             workState === EvevtWorkState.Start ||
-            this.taskBatchData.length ||
+            this.taskBatchData.size ||
             this.localPointsBatchData.length) {
             this.animationId = requestAnimationFrame(this.consume.bind(this));
         }
     }
     clearAll(justLocal = false) {
-        this.taskBatchData.push({
+        this.taskBatchData.set('ClearAll', {
             dataType: EDataType.Local,
             msgType: EPostMessageType.Clear,
         });
-        const ctx = this.displayCanvas.getContext('2d');
-        ctx?.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height);
-        const floatCtx = this.floatCanvas.getContext('2d');
-        floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
-        if (!justLocal) {
-            this.collector?.dispatch({
-                type: EPostMessageType.Clear
-            });
+        this.runAnimation();
+        if (this.bgCanvas && this.floatCanvas) {
+            const ctx = this.bgCanvas.getContext('2d');
+            ctx?.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
+            const floatCtx = this.floatCanvas.getContext('2d');
+            floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
+            this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
+            if (!justLocal) {
+                this.collector?.dispatch({
+                    type: EPostMessageType.Clear
+                });
+            }
         }
+        this.maxLayerIndex = 0;
     }
     unabled() {
         this.setCurrentLocalWorkData({ workState: EvevtWorkState.Freeze, workId: undefined });
@@ -410,22 +526,29 @@ export class MainEngineForWorker extends MainEngine {
         this.setCurrentLocalWorkData({ workState: EvevtWorkState.Pending, workId: undefined });
     }
     destroy() {
-        // TODO
-        this.msgEmitter.terminate();
+        this.msgEmitter?.terminate();
         this.destroySubWorker();
+        this.internalMsgEmitterRemoveListener();
     }
     post(msg) {
         this.msgEmitter.postMessage(msg);
-        if (this.isRunSubWork) {
-            this.subPost(this.taskBatchData);
+        const subMsg = new Map();
+        for (const [key, value] of msg.entries()) {
+            if (key === 'Init' || key === 'ClearAll' || key === 'UpdateScene' || key === 'UpdateCamera') {
+                subMsg.set(key, value);
+            }
+            else if (value.isRunSubWork) {
+                subMsg.set(key, value);
+            }
         }
+        subMsg.size && this.subWorker?.postMessage(subMsg);
     }
     on() {
         this.msgEmitter.onmessage = (e) => {
             if (e.data) {
                 const { render, sp, drawCount } = e.data;
-                // console.log('rect111222-s', drawCount, render)
                 if (sp?.length) {
+                    // console.log('sp', sp )
                     this.collectorSyncData(sp);
                 }
                 if (!drawCount && render) {
@@ -453,12 +576,11 @@ export class MainEngineForWorker extends MainEngine {
     }
     collectorSyncData(sp) {
         for (const data of sp) {
-            const { type, op, workId, index, removeIds, ops } = data;
+            const { type, op, workId, index, removeIds, ops, selectIds, opt, padding, selectRect, updateNodeOpt, nodeColor, willSyncService } = data;
             switch (type) {
                 case EPostMessageType.DrawWork:
                     if (op?.length && workId && typeof index === 'number') {
                         requestIdleCallback(() => {
-                            // console.log('op', op, index)
                             this.collector?.dispatch({
                                 type,
                                 op,
@@ -471,7 +593,15 @@ export class MainEngineForWorker extends MainEngine {
                 case EPostMessageType.FullWork:
                     if (ops) {
                         requestIdleCallback(() => {
-                            this.collector?.dispatch({ type, ops, workId });
+                            this.collector?.dispatch({ type, ops, workId, updateNodeOpt });
+                        }, { timeout: MainEngineForWorker.maxLastSyncTime });
+                    }
+                    break;
+                case EPostMessageType.UpdateNode:
+                    if (updateNodeOpt || opt || ops) {
+                        //console.log('data2', data)
+                        requestIdleCallback(() => {
+                            this.collector?.dispatch({ type, updateNodeOpt, workId, opt, ops });
                         }, { timeout: MainEngineForWorker.maxLastSyncTime });
                     }
                     break;
@@ -482,23 +612,45 @@ export class MainEngineForWorker extends MainEngine {
                         }, { timeout: MainEngineForWorker.maxLastSyncTime });
                     }
                     break;
+                case EPostMessageType.Select:
+                    const value = selectIds?.length ? { ...selectRect, selectIds } : undefined;
+                    if (value && opt?.color) {
+                        value.color = opt.color;
+                    }
+                    if (value && opt?.opacity) {
+                        value.opacity = opt.opacity;
+                    }
+                    if (value && padding) {
+                        value.padding = padding;
+                    }
+                    if (value && nodeColor) {
+                        value.nodeColor = nodeColor;
+                    }
+                    this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], !!value, value);
+                    if (willSyncService) {
+                        requestIdleCallback(() => {
+                            this.collector?.dispatch({ type, selectIds, opt });
+                        }, { timeout: MainEngineForWorker.maxLastSyncTime });
+                    }
+                    break;
                 default:
                     break;
             }
         }
     }
     updateNode(workId, updateNodeOpt) {
-        this.taskBatchData.push({
+        this.taskBatchData.set(`${EPostMessageType.UpdateNode},${workId}`, {
             msgType: EPostMessageType.UpdateNode,
             workId,
             updateNodeOpt,
             dataType: EDataType.Local
         });
-        this.collector.dispatch({
-            type: EPostMessageType.UpdateNode,
-            workId,
-            updateNodeOpt
-        });
+        // todo
+        // this.collector.dispatch({
+        //     type: EPostMessageType.UpdateNode,
+        //     workId,
+        //     updateNodeOpt
+        // })
         this.runAnimation();
     }
     setCurrentLocalWorkData(currentLocalWorkData, msgType = EPostMessageType.None) {
@@ -508,52 +660,51 @@ export class MainEngineForWorker extends MainEngine {
             return;
         }
         if (msgType !== EPostMessageType.None) {
-            this.taskBatchData.push({
+            const toolsType = this.currentToolsData.toolsType;
+            this.taskBatchData.set(`${msgType},${workId}`, {
                 msgType,
                 workId,
-                toolsType: this.currentToolsData.toolsType,
+                toolsType: toolsType,
                 opt: { ...this.currentToolsData.toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime },
                 dataType: EDataType.Local,
+                isRunSubWork: toolsType === EToolsKey.Pencil || toolsType === EToolsKey.LaserPen
             });
             this.runAnimation();
         }
     }
     setCurrentToolsData(currentToolsData) {
         super.setCurrentToolsData(currentToolsData);
-        this.taskBatchData.push({
+        const toolsType = currentToolsData.toolsType;
+        this.taskBatchData.set(`UpdateTools`, {
             msgType: EPostMessageType.UpdateTools,
             dataType: EDataType.Local,
-            toolsType: currentToolsData.toolsType,
+            toolsType,
             opt: { ...currentToolsData.toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime },
+            isRunSubWork: toolsType === EToolsKey.Pencil || toolsType === EToolsKey.LaserPen
         });
-        if (currentToolsData?.toolsType === EToolsKey.Eraser) {
-            this.isRunSubWork = false;
-        }
-        else {
-            this.isRunSubWork = true;
-        }
         this.runAnimation();
     }
     setCameraOpt(cameraOpt) {
         super.setCameraOpt(cameraOpt);
-        if (cameraOpt.scale && this.offscreenCanvasOpt) {
-            const w = this.offscreenCanvasOpt.width;
-            const h = this.offscreenCanvasOpt.height;
-            const scale = cameraOpt.scale < 1 ? cameraOpt.scale : 1 + Math.abs(cameraOpt.scale - 1);
-            this.translate = [w * (1 - scale) * 0.5 / scale, h * (1 - scale) * 0.5 / scale];
-            const centerX = this.cameraOpt.centerX || 0;
-            const centerY = this.cameraOpt.centerY || 0;
-            if (centerX || centerY) {
-                this.translate = [this.translate[0] - centerX, this.translate[1] - centerY];
+        const { width, height } = cameraOpt;
+        // this.originalPoint = [width * ]
+        if (width !== this.offscreenCanvasOpt.width || height !== this.offscreenCanvasOpt.height) {
+            if (this.bgCanvas) {
+                this.bgCanvas.style.width = `${width}px`;
+                this.bgCanvas.style.height = `${height}px`;
             }
-            this.taskBatchData.push({
-                msgType: EPostMessageType.Transform,
-                dataType: EDataType.Local,
-                scale,
-                translate: this.translate
-            });
-            this.runAnimation();
+            if (this.floatCanvas) {
+                this.floatCanvas.style.width = `${width}px`;
+                this.floatCanvas.style.height = `${height}px`;
+            }
+            this.updateCanvas({ ...this.offscreenCanvasOpt, width, height }, EDataType.Local);
         }
+        this.taskBatchData.set(`UpdateCamera`, {
+            msgType: EPostMessageType.UpdateCamera,
+            dataType: EDataType.Local,
+            cameraOpt
+        });
+        this.runAnimation();
     }
 }
 Object.defineProperty(MainEngineForWorker, "defaultScreenCanvasOpt", {
@@ -563,6 +714,7 @@ Object.defineProperty(MainEngineForWorker, "defaultScreenCanvasOpt", {
     value: {
         autoRender: false,
         contextType: ECanvasContextType.Canvas2d,
+        // bufferSize: 5000
     }
 });
 Object.defineProperty(MainEngineForWorker, "defauleLayerOpt", {

@@ -1,12 +1,18 @@
 import { WorkThreadEngine } from "../base";
-import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
+import { ECanvasShowType, EDataType, EPostMessageType, EvevtWorkState } from "../enum";
 import { SubLocalWorkForWorker } from "./local";
-import { computRect } from "../utils";
 import { SubServiceWorkForWorker } from "./service";
+import { MethodBuilderWorker } from "../msgEvent/forWorker";
+import { EmitEventType } from "../../plugin/types";
 export class WorkThreadEngineByWorker extends WorkThreadEngine {
     constructor() {
         super();
-        // private lockId?: number;
+        Object.defineProperty(this, "cameraOpt", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "dpr", {
             enumerable: true,
             configurable: true,
@@ -43,228 +49,96 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "methodBuilder", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         this.register();
     }
     init(dpr, offscreenCanvasOpt, layerOpt) {
         this.dpr = dpr;
         this.scene = this.createScene(offscreenCanvasOpt);
-        this.drawLayer = this.createLayer(layerOpt);
-        this.fullLayer = this.createLayer(layerOpt);
+        this.drawLayer = this.createLayer({ ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height });
+        this.fullLayer = this.createLayer({ ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height, bufferSize: 5000 });
         this.localWork = new SubLocalWorkForWorker(this.fullLayer, this.drawLayer, this.post.bind(this));
         this.serviceWork = new SubServiceWorkForWorker(this.fullLayer, this.drawLayer, this.post.bind(this));
+        this.methodBuilder = new MethodBuilderWorker([
+            EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
+            EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
+            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode
+        ]).registerForWorker(this.localWork, this.serviceWork);
     }
     getOffscreen(isFullWork) {
-        return (isFullWork ? this.fullLayer : this.drawLayer).canvas;
+        const layer = (isFullWork ? this.fullLayer.parent : this.drawLayer.parent);
+        return layer.canvas;
     }
     register() {
         this.on((msg) => {
-            const sp = [];
-            const renderData = {};
-            let drawCount;
             for (const data of msg) {
-                const { workState, updateNodeOpt, dataType, msgType, workId, translate, scale, offscreenCanvasOpt, toolsType, layerOpt, dpr, opt } = data;
-                if (msgType === EPostMessageType.Init && offscreenCanvasOpt && layerOpt && dpr) {
-                    this.init(dpr, offscreenCanvasOpt, layerOpt);
+                const { workState, dataType, msgType, workId, toolsType, opt } = data;
+                if (this.methodBuilder?.consumeForWorker(data)) {
                     continue;
                 }
-                /* 处理缩放和拖拽 */
-                if (msgType === EPostMessageType.Transform && translate && scale) {
-                    const res = this.setTransform(translate, scale);
-                    if (res) {
-                        const rect1 = res.rect;
-                        if (rect1) {
-                            renderData.rect = computRect(renderData.rect, rect1);
-                            renderData.isClear = true;
-                            renderData.isFullWork = true;
+                switch (msgType) {
+                    case EPostMessageType.UpdateTools:
+                        if (toolsType && opt) {
+                            this.setToolsOpt({
+                                toolsType,
+                                toolsOpt: opt
+                            });
                         }
-                        sp.push(res);
-                    }
-                    continue;
-                }
-                // 更新Offscreen配置
-                if (msgType === EPostMessageType.UpdateScene && offscreenCanvasOpt) {
-                    const res = this.updateScene(offscreenCanvasOpt);
-                    // todo 需要细化个人和主房间的宽高比
-                    if (res) {
-                        const rect1 = res.rect;
-                        if (rect1) {
-                            renderData.rect = computRect(renderData.rect, rect1);
-                            renderData.isClear = true;
-                            renderData.isFullWork = true;
-                        }
-                        sp.push(res);
-                    }
-                    continue;
-                }
-                if (msgType === EPostMessageType.UpdateTools && toolsType && opt) {
-                    this.setToolsOpt({
-                        toolsType,
-                        toolsOpt: opt
-                    });
-                    continue;
-                }
-                if (msgType === EPostMessageType.CreateWork && workId && opt) {
-                    if (!this.localWork.getTmpWorkShapeNode() && toolsType) {
-                        this.setToolsOpt({
-                            toolsType,
-                            toolsOpt: opt,
-                        });
-                    }
-                    this.setWorkOpt({
-                        workId,
-                        toolsOpt: opt
-                    });
-                    continue;
-                }
-                /* 清空 */
-                if (msgType === EPostMessageType.Clear) {
-                    this.clearAll();
-                    continue;
-                }
-                // 移除
-                if (msgType === EPostMessageType.RemoveNode && workId && dataType) {
-                    if (toolsType === EToolsKey.LaserPen) {
-                        continue;
-                    }
-                    const res = this.remove(workId, dataType);
-                    if (res) {
-                        const rect1 = res.rect;
-                        if (rect1) {
-                            renderData.rect = computRect(renderData.rect, rect1);
-                            renderData.isClear = true;
-                            renderData.isFullWork = true;
-                        }
-                        if (dataType === EDataType.Local) {
-                            sp.push(res);
-                        }
-                    }
-                    continue;
-                }
-                // 更新已有node配置
-                if (msgType === EPostMessageType.UpdateNode && workId && toolsType && updateNodeOpt) {
-                    const res = this.updateNode(workId, updateNodeOpt);
-                    if (res) {
-                        const rect1 = res.rect;
-                        if (rect1) {
-                            renderData.rect = computRect(renderData.rect, rect1);
-                            renderData.isClear = true;
-                            renderData.isFullWork = true;
-                        }
-                        sp.push(res);
-                    }
-                    continue;
-                }
-                /** 完整绘制落盘数据 */
-                if (msgType === EPostMessageType.FullWork && dataType) {
-                    // console.log('workShapes0---1', data)
-                    this.consumeFull(dataType, data);
-                    continue;
-                }
-                // 绘制（高频）
-                if (msgType === EPostMessageType.DrawWork && dataType) {
-                    if (dataType === EDataType.Service || (dataType === EDataType.Local && (workState === EvevtWorkState.Start || workState === EvevtWorkState.Doing))) {
-                        const res = this.consumeDraw(dataType, data);
-                        // console.log('consumeDraw', res)
-                        if (res?.drawCount) {
-                            drawCount = res.drawCount;
-                        }
-                        if (res?.op) {
-                            sp.push(res);
-                        }
-                    }
-                    if (workState === EvevtWorkState.Done && workId) {
-                        // console.log('consumeDrawAll', data.op)
-                        const res = this.consumeDrawAll(dataType, data);
-                        if (res) {
-                            const rect1 = res.rect;
-                            if (rect1) {
-                                renderData.rect = computRect(renderData.rect, rect1);
-                                renderData.drawCanvas = ECanvasShowType.Bg;
-                                renderData.isClear = true;
-                                renderData.clearCanvas = ECanvasShowType.Float;
-                                renderData.isFullWork = true;
+                        break;
+                    case EPostMessageType.CreateWork:
+                        if (workId && opt) {
+                            if (!this.localWork.getTmpWorkShapeNode() && toolsType) {
+                                this.setToolsOpt({
+                                    toolsType,
+                                    toolsOpt: opt,
+                                });
                             }
-                            sp.push(res);
+                            this.setWorkOpt({
+                                workId,
+                                toolsOpt: opt
+                            });
                         }
-                    }
-                    continue;
+                        break;
+                    case EPostMessageType.Select:
+                        if (dataType === EDataType.Service) {
+                            this.serviceWork.runSelectWork(data);
+                        }
+                        break;
+                    case EPostMessageType.RemoveNode:
+                        this.removeNode(data);
+                        break;
+                    case EPostMessageType.UpdateNode:
+                        this.updateNode(data);
+                        break;
+                    case EPostMessageType.FullWork:
+                        this.consumeFull(dataType, data);
+                        break;
+                    case EPostMessageType.DrawWork:
+                        if (workState === EvevtWorkState.Done && dataType === EDataType.Local) {
+                            this.consumeDrawAll(dataType, data);
+                        }
+                        else {
+                            this.consumeDraw(dataType, data);
+                        }
+                        break;
                 }
-            }
-            const postMsg = {};
-            if (sp.length) {
-                postMsg.sp = sp;
-            }
-            if (renderData.rect || renderData.isClear || renderData.isFullWork) {
-                postMsg.render = renderData;
-            }
-            if (drawCount) {
-                postMsg.drawCount = drawCount;
-            }
-            if (Object.keys(postMsg).length) {
-                // console.log('postMsg', postMsg)
-                this.post(postMsg);
             }
         });
     }
-    remove(workId, dataType) {
-        const nodes = this.getNodes(workId);
-        if (nodes.length) {
-            let rect;
-            for (const node of nodes) {
-                const r = node.getBoundingClientRect();
-                rect = computRect(rect, {
-                    x: Math.floor(r.x - 10),
-                    y: Math.floor(r.y - 10),
-                    w: Math.floor(r.width + 20),
-                    h: Math.floor(r.height + 20)
-                });
-                node.remove();
-            }
-            return {
-                rect,
-                type: dataType === EDataType.Local ? EPostMessageType.RemoveNode : EPostMessageType.None
-            };
+    updateNode(data) {
+        const { dataType } = data;
+        if (dataType === EDataType.Service) {
+            this.serviceWork.consumeFull(data);
         }
-        return;
-    }
-    updateNode(workId, updateNodeOpt) {
-        const nodes = this.getNodes(workId);
-        if (nodes.length) {
-            let rect;
-            nodes.forEach(n => {
-                const r = n.getBoundingClientRect();
-                n.attr(updateNodeOpt);
-                rect = computRect(rect, {
-                    x: Math.floor(r.x - 10),
-                    y: Math.floor(r.y - 10),
-                    w: Math.floor(r.width + 20),
-                    h: Math.floor(r.height + 20)
-                });
-            });
-            return {
-                rect,
-                type: EPostMessageType.UpdateNode
-            };
-        }
-        return undefined;
     }
     updateScene(offscreenCanvasOpt) {
         super.updateScene(offscreenCanvasOpt);
-        this.fullLayer.setAttribute('width', offscreenCanvasOpt.width);
-        this.fullLayer.setAttribute('height', offscreenCanvasOpt.height);
-        this.drawLayer.setAttribute('width', offscreenCanvasOpt.width);
-        this.drawLayer.setAttribute('height', offscreenCanvasOpt.height);
-        const viewport = {
-            x: 0 / this.scale - this.translate[0],
-            y: 0 / this.scale - this.translate[1],
-            w: offscreenCanvasOpt.width,
-            h: offscreenCanvasOpt.height,
-        };
-        const res = {
-            type: EPostMessageType.UpdateScene,
-            rect: viewport
-        };
-        return res;
+        this.localWork.runEffectWork();
     }
     setToolsOpt(opt) {
         this.localWork.setToolsOpt(opt);
@@ -276,67 +150,114 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
         }
     }
     clearAll() {
-        this.fullLayer.removeAllChildren();
-        this.drawLayer.removeAllChildren();
+        const removeNodes = [];
         this.localWork.clearAllWorkShapesCache();
         this.serviceWork.clearAllWorkShapesCache();
+        this.fullLayer.parent.children.forEach(c => {
+            if (c.name !== 'viewport') {
+                removeNodes.push(c);
+            }
+        });
+        this.drawLayer.parent.children.forEach(c => {
+            if (c.name !== 'viewport') {
+                removeNodes.push(c);
+            }
+        });
+        removeNodes.forEach(c => {
+            c.remove();
+        });
+        this.fullLayer.removeAllChildren();
+        this.drawLayer.removeAllChildren();
+        this.localWork.runEffectWork();
     }
-    setTransform(translate, scale) {
-        this.setTranslate(translate);
-        this.setScale(scale);
-        this.fullLayer?.setAttribute('scale', [scale, scale]);
-        this.fullLayer.setAttribute('translate', this.translate);
-        this.drawLayer?.setAttribute('scale', [scale, scale]);
-        this.drawLayer.setAttribute('translate', this.translate);
-        const viewport = {
-            x: 0 / scale - this.translate[0],
-            y: 0 / scale - this.translate[1],
-            w: this.fullLayer.width,
-            h: this.fullLayer.height,
-        };
-        const res = {
-            type: EPostMessageType.Transform,
-            rect: viewport,
-        };
-        return res;
+    setCameraOpt(cameraOpt) {
+        this.cameraOpt = cameraOpt;
+        const { scale, centerX, centerY } = cameraOpt;
+        // console.log('setCameraOpt', this.fullLayer.worldPosition, this.scene.width/2, this.scene.height/2)
+        this.fullLayer.setAttribute('scale', [scale, scale]);
+        this.fullLayer.setAttribute('translate', [-centerX, -centerY]);
+        this.drawLayer.setAttribute('scale', [scale, scale]);
+        this.drawLayer.setAttribute('translate', [-centerX, -centerY]);
+        // console.log('setCameraOpt', this.fullLayer.worldPosition)
+        this.localWork.runEffectWork();
     }
     getRectImageBitmap(rect, isFullWork) {
-        const { x, y, w, h } = rect;
-        const _scale = this.scale < 1 ? this.scale : 1 + Math.abs(this.scale - 1);
-        const width = this.scale < 1 ? w / this.scale : w * _scale;
-        const height = this.scale < 1 ? h / this.scale : h * _scale;
-        const _x = (x + this.translate[0]) * this.scale;
-        const _y = (y + this.translate[1]) * this.scale;
-        return createImageBitmap(this.getOffscreen(isFullWork), _x * this.dpr, _y * this.dpr, width * this.dpr, height * this.dpr, {
+        const x = rect.x * this.dpr;
+        const y = rect.y * this.dpr;
+        const w = rect.w * this.dpr;
+        const h = rect.h * this.dpr;
+        return createImageBitmap(this.getOffscreen(isFullWork), x, y, w, h, {
             resizeQuality: 'low'
         });
     }
     post(msg) {
         const renderData = msg.render;
         if (renderData) {
-            // console.log('renderData', renderData);
-            (renderData.isFullWork ? this.fullLayer : this.drawLayer).render();
+            ((renderData.isFullWork ? this.fullLayer : this.drawLayer)?.parent).render();
             if (renderData.rect) {
-                this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork).then(imageBitmap => {
-                    renderData.imageBitmap = imageBitmap;
-                    msg.render = renderData;
-                    // console.log('imageBitmap', imageBitmap.width, imageBitmap.height, msg);
-                    WorkThreadEngineByWorker._self.postMessage(msg, [imageBitmap]);
-                    imageBitmap.close();
-                });
-                return;
+                if (renderData.drawCanvas) {
+                    // console.log('renderData', renderData.rect)
+                    this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork).then(imageBitmap => {
+                        renderData.imageBitmap = imageBitmap;
+                        msg.render = renderData;
+                        WorkThreadEngineByWorker._self.postMessage(msg, [imageBitmap]);
+                        imageBitmap.close();
+                    });
+                    return;
+                }
             }
         }
         WorkThreadEngineByWorker._self.postMessage(msg);
     }
     on(callBack) {
         onmessage = (e) => {
-            callBack(e.data);
+            if (e.data) {
+                // 优先级 init=》draw=》fullWork=》serviceWork=》updateScene=》updateCamera=》clearAll
+                const initJob = e.data.get('Init');
+                if (initJob) {
+                    const { dpr, offscreenCanvasOpt, layerOpt } = initJob;
+                    if (offscreenCanvasOpt && layerOpt && dpr) {
+                        this.init(dpr, offscreenCanvasOpt, layerOpt);
+                    }
+                }
+                callBack(e.data.values());
+                const hasClearAll = e.data.has('ClearAll');
+                const updateSceneJob = e.data.get('UpdateScene');
+                const updateCameraJob = e.data.get('UpdateCamera');
+                const isFullRender = !!(hasClearAll || updateSceneJob || updateCameraJob);
+                if (updateSceneJob) {
+                    const { offscreenCanvasOpt } = updateSceneJob;
+                    offscreenCanvasOpt && this.updateScene(offscreenCanvasOpt);
+                }
+                if (updateCameraJob) {
+                    const { cameraOpt } = updateCameraJob;
+                    cameraOpt && this.setCameraOpt(cameraOpt);
+                }
+                if (!hasClearAll && isFullRender) {
+                    this.post({
+                        render: {
+                            rect: {
+                                x: 0,
+                                y: 0,
+                                w: this.scene.width,
+                                h: this.scene.height,
+                            },
+                            drawCanvas: ECanvasShowType.Bg,
+                            clearCanvas: ECanvasShowType.Bg,
+                            isClear: true,
+                            isFullWork: true
+                        }
+                    });
+                }
+                if (hasClearAll) {
+                    this.clearAll();
+                }
+            }
         };
     }
     consumeDraw(type, data) {
         if (type === EDataType.Local) {
-            return this.localWork.consumeDraw(data);
+            this.localWork.consumeDraw(data);
         }
         if (type === EDataType.Service) {
             this.serviceWork.consumeDraw(data);
@@ -344,12 +265,24 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     consumeDrawAll(type, data) {
         if (type === EDataType.Local) {
-            return this.localWork.consumeDrawAll(data);
+            this.localWork.consumeDrawAll(data);
         }
     }
     consumeFull(type, data) {
         if (type === EDataType.Service) {
             this.serviceWork.consumeFull(data);
+        }
+        if (type === EDataType.Local) {
+            this.localWork.consumeFull(data);
+        }
+    }
+    removeNode(data) {
+        const { dataType } = data;
+        if (dataType === EDataType.Service) {
+            this.serviceWork.removeWork(data);
+        }
+        if (dataType === EDataType.Local) {
+            this.localWork.removeWork(data);
         }
     }
 }

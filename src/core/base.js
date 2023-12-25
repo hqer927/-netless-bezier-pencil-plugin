@@ -1,16 +1,10 @@
-import { EToolsKey } from "./enum";
-import { EraserShape, PencilShape } from "./tools";
-import { Scene } from "spritejs";
+import { ECanvasShowType, EPostMessageType, EToolsKey } from "./enum";
+import { EraserShape, PencilShape, SelectorShape } from "./tools";
+import { Group, Scene } from "spritejs";
 import { LaserPenShape } from "./tools/laserPen";
+import { computRect } from "./utils";
 export class MainEngine {
-    constructor(bgCanvas, floatCanvas, collector) {
-        /** 设备像素比 */
-        Object.defineProperty(this, "dpr", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 1
-        });
+    constructor(displayer, collector) {
         /** 数据收集器 */
         Object.defineProperty(this, "collector", {
             enumerable: true,
@@ -18,15 +12,8 @@ export class MainEngine {
             writable: true,
             value: void 0
         });
-        /** 用于展示绘制的画布 */
-        Object.defineProperty(this, "displayCanvas", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        /** 用于顶层高频绘制的画布 */
-        Object.defineProperty(this, "floatCanvas", {
+        /** view容器 */
+        Object.defineProperty(this, "displayer", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -39,21 +26,8 @@ export class MainEngine {
             writable: true,
             value: new Set()
         });
-        this.displayCanvas = bgCanvas;
-        this.floatCanvas = floatCanvas;
-        const ctx = this.displayCanvas.getContext('2d');
-        if (ctx) {
-            this.dpr = this.getRatioWithContext(ctx);
-        }
+        this.displayer = displayer;
         this.collector = collector;
-    }
-    getRatioWithContext(context) {
-        const backingStoreRatio = context.webkitBackingStorePixelRatio ||
-            context.mozBackingStorePixelRatio ||
-            context.msBackingStorePixelRatio ||
-            context.oBackingStorePixelRatio ||
-            context.backingStorePixelRatio || 1.0;
-        return Math.max(1.0, (window.devicePixelRatio || 1.0) / backingStoreRatio);
     }
     /** 设置当前选中的工具配置数据 */
     setCurrentToolsData(currentToolsData) {
@@ -73,35 +47,23 @@ export class MainEngine {
     }
 }
 export class WorkThreadEngine {
-    constructor() {
-        // abstract localWork: SubLocalWork;
-        // abstract serviceWork: SubServiceWork;
-        Object.defineProperty(this, "translate", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: [0, 0]
-        });
-        Object.defineProperty(this, "scale", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 1
-        });
-        /** 临时手动gc数据池 */
-        Object.defineProperty(this, "dustbin", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Set()
-        });
-    }
     updateScene(offscreenCanvasOpt) {
-        this.scene.attr({ ...offscreenCanvasOpt, bufferSize: 10000 });
+        this.scene.attr({ ...offscreenCanvasOpt });
+        const { width, height } = offscreenCanvasOpt;
+        this.scene.container.width = width;
+        this.scene.container.height = height;
+        this.scene.width = width;
+        this.scene.height = height;
+        this.scene.forceUpdate();
+        this.updateLayer({ width, height });
     }
     updateLayer(layerOpt) {
-        this.fullLayer.attr({ ...layerOpt, bufferSize: 5000 });
-        this.drawLayer.attr(layerOpt);
+        const { width, height } = layerOpt;
+        const centerPos = this.cameraOpt || { centerX: 0, centerY: 0 };
+        this.fullLayer?.setAttribute('size', [width, height]);
+        this.fullLayer?.setAttribute('pos', [width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
+        this.drawLayer?.setAttribute('size', [width, height]);
+        this.drawLayer?.setAttribute('pos', [width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
     }
     createScene(opt) {
         const { width, height } = opt;
@@ -115,14 +77,17 @@ export class WorkThreadEngine {
         });
     }
     createLayer(opt) {
+        const { width, height } = opt;
         const sy = "offscreen" + Date.now();
-        return this.scene.layer(sy, opt);
-    }
-    setTranslate(translate) {
-        this.translate = translate;
-    }
-    setScale(scale) {
-        this.scale = scale;
+        const layer = this.scene.layer(sy, opt);
+        const group = new Group({
+            anchor: [0.5, 0.5],
+            pos: [width * 0.5, height * 0.5],
+            size: [width, height],
+            name: 'viewport'
+        });
+        layer.append(group);
+        return group;
     }
     getNodes(workId) {
         return this.fullLayer.getElementsByName(workId + '').concat(this.drawLayer.getElementsByName(workId + ''));
@@ -130,7 +95,6 @@ export class WorkThreadEngine {
 }
 export class SubLocalWork {
     constructor(fullLayer, drawLayer) {
-        // protected batchUnitTime:number = 900;
         Object.defineProperty(this, "fullLayer", {
             enumerable: true,
             configurable: true,
@@ -150,6 +114,18 @@ export class SubLocalWork {
             value: void 0
         });
         Object.defineProperty(this, "tmpOpt", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "curNodeMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "effectWorkId", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -184,24 +160,42 @@ export class SubLocalWork {
         }
         this.workShapes.get(workId)?.setWorkOptions(opt);
     }
-    setToolsOpt(opt) {
-        if (this.tmpOpt?.toolsType !== opt.toolsType) {
-            this.clearAllWorkShapesCache();
-        }
-        this.tmpOpt = opt;
+    createWorkShapeNode(opt) {
+        let tmpWorkShapeNode;
         switch (opt.toolsType) {
             case EToolsKey.Pencil:
-                this.tmpWorkShapeNode = new PencilShape(opt.toolsOpt, this.fullLayer, this.drawLayer);
+                tmpWorkShapeNode = new PencilShape(opt.toolsOpt, this.fullLayer, this.drawLayer);
                 break;
             case EToolsKey.LaserPen:
-                this.tmpWorkShapeNode = new LaserPenShape(opt.toolsOpt, this.fullLayer);
+                tmpWorkShapeNode = new LaserPenShape(opt.toolsOpt, this.fullLayer);
                 break;
             case EToolsKey.Eraser:
-                this.tmpWorkShapeNode = new EraserShape(opt.toolsOpt, this.fullLayer);
+                tmpWorkShapeNode = new EraserShape(opt.toolsOpt, this.fullLayer);
+                break;
+            case EToolsKey.Selector:
+                tmpWorkShapeNode = new SelectorShape(opt.toolsOpt, this.fullLayer, this.drawLayer);
                 break;
             default:
-                this.tmpWorkShapeNode = undefined;
+                tmpWorkShapeNode = undefined;
                 break;
+        }
+        return tmpWorkShapeNode;
+    }
+    setToolsOpt(opt) {
+        let canEffect = false;
+        if (this.tmpOpt?.toolsType !== opt.toolsType) {
+            if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
+                this.blurSelector();
+            }
+            this.clearAllWorkShapesCache();
+            if (opt.toolsType === EToolsKey.Selector) {
+                canEffect = true;
+            }
+        }
+        this.tmpOpt = opt;
+        this.tmpWorkShapeNode = this.createWorkShapeNode(opt);
+        if (canEffect) {
+            this.runEffectWork();
         }
     }
     clearWorkShapeNodeCache(workId) {
@@ -211,6 +205,89 @@ export class SubLocalWork {
     clearAllWorkShapesCache() {
         this.workShapes.forEach(w => w.clearTmpPoints());
         this.workShapes.clear();
+    }
+    runEffectWork() {
+        if (!this.effectWorkId) {
+            this.effectWorkId = setTimeout(() => {
+                this.effectWorkId = undefined;
+                this.computNodeMap();
+                this.rerRenderSelector();
+            }, 0);
+        }
+    }
+    computNodeMap() {
+        this.curNodeMap.clear();
+        if (this.tmpOpt?.toolsType === EToolsKey.Selector || this.tmpOpt?.toolsType === EToolsKey.Eraser) {
+            this.fullLayer.children.forEach(c => {
+                if (c.name !== SelectorShape.selectorId) {
+                    let rect;
+                    this.fullLayer.getElementsByName(c.name).forEach(f => {
+                        const r = f?.getBoundingClientRect();
+                        if (r) {
+                            rect = computRect(rect, {
+                                x: Math.floor(r.x),
+                                y: Math.floor(r.y),
+                                w: Math.round(r.width),
+                                h: Math.round(r.height),
+                            });
+                        }
+                    });
+                    if (rect) {
+                        this.curNodeMap.set(c.name, {
+                            name: c.name,
+                            rect,
+                            layer: c.parent
+                        });
+                    }
+                }
+            });
+            this.drawLayer?.children?.forEach(c => {
+                if (c.name !== SelectorShape.selectorId) {
+                    let rect;
+                    this.drawLayer?.getElementsByName(c.name).forEach(f => {
+                        const r = f?.getBoundingClientRect();
+                        if (r) {
+                            rect = computRect(rect, {
+                                x: Math.floor(r.x),
+                                y: Math.floor(r.y),
+                                w: Math.round(r.width),
+                                h: Math.round(r.height),
+                            });
+                        }
+                    });
+                    if (rect) {
+                        this.curNodeMap.set(c.name, {
+                            name: c.name,
+                            rect,
+                            layer: c.parent
+                        });
+                    }
+                }
+            });
+        }
+        // console.log('computNodeMap', this.curNodeMap)
+    }
+    rerRenderSelector() {
+        const workShapeNode = this.workShapes.get(SelectorShape.selectorId);
+        if (!workShapeNode?.selectIds?.length)
+            return;
+        if (this.drawLayer) {
+            const newRect = workShapeNode.getSelector(this.curNodeMap);
+            this._post({
+                render: {
+                    rect: newRect,
+                    isClear: true,
+                    isFullWork: false,
+                    clearCanvas: ECanvasShowType.Selector,
+                    drawCanvas: ECanvasShowType.Selector,
+                },
+                sp: [{
+                        type: EPostMessageType.Select,
+                        selectIds: workShapeNode.selectIds,
+                        selectRect: newRect,
+                    }]
+            });
+        }
     }
 }
 export class SubServiceWork {

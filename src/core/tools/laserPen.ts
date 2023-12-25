@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Layer, Path} from "spritejs";
+import { Group, Path, Node} from "spritejs";
 import { BaseShapeOptions, BaseShapeTool } from "./base";
 import { EDataType, EPostMessageType, EToolsKey } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType } from "../types";
@@ -8,7 +8,7 @@ import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
 // import { computRect, getRectFromPoints } from "../utils";
 import { EStrokeType } from "../../plugin/types";
 import { Point2d } from "../utils/primitives/Point2d";
-import { getRectFromPoints } from "../utils";
+import { computRect, getRectFromPoints } from "../utils";
 
 export interface LaserPenOptions extends BaseShapeOptions {
     thickness: number;
@@ -16,12 +16,15 @@ export interface LaserPenOptions extends BaseShapeOptions {
     strokeType: Omit<EStrokeType,'Stroke'>;
 }
 export class LaserPenShape extends BaseShapeTool {
+    updataOptService(): undefined {
+       return;
+    }
     protected syncTimestamp: number;
     private syncIndex:number = 0;
     readonly toolsType: EToolsKey = EToolsKey.LaserPen;
     protected tmpPoints:Array<Point2d> = [];
     protected workOptions: LaserPenOptions;
-    constructor(workOptions: LaserPenOptions, fullLayer: Layer) {
+    constructor(workOptions: LaserPenOptions, fullLayer: Group) {
         super(fullLayer);
         this.workOptions = workOptions;
         this.syncTimestamp = 0;
@@ -31,7 +34,8 @@ export class LaserPenShape extends BaseShapeTool {
         super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
-    consume(data: IWorkerMessage, isUnDraw:boolean): IMainMessage{
+    consume(props:{data: IWorkerMessage, isFullWork:boolean}): IMainMessage{
+        const {data, isFullWork} = props;
         const {workId, op }= data;
         if(op?.length === 0){
           return { type: EPostMessageType.None}
@@ -72,7 +76,7 @@ export class LaserPenShape extends BaseShapeTool {
             lineWidth: isDot ? 0 : thickness,
             anchor: [0.5, 0.5],
         }
-        // console.log('attrs',attrs, strokeType)
+        //console.log('attrs',attrs, strokeType)
         const tasks = this.getTaskPoints(points);
         if (tasks.length) {
             const now = Date.now();
@@ -81,14 +85,19 @@ export class LaserPenShape extends BaseShapeTool {
                 this.syncTimestamp = now;
                 this.syncIndex = this.tmpPoints.length;
             }
-            !isUnDraw && this.draw({attrs, tasks, isDot});
+            !isFullWork && this.draw({attrs, tasks, isDot});
         }
         const nop:number[] = [];
         this.tmpPoints.slice(index).forEach(p=>{
             nop.push(p.x,p.y)
         })
         return {
-          rect,
+          rect:{
+            x:rect.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
+            y:rect.y * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1],
+            w:rect.w * this.fullLayer.worldScaling[0],
+            h:rect.h * this.fullLayer.worldScaling[1],
+          },
           type: EPostMessageType.DrawWork,
           dataType: EDataType.Local,
           workId: isSync ? workId : undefined,
@@ -111,15 +120,24 @@ export class LaserPenShape extends BaseShapeTool {
         }
     }
     clearTmpPoints(): void {
-        // console.log('animationDraw7')
+        //console.log('animationDraw7')
         this.tmpPoints.length = 0;
         this.syncTimestamp = 0;
         this.syncIndex = 0;
     }
-    consumeService(op: number[]): IRectType | undefined {
+    consumeService(props:{
+        op: number[]
+    }): IRectType | undefined {
+        const {op} = props;
         const {color, thickness, strokeType, opacity} = this.workOptions;
         if (!op.length) {
-            return getRectFromPoints(this.tmpPoints, thickness);
+            const r = getRectFromPoints(this.tmpPoints, thickness)
+            return {
+                x:r.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
+                y:r.y * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1],
+                w:r.w * this.fullLayer.worldScaling[0],
+                h:r.h * this.fullLayer.worldScaling[1],
+            };
         }
         const lastPointIndex = Math.max(0, this.tmpPoints.length - 1);
         this.updateTempPoints(op || []);
@@ -151,7 +169,12 @@ export class LaserPenShape extends BaseShapeTool {
         if (tasks.length) {
             this.draw({attrs, tasks, isDot});
         }
-        return rect
+        return {
+            x:rect.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
+            y:rect.y * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1],
+            w:rect.w * this.fullLayer.worldScaling[0],
+            h:rect.h * this.fullLayer.worldScaling[1],
+        }
     }
     private computDotStroke(newPoint: {
         point: Point2d,
@@ -233,7 +256,7 @@ export class LaserPenShape extends BaseShapeTool {
           points.push(new Point2d(x, y));
           if (i > 0 && i < newPoints.length -1) {
             const angle = newPoints[i].getAngleByPoints(newPoints[i-1],newPoints[i+1]);
-            // console.log('angle', angle, newPoints[i].XY, newPoints[i-1].XY, newPoints[i+1])
+            //console.log('angle', angle, newPoints[i].XY, newPoints[i-1].XY, newPoints[i+1])
             if (angle < 90 || angle > 270) {
               const lastPoint = points.pop()?.clone();
               if (lastPoint) {
@@ -257,5 +280,26 @@ export class LaserPenShape extends BaseShapeTool {
           points
         });
         return tasks
+    }
+    removeLocal(): undefined {}
+    removeService(key:string): IRectType | undefined {
+        let rect:IRectType|undefined;
+        const removeNode:Node[]=[]
+        this.fullLayer.getElementsByName(key).forEach(c=>{
+            if (c.name === key) {
+                const b = (c as Path).getBoundingClientRect();
+                rect = computRect(rect,{
+                    x:b.x,
+                    y:b.y,
+                    w:b.width,
+                    h:b.height
+                })
+                removeNode.push(c);
+            }
+        })
+        if(removeNode.length) {
+            removeNode.forEach(r=>r.remove());
+        }
+        return rect;
     }
 }

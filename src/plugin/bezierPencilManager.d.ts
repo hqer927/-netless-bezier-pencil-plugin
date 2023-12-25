@@ -1,3 +1,4 @@
+/// <reference types="lodash" />
 import { BezierPencilPlugin, BezierPencilPluginOptions } from "./bezierPencilPlugin";
 import { MemberState } from "./types";
 import { CameraState, SceneState } from "white-web-sdk";
@@ -7,25 +8,16 @@ export declare class BezierPencilManager {
     private collector?;
     private worker?;
     private room?;
-    private disposeDisplayerSubscribe;
     constructor(plugin: BezierPencilPlugin, options?: BezierPencilPluginOptions);
     init(): void;
     cleanCurrentScene(): void;
     destroy(): void;
-    onCameraChange(cameraState: CameraState): void;
-    onSceneChange(sceneState: SceneState): void;
-    onMemberChange(memberState: MemberState): void;
+    private displayStateListener;
+    onCameraChange: import("lodash").DebouncedFunc<(cameraState: CameraState) => void>;
+    onSceneChange: import("lodash").DebouncedFunc<(sceneState: SceneState) => void>;
+    onMemberChange: import("lodash").DebouncedFunc<(memberState: MemberState) => void>;
+    private linstenerSelector;
     onWritableChange(isWritable: boolean): void;
     private onMountDisplayer;
     private onUnMountDisplayer;
-    private resizeChange;
-    private _throttled;
-    private mousedown;
-    private mousemove;
-    private mouseup;
-    private touchstart;
-    private touchmove;
-    private touchend;
-    private bindDisplayerEvent;
-    private removeDisplayerEvent;
 }

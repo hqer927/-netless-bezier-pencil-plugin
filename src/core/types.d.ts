@@ -1,3 +1,4 @@
+import { Group } from 'spritejs';
 import { BaseCollectorReducerAction, INormalPushMsg } from '../collector/types';
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool } from './tools';
@@ -25,15 +26,32 @@ export interface IOffscreenCanvasOptionType {
     [key: string]: any;
 }
 export interface ILayerOptionType {
-    offscreen: boolean;
-    handleEvent: boolean;
-    depth: boolean;
+    offscreen?: boolean;
+    handleEvent?: boolean;
+    depth?: boolean;
+    width?: number;
+    height?: number;
+    bufferSize?: number;
 }
 export interface IUpdateNodeOpt {
     scale?: [number, number];
-    skew?: [number, number];
-    fillColor?: string;
-    strokeColor?: string;
+    size?: {
+        width: number;
+        height: number;
+    };
+    translate?: [number, number];
+    selectorColor?: string;
+    color?: string;
+    opacity?: number;
+    pos?: [number, number];
+    workState?: EvevtWorkState;
+    useAnimation?: boolean;
+    zIndex?: number;
+    zIndexDistance?: number;
+    originPos?: [number, number];
+    ops?: string;
+    angle?: number;
+    centralPoint?: [number, number];
 }
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>, 'op'> & {
     msgType: EPostMessageType;
@@ -55,6 +73,18 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>, 'op'> & {
     updateNodeOpt?: IUpdateNodeOpt;
     layerOpt?: ILayerOptionType;
     drawCount?: number;
+    useAnimation?: boolean;
+    willRefreshSelector?: boolean;
+    willSyncService?: boolean;
+    willRefresh?: boolean;
+    isActiveZIndex?: boolean;
+    selectStore?: Map<string, {
+        ops?: string;
+        opt?: BaseShapeOptions;
+        updateNodeOpt?: IUpdateNodeOpt;
+    }>;
+    willSerializeData?: boolean;
+    isRunSubWork?: boolean;
 };
 export interface IRectType {
     x: number;
@@ -74,6 +104,13 @@ export interface IMainMessage extends INormalPushMsg {
     /** 是否是完整的一次任务 */
     isFullWork?: boolean;
     drawCount?: number;
+    selectIds?: Array<string>;
+    color?: string;
+    padding?: number;
+    selectRect?: IRectType;
+    updateNodeOpts?: Map<string, IUpdateNodeOpt>;
+    nodeColor?: string;
+    willSyncService?: boolean;
 }
 export interface IMainMessageRenderData {
     rect?: IRectType;
@@ -81,6 +118,7 @@ export interface IMainMessageRenderData {
     drawCanvas?: ECanvasShowType;
     isClear?: boolean;
     clearCanvas?: ECanvasShowType;
+    /** 是否需要销毁imageBitmap */
     isUnClose?: boolean;
     isFullWork?: boolean;
 }
@@ -93,10 +131,11 @@ export interface IBatchMainMessage {
     drawCount?: number;
 }
 export interface ICameraOpt {
-    centerX?: number;
-    centerY?: number;
-    scale?: number;
-    animationMode?: "continuous";
+    centerX: number;
+    centerY: number;
+    scale: number;
+    width: number;
+    height: number;
 }
 export interface IActiveToolsDataType {
     toolsType: EToolsKey;
@@ -108,13 +147,22 @@ export interface IActiveWorkDataType {
     toolsOpt?: BaseShapeOptions;
 }
 export type IServiceWorkItem = {
-    toolstype: EToolsKey;
-    animationWorkData: number[];
-    animationIndex: number;
+    toolsType: EToolsKey;
+    animationWorkData?: number[];
+    animationIndex?: number;
     type: EPostMessageType;
     node?: BaseShapeTool;
     updateNodeOpt?: IUpdateNodeOpt;
     ops?: string;
-    isDel: boolean;
+    isDel?: boolean;
     timer?: number;
+    useAnimation?: boolean;
+    bindSelector?: string;
+    selectIds?: string[];
+    oldRect?: IRectType;
+};
+export type BaseNodeMapItem = {
+    name: string;
+    rect: IRectType;
+    layer: Group;
 };

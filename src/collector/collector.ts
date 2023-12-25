@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
-import { EPostMessageType } from "../core/enum";
+import { EPostMessageType, EToolsKey } from "../core/enum";
 import type { Room } from "white-web-sdk";
 import { autorun, toJS } from "white-web-sdk";
-import { BaseCollectorReducerAction, Diff, DiffOne, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
+import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
 import { BaseCollector } from "./base";
 import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
 import { BezierPencilPluginAttributes } from "../plugin/types";
 import { BezierPencilPlugin } from "../plugin";
 import isEqual from "lodash/isEqual";
-import cloneDeep from "lodash/cloneDeep";
+import { SelectorShape } from "../core/tools";
+// import cloneDeep from "lodash/cloneDeep";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -27,20 +28,12 @@ export class Collector extends BaseCollector {
         const namespace = (plugin.displayer as Room).state.sceneState.sceneName;
         this.setNamespace(namespace)
     }
-    public addStorageStateListener(callBack:(key:string, value:DiffOne<BaseCollectorReducerAction | undefined>)=>void){
+    public addStorageStateListener(callBack:(diff:Diff<any>)=>void){
         this.stateDisposer = autorun(async () => {
             const storage = toJS(this.plugin.attributes[this.namespace]) || {};
             const diff = this.diffFun(this.storage, storage);
             this.storage = storage;
-            // console.log('storage1', diff);
-            for (const key of Object.keys(diff)) {
-                const item = diff[key];
-                if (item) {
-                    // console.log('dispatch---222',item)
-                    callBack(key, item);
-                }
-            }
-            
+            callBack(diff);
         })
     }
     public removeStorageStateListener():void {
@@ -58,13 +51,13 @@ export class Collector extends BaseCollector {
                     continue;
                 }
                 diff[key] = {
-                    oldValue: cloneDeep(_old[key]),
-                    newValue: cloneDeep(_new[key])
+                    oldValue: _old[key],
+                    newValue: _new[key]
                 }
                 continue;
             }
             diff[key] = {
-                oldValue: cloneDeep(_old[key]),
+                oldValue: _old[key],
                 newValue: undefined
             }
         }
@@ -77,83 +70,51 @@ export class Collector extends BaseCollector {
             }
             diff[key] = {
                 oldValue: undefined,
-                newValue: cloneDeep(_new[key])
+                newValue: _new[key]
             }
         }
         return diff;
     }
-    private transformKey(workId:number|string){
-        return this.uid + '@##@' + workId
+    transformKey(workId:number|string){
+        return this.uid + '++++' + workId
     }
     isOwn(key:string){
-        return key.split('@##@')[0] === this.uid;
+        return key.split('++++')[0] === this.uid;
     }
     dispatch(action: BaseCollectorReducerAction): void {
-        // console.log('dispatch', action)
-        const {type, workId, ops, index, opt, toolstype, w, h, removeIds, updateNodeOpt, op} = action
+        //console.log('dispatch', action)
+        const {type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds} = action
         switch (type) {
             case EPostMessageType.Clear:
                     const state: ISerializableStorageData = {};
-                    Object.keys(this.storage).filter(f=>f !== 'scene').map(key=>{
+                    Object.keys(this.storage).map(key=>{
                         state[key] = undefined;
                     })
                     this.setState(state);
                 break;
-            case EPostMessageType.UpdateScene:
-                if(w && h){
-                    // const state = { 
-                    //     scene: {
-                    //         uid:this.uid,
-                    //         w,
-                    //         h,
-                    //     }
-                    // };
-                    // this.setState(state);
-                    this.updateValue('scene',{
-                        uid:this.uid,
-                        w,
-                        h,
-                    }); 
-                }
-                break;
             case EPostMessageType.CreateWork:
-                if (workId && toolstype && opt) {
+                if (workId && toolsType && opt) {
                     const key =  this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    // const work:ISerializableStorageData = {}
-                    // work[key] = {
-                    //     type: EPostMessageType.CreateWork,
-                    //     workId,
-                    //     toolstype,
-                    //     opt
-                    // };
-                    // this.setState(work); 
                     this.updateValue(key.toString(),{
                         type: EPostMessageType.CreateWork,
                         workId,
-                        toolstype,
+                        toolsType,
                         opt
                     });                 
                 }
                 break;    
             case EPostMessageType.UpdateWork:
-                if (workId && toolstype && opt) {
+                if (workId && toolsType && opt) {
                     const key =  this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
-                    // const work:ISerializableStorageData = {}
-                    // work[key] = {
-                    //     ...old,
-                    //     type: EPostMessageType.UpdateWork,
-                    //     workId,
-                    //     toolstype,
-                    //     opt
-                    // };
-                    // this.setState(work);
+                    const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
                     this.updateValue(key.toString(),{
                         ...old,
                         type: EPostMessageType.UpdateWork,
                         workId,
-                        toolstype,
-                        opt
+                        toolsType,
+                        opt,
+                        updateNodeOpt: _updateNodeOpt
                     });               
                 }
                 break;
@@ -161,17 +122,8 @@ export class Collector extends BaseCollector {
                 if (workId && typeof index === 'number' && op?.length) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
-                    // console.log('DrawWork', (old?.op || []), index * 3, op, (old?.op || []).slice(0,index * 3).concat(op))
                     const _op = (old?.op || []).slice(0, index).concat(op);
                     if (old && _op) {
-                        // const state:ISerializableStorageData = {}
-                        // state[key] = {
-                        //     ...old,
-                        //     type: EPostMessageType.DrawWork,
-                        //     op: _op,
-                        //     index
-                        // };
-                        // this.setState(state);
                         this.updateValue(key.toString(),{
                            ...old,
                             type: EPostMessageType.DrawWork,
@@ -185,24 +137,18 @@ export class Collector extends BaseCollector {
                 if (workId) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
-                    const _toolstype = toolstype || old?.toolstype;
+                    const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
+                    const _toolsType = toolsType || old?.toolsType;
                     const _opt = opt || old?.opt;
-                    if (old && _toolstype && _opt  && ops) {
-                        // const state:ISerializableStorageData = {}
-                        // state[key] = {
-                        //     type: EPostMessageType.FullWork,
-                        //     workId: key,
-                        //     toolstype: _toolstype,
-                        //     opt: _opt,
-                        //     ops
-                        // }; 
-                        // this.setState(state); 
+                    const _ops = ops || old?.ops;
+                    if (_toolsType && _opt  && _ops) {
                         this.updateValue(key.toString(),{
                             type: EPostMessageType.FullWork,
+                            updateNodeOpt: _updateNodeOpt,
                             workId: key,
-                            toolstype: _toolstype,
+                            toolsType: _toolsType,
                             opt: _opt,
-                            ops
+                            ops: _ops
                         });                       
                     }
                 }
@@ -216,28 +162,52 @@ export class Collector extends BaseCollector {
                         }
                         return id;
                     })
-                    Object.keys(this.storage).filter(f=>f !== 'scene').map(key => {
+                    Object.keys(this.storage).map(key => {
                         if (_removeIds?.includes(key)) {
                             // state1[key] = undefined;
                             this.updateValue(key,undefined);
                         }
-                    })
-                    // this.setState(state1);
-                    
+                    })                    
                 }
                 break
             case EPostMessageType.UpdateNode:
-                if (workId && updateNodeOpt) {
-                    const old = this.storage[workId];
+                if (workId && (updateNodeOpt || ops || opt)) {
+                    const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
+                    const old = this.storage[key];
                     if (old) {
+                        old.type = type;
                         old.updateNodeOpt = updateNodeOpt;
-                        // const work:ISerializableStorageData = {
-                        //     [workId]: old
-                        // };
-                        // this.setState(work);
-                        this.updateValue(workId.toString(),old);
+                        if (ops) {
+                            old.ops = ops;
+                        }
+                        if (updateNodeOpt) {
+                            old.updateNodeOpt = updateNodeOpt;
+                        }
+                        if (opt) {
+                            old.opt = opt;
+                        }
+                        //console.log('dispatch---111',key, old)
+                        this.updateValue(key.toString(),old);
                     }
                 }
+                break;
+            case EPostMessageType.Select:
+                let _selectIds: string[] | undefined;
+                if (selectIds?.length && opt) {
+                    _selectIds = selectIds.map(id => {
+                        if (this.isLocalId(id + '')) {
+                            return this.transformKey(id);
+                        }
+                        return id;
+                    })
+                }
+                const key = this.transformKey(SelectorShape.selectorId);
+                this.updateValue(key, _selectIds && {
+                    type: EPostMessageType.Select,
+                    toolsType: EToolsKey.Selector,
+                    selectIds: _selectIds,
+                    opt
+                }); 
                 break;
             default:
                 break;
@@ -258,9 +228,13 @@ export class Collector extends BaseCollector {
         attr[this.namespace] = this.storage;
         this.plugin.setAttributes(attr);
     }
-    private updateValue(key:string, value:BaseCollectorReducerAction|undefined){
+    private updateValue(key:string, value: any){
         const length = Object.keys(this.storage).length;
-        this.storage[key] = value;
+        if (value === undefined) {
+            delete this.storage[key];
+        } else {
+            this.storage[key] = value;
+        }
         if (!length) {
             this.setState(this.storage);
         } else {
@@ -274,7 +248,7 @@ export class Collector extends BaseCollector {
         return transformToNormalData(str);  
     }
     keyTransformWorkId(key: string): string {
-        const list = key.split('@##@');
+        const list = key.split('++++');
         return list.length === 2 ? list[1] : key
     }
     destroy(){

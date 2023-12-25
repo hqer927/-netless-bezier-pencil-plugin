@@ -1,70 +1,83 @@
-import React, { useMemo } from "react"
-import { FloatBtns } from "../floatBtns"
-import { HightLightBox } from "../highlightBox"
-import type { EventEmitter2 } from "eventemitter2"
-// import { EInternalEventType } from "../.."
-import { ShowFloatBarMsgValue } from "../types"
+import React, { useContext, useMemo } from "react"
+import { DisplayerContext } from "../../plugin/bezierPencilDisplayer"
+import throttle from "lodash/throttle";
+import { EvevtWorkState } from "../../core";
+import Draggable from 'react-draggable'; 
+import type { DraggableData, DraggableEvent } from "react-draggable";
+import { FloatBtns } from "../floatBtns";
+import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
+import { MethodBuilderMain } from "../../core/msgEvent";
+import { HightLightBox } from "../highlightBox";
 
-export const FloatBar = React.memo((props:{
+export const FloatBar = React.forwardRef((props:{
     className: string,
-    internalMsgEmitter: EventEmitter2,
-    styleData?: ShowFloatBarMsgValue
-}) => {
-    const { className, internalMsgEmitter, styleData} = props;
-    const [isShowBtns, SetShowBtns] = React.useState(false);
-    
-    // useEffect(()=>{
-    //     internalMsgEmitter.on(["floatBar", EInternalEventType.HidFloatBtns], SetShowBtns)
-    //     internalMsgEmitter.on(["floatBar", EInternalEventType.ShowFloatBtns], SetShowBtns)
-    //     return ()=>{
-    //         internalMsgEmitter.off(["floatBar", EInternalEventType.HidFloatBtns], SetShowBtns);
-    //         internalMsgEmitter.off(["floatBar", EInternalEventType.ShowFloatBtns], SetShowBtns);
-    //     }
-    // },[])
-
-    const onDragStartHandler = (e: React.DragEvent<HTMLDivElement>) => {
-        e.dataTransfer.setData("text/plain", "1");
-        e.dataTransfer.effectAllowed = "move";
-    }
-
-    const onDragEndHandler = (e: React.DragEvent<HTMLDivElement>) => {
-        e.dataTransfer.clearData();
-    }
-
-    const onDragHandler = (e: React.DragEvent<HTMLDivElement>) => {
+}, ref: React.Ref<HTMLCanvasElement>) => {
+    const {floatBarData, zIndex, InternalMsgEmitter, position, showFloatBarBtn, angle, isRotating, setShowFloatBarBtn, setPosition} = useContext(DisplayerContext);
+    const { className } = props;
+    const onDragStartHandler = (e: DraggableEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        // console.log('onDragStartHandler', position)
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            EmitEventType.TranslateNode, {workIds: ['selector'], position, workState: EvevtWorkState.Start})
     }
-
-    const onDropHandler = (e: React.DragEvent<HTMLDivElement>) => {
+    const onDragEndHandler = throttle((e: DraggableEvent,
+        pos: DraggableData) => {
         e.preventDefault();
         e.stopPropagation();
-    }
-    
+        setShowFloatBarBtn(true);
+        const p = {x:pos.x, y:pos.y};
+        setPosition(p)
+        // console.log('onDragEndHandler', p)
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Done})
+    }, 100, {'leading':false})
+    const onDragHandler = throttle((e, pos) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowFloatBarBtn(false);
+        const p = {x:pos.x, y:pos.y};
+        if (pos.x !== position?.x || pos.y!== position?.y) {
+            setPosition(p)
+            // console.log('onDragHandler', p)
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Doing})
+        }
+    }, 100, {'leading':false})
     const FloatBtnsUI = useMemo(()=>{
-        if (isShowBtns) {
-            return <FloatBtns internalMsgEmitter={internalMsgEmitter}></FloatBtns>;
+        if (showFloatBarBtn && !isRotating) {
+            return <FloatBtns/>;
         }
         return null;
-    },[isShowBtns])
-
+    },[showFloatBarBtn, isRotating])
     return (
-        <div className={className} draggable={true}
-            style={styleData ? {
-                    left: styleData.x,
-                    top: styleData.y,
-                    width: styleData.w,
-                    height: styleData.h,
-                    borderColor: styleData.color,
-                } : undefined
-            }
-            onDragStart= {onDragStartHandler}
+        <Draggable
+            position={position}
+            onStart={onDragStartHandler}
             onDrag={onDragHandler}
-            onDragEnd={onDragEndHandler}
-            onDrop={onDropHandler}
+            onStop={onDragEndHandler}
+            handle="canvas"
         >
-            { FloatBtnsUI }
-            <HightLightBox internalMsgEmitter={internalMsgEmitter}></HightLightBox>
-        </div>
+            <div className={`${className}`}
+                    style= { floatBarData ? {
+                            width: floatBarData.w,
+                            height: floatBarData.h,
+                            zIndex,
+                            pointerEvents: zIndex < 2 ? 'none' : 'auto',
+                        } : undefined
+                    }
+                >
+                    { FloatBtnsUI }
+                    <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"
+                        style={{
+                                width: '100%',
+                                height: '100%',
+                                transform: `rotate(${angle}deg)`,
+                            }
+                        }
+                    />
+                    {!isRotating && <HightLightBox />}
+                </div>
+        </Draggable>
     )
-}, () => true)
+})

@@ -33,8 +33,8 @@ export declare enum EvevtWorkState {
 export declare enum EPostMessageType {
     /** 初始化,仅用于本地 */
     Init = 0,
-    /** 本地动画,仅用于本地 */
-    Transform = 1,
+    /** 本地视口切换,仅用于本地 */
+    UpdateCamera = 1,
     /** 更新tool配置数据,仅用于本地 */
     UpdateTools = 2,
     /** 更新offScene配置数据 */
@@ -72,11 +72,18 @@ export declare enum ECanvasContextType {
     Webgl = "webgl",
     Canvas2d = "2d"
 }
-export declare enum EanimationMode {
-    immediately = "immediately",
-    continuous = "continuous"
-}
 export declare enum ECanvasShowType {
-    Float = 0,
-    Bg = 1
+    Float = 1,
+    Bg = 2,
+    Selector = 3
+}
+export declare enum EScaleDirection {
+    LT = "topLeft",
+    LC = "left",
+    LB = "bottomLeft",
+    TC = "top",
+    RT = "topRight",
+    RC = "right",
+    RB = "bottomRight",
+    BC = "bottom"
 }

@@ -120,6 +120,7 @@ export declare class Vec2d {
     static Clockwise(A: VecLike, B: VecLike, C: VecLike): boolean;
     static Rescale(A: VecLike, n: number): Vec2d;
     static ScaleWithOrigin(A: VecLike, scale: number, origin: VecLike): Vec2d;
+    static ScaleWOrigin(A: VecLike, scale: VecLike, origin: VecLike): Vec2d;
     static ToFixed(A: StrictVecLike, n?: number): Vec2d;
     static Nudge(A: VecLike, B: VecLike, distance: number): Vec2d;
     static ToString(A: VecLike): string;

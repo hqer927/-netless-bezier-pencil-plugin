@@ -78,8 +78,6 @@ export class BezierPencilPlugin extends InvisiblePlugin {
                 if (state.sceneState) {
                     BezierPencilPlugin.currentManager.onSceneChange(state.sceneState);
                 }
-                // if (state.roomMembers) {
-                // }
             }
         });
         Object.defineProperty(this, "createCurrentManager", {

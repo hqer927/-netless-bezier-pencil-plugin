@@ -1,5 +1,6 @@
 import path from "path";
 import { defineConfig } from "vite";
+import pkg from './package.json'
 // import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
@@ -22,7 +23,10 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: isProd,
       rollupOptions: {
-        external: ["white-web-sdk"],
+        external: Object.keys({
+          ...pkg.peerDependencies,
+          ...pkg.dependencies
+        }),
       },
       minify: isProd,
     },

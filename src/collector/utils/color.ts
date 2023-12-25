@@ -73,3 +73,18 @@ export function rgbToHex (r: number, g: number, b: number) {
     const hex = ((r << 16) + (g << 8) + b).toString(16).padStart(6, "0");
     return "#" + hex;
 }
+/** 十六进制转rgba */
+export function hexToRgba(hex: string, opacity: number = 1) {
+    return 'rgba(' + parseInt('0x' + hex.slice(1, 3)) + ',' + parseInt('0x' + hex.slice(3, 5)) + ','
+        + parseInt('0x' + hex.slice(5, 7)) + ',' + opacity + ')';
+}
+
+// 将rgb颜色转成hex
+export function colorRGBA2Hex(color:string):[string, number] {
+    const rgb = color.split(',');
+    const r = parseInt(rgb[0].split('(')[1]);
+    const g = parseInt(rgb[1]);
+    const b = parseInt(rgb[2]);
+    const a = parseInt(rgb[3].split(')')[0]);
+    return [rgbToHex(r,g,b), a] ;
+}

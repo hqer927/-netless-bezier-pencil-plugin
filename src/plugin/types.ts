@@ -44,19 +44,17 @@ export type CanvasOpt = {
     contextType: ECanvasContextType,
 }
 
-export enum EInternalEventType {
+export enum EmitEventType {
     /** 显示悬浮栏 */
     ShowFloatBar = 'ShowFloatBar',
-    /** 隐藏悬浮栏 */
-    HidFloatBar = 'HidFloatBar',
-    /** 显示悬浮栏按钮组 */
-    ShowFloatBtns = 'ShowFloatBtns',
-    /** 显示悬浮栏按钮组 */
-    HidFloatBtns = 'HidFloatBtns',
+    /** 设置悬浮栏层级 */
+    ZIndexFloatBar = 'ZIndexFloatBar',
     /** 删除节点 */
     DeleteNode = 'DeleteNode',
     /** 复制节点 */
     CopyNode = 'CopyNode',
+    /** 激活层级设置 */
+    ZIndexActive = 'ZIndexActive',
     /** 设置节点层级 */
     ZIndexNode = 'ZIndexNode',
     /** 旋转节点 */
@@ -67,6 +65,19 @@ export enum EInternalEventType {
     TranslateNode = 'TranslateNode',
     /** 拉伸节点 */
     ScaleNode = 'ScaleNode',
+    /** 原始事件 */
+    OriginalEvent = 'OriginalEvent',
+    /** 创建canvas */
+    CreateScene = 'createScene',
+    /** 更新canvas */
+    UpdateScene = 'UpdateScene',
+}
+
+export enum InternalMsgEmitterType {
+    DisplayState = 'DisplayState',
+    FloatBar = 'FloatBar',
+    CanvasSelector = 'CanvasSelector',
+    MainEngine = 'MainEngine'
 }
 
 export type InternalEventValue = {

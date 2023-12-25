@@ -123,9 +123,6 @@ export class BezierPencilPlugin extends InvisiblePlugin<BezierPencilPluginAttrib
         if (state.sceneState) {
             BezierPencilPlugin.currentManager.onSceneChange(state.sceneState);
         }
-        // if (state.roomMembers) {
-
-        // }
     }
     private createCurrentManager = () => {
         if (BezierPencilPlugin.currentManager) {

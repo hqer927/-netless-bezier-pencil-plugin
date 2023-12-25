@@ -1,0 +1,15 @@
+import React, { useContext } from "react";
+import { IconURL } from "../icons";
+import { DisplayerContext } from "../../plugin";
+import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
+import { MethodBuilderMain } from "../../core/msgEvent";
+export const Del = () => {
+    const { InternalMsgEmitter } = useContext(DisplayerContext);
+    return (React.createElement("div", { className: "button normal-button", onClick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode], ['selector']);
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode, { workIds: ['selector'] });
+        } },
+        React.createElement("img", { alt: "icon", src: IconURL('delete') })));
+};

@@ -1,29 +1,30 @@
 import { WorkThreadEngine } from "../base";
-import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, IMainMessage, IOffscreenCanvasOptionType, IWorkerMessage } from "../types";
+import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IOffscreenCanvasOptionType, IWorkerMessage } from "../types";
 import { EDataType } from "../enum";
-import { Scene, Layer } from "spritejs";
+import { Scene, Group } from "spritejs";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
 export declare class SubWorkThreadEngineByWorker extends WorkThreadEngine {
+    protected cameraOpt?: Pick<ICameraOpt, "scale" | "centerX" | "centerY"> | undefined;
     static _self: Worker;
     private lockId?;
     protected dpr: number;
     protected scene: Scene;
-    protected drawLayer: Layer;
-    protected fullLayer: Layer;
+    protected drawLayer: Group;
+    protected fullLayer: Group;
     protected localWork: SubLocalDrawWorkForWorker;
     constructor();
     private init;
     getOffscreen(): OffscreenCanvas;
     private register;
-    protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): IMainMessage;
+    protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): void;
     setToolsOpt(opt: IActiveToolsDataType): void;
     setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
     private clearAll;
-    private setTransform;
+    private setCameraOpt;
     private getRectImageBitmap;
     post(msg: IBatchMainMessage): void;
-    on(callBack: (msg: IWorkerMessage[]) => void): void;
-    consumeDraw(type: EDataType, data: IWorkerMessage): IMainMessage | undefined;
+    on(callBack: (msg: IterableIterator<IWorkerMessage>) => void): void;
+    consumeDraw(type: EDataType, data: IWorkerMessage): undefined;
     consumeDrawAll(_type: EDataType, data: IWorkerMessage): undefined;
     consumeFull(): void;
 }

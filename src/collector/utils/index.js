@@ -13,10 +13,3 @@ export function uint8ArrayToNormalData(data) {
     return JSON.parse(decompressFromUint8Array(data));
 }
 export const plainObjectKeys = Object.keys;
-// export function isEqual(a: any, b: any): boolean {
-//     if (a === b) return true;
-//     if (Array.isArray(a)) return a.every((x, i) => isEqual(x, b[i]));
-//     for (const value in Object.values(a)) {
-//     }
-//     // return false;
-// }

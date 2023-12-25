@@ -1,7 +1,7 @@
 import { Point2d } from "../utils/primitives/Point2d";
 import { EPostMessageType, EToolsKey } from "../enum";
-import { IMainMessage, IRectType, IWorkerMessage } from "../types";
-import { Layer } from "spritejs";
+import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt, IWorkerMessage } from "../types";
+import { Group } from "spritejs";
 
 export interface BaseShapeOptions {
     color: string;
@@ -9,6 +9,9 @@ export interface BaseShapeOptions {
     vertex?: string;
     fragment?: string;
     syncUnitTime?: number;
+    zIndex?: number;
+    scale?:[number,number];
+    rotate?:number;
 }
 
 export interface CombineConsumeResult {
@@ -23,10 +26,10 @@ export abstract class BaseShapeTool {
     protected abstract workOptions: BaseShapeOptions;
     protected abstract syncTimestamp: number;
     public syncUnitTime: number = 1000;
-    protected drawLayer?: Layer;
-    protected fullLayer: Layer;
+    protected drawLayer?: Group;
+    protected fullLayer: Group;
     protected workId: number | string | undefined;
-    constructor(fullLayer: Layer, drawLayer?:Layer) {
+    constructor(fullLayer: Group, drawLayer?:Group) {
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
     }
@@ -43,9 +46,15 @@ export abstract class BaseShapeTool {
         this.workOptions = workOptions;
         this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
     }
-    abstract consume(data: IWorkerMessage, isFullWork?:boolean): IMainMessage;
-    abstract consumeAll(data?: IWorkerMessage): IMainMessage;
-    abstract consumeService(data: number[], isFullWork?:boolean): IRectType | undefined;
+    abstract consume(props:{data: IWorkerMessage, isFullWork?:boolean, nodeMaps?: Map<string, BaseNodeMapItem>}): IMainMessage;
+    abstract consumeAll(props:{data?: IWorkerMessage, nodeMaps?: Map<string, BaseNodeMapItem>}): IMainMessage;
+    abstract consumeService(props:{
+        op: number[];
+        isFullWork:boolean;
+        replaceId?: string;
+        isClearAll?: boolean;
+    }): IRectType | undefined;
+    abstract updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined;
     abstract combineConsume(): IMainMessage | undefined;
     abstract clearTmpPoints():void;
 }

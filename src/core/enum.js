@@ -38,8 +38,8 @@ export var EPostMessageType;
 (function (EPostMessageType) {
     /** 初始化,仅用于本地 */
     EPostMessageType[EPostMessageType["Init"] = 0] = "Init";
-    /** 本地动画,仅用于本地 */
-    EPostMessageType[EPostMessageType["Transform"] = 1] = "Transform";
+    /** 本地视口切换,仅用于本地 */
+    EPostMessageType[EPostMessageType["UpdateCamera"] = 1] = "UpdateCamera";
     /** 更新tool配置数据,仅用于本地 */
     EPostMessageType[EPostMessageType["UpdateTools"] = 2] = "UpdateTools";
     /** 更新offScene配置数据 */
@@ -79,13 +79,20 @@ export var ECanvasContextType;
     ECanvasContextType["Webgl"] = "webgl";
     ECanvasContextType["Canvas2d"] = "2d";
 })(ECanvasContextType || (ECanvasContextType = {}));
-export var EanimationMode;
-(function (EanimationMode) {
-    EanimationMode["immediately"] = "immediately";
-    EanimationMode["continuous"] = "continuous";
-})(EanimationMode || (EanimationMode = {}));
 export var ECanvasShowType;
 (function (ECanvasShowType) {
-    ECanvasShowType[ECanvasShowType["Float"] = 0] = "Float";
-    ECanvasShowType[ECanvasShowType["Bg"] = 1] = "Bg";
+    ECanvasShowType[ECanvasShowType["Float"] = 1] = "Float";
+    ECanvasShowType[ECanvasShowType["Bg"] = 2] = "Bg";
+    ECanvasShowType[ECanvasShowType["Selector"] = 3] = "Selector";
 })(ECanvasShowType || (ECanvasShowType = {}));
+export var EScaleDirection;
+(function (EScaleDirection) {
+    EScaleDirection["LT"] = "topLeft";
+    EScaleDirection["LC"] = "left";
+    EScaleDirection["LB"] = "bottomLeft";
+    EScaleDirection["TC"] = "top";
+    EScaleDirection["RT"] = "topRight";
+    EScaleDirection["RC"] = "right";
+    EScaleDirection["RB"] = "bottomRight";
+    EScaleDirection["BC"] = "bottom";
+})(EScaleDirection || (EScaleDirection = {}));

@@ -424,16 +424,26 @@
   resolved "https://registry.npmmirror.com/@eslint/js/-/js-8.54.0.tgz#4fab9a2ff7860082c304f750e94acd644cf984cf"
   integrity sha512-ut5V+D+fOoWPgGGNj83GGjnntO39xDy6DWxO0wb7Jp3DcMX0TfIqdzHF85VTQkerdyGmuuMD9AKAo5KiNlf/AQ==
 
+<<<<<<< HEAD
 "@hqer/bezier-pencil-plugin@0.0.4":
   version "0.0.4"
   resolved "https://registry.yarnpkg.com/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.4.tgz#45e8141fef8c666ded3faf727d4ff58f6630500b"
   integrity sha512-2lHKbAr4ryuczRBihgJ7/pzvaIo3qzE8YmZNTw4xPdEGk5+s2yuMPxJSX5vnj8/DpIc6iBWyLDjeUrGWlSDf5g==
+=======
+"@hqer/bezier-pencil-plugin@0.0.7":
+  version "0.0.7"
+  resolved "https://registry.npmjs.org/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.7.tgz#75cc5ac0e2c34edeff52da4320bc9d874011bd7a"
+  integrity sha512-XY1KaacCQyBFzPw5l3JVtLW6fdDtg90LnMCpDSt86PKbofXUITIm+dVEu0Q692AWmb3Ppt6W46OvOtB9dZSbpQ==
+>>>>>>> d63f88a (udpate:finish this feature)
   dependencies:
+    eventemitter2 "^6.4.9"
     lodash "^4.17.21"
     lz-string "^1.5.0"
+    re-resizable "^6.9.11"
+    react ">=16.8.0"
+    react-draggable "^4.4.6"
     spritejs "^3.8.3"
     value-enhancer "^3.1.4"
-    white-web-sdk "^2.16.47"
 
 "@humanwhocodes/config-array@^0.11.13":
   version "0.11.13"
@@ -1125,6 +1135,11 @@ classnames@2.x, classnames@^2.2.1, classnames@^2.2.3, classnames@^2.2.5, classna
   resolved "https://registry.npmmirror.com/classnames/-/classnames-2.3.2.tgz#351d813bf0137fcc6a76a16b88208d2560a0d924"
   integrity sha512-CSbhY4cFEJRe6/GQzIk5qXZ4Jeg5pcsP7b5peFSDpffpe1cqjASH/n9UTjBwOp6XpMSTwQ8Za2K5V02ueA7Tmw==
 
+clsx@^1.1.1:
+  version "1.2.1"
+  resolved "https://registry.npmmirror.com/clsx/-/clsx-1.2.1.tgz#0ddc4a20a549b59c93a4116bb26f5294ca17dc12"
+  integrity sha512-EcR6r5a8bj6pu3ycsa/E/cKVGuTgZJZdsyUYHOksG/UHIiKfjxzRxYJpyVBwYaQeOvghal9fcc4PidlgzugAQg==
+
 color-convert@^1.9.0, color-convert@^1.9.3:
   version "1.9.3"
   resolved "https://registry.npmmirror.com/color-convert/-/color-convert-1.9.3.tgz#bb71850690e1f136567de629d2d5471deda4c1e8"
@@ -1505,6 +1520,11 @@ esutils@^2.0.2:
   version "2.0.3"
   resolved "https://registry.npmmirror.com/esutils/-/esutils-2.0.3.tgz#74d2eb4de0b8da1293711910d50775b9b710ef64"
   integrity sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==
+
+eventemitter2@^6.4.9:
+  version "6.4.9"
+  resolved "https://registry.npmmirror.com/eventemitter2/-/eventemitter2-6.4.9.tgz#41f2750781b4230ed58827bc119d293471ecb125"
+  integrity sha512-JEPTiaOt9f04oa6NOkc4aH+nVp5I3wEjpHbIPqfgCdD5v5bUzy7xQqwcVO2aDQgOWhI28da57HksMrzK9HlRxg==
 
 eventemitter3@^4.0.7:
   version "4.0.7"
@@ -2030,7 +2050,7 @@ prelude-ls@^1.2.1:
   resolved "https://registry.npmmirror.com/prelude-ls/-/prelude-ls-1.2.1.tgz#debc6489d7a6e6b0e7611888cec880337d316396"
   integrity sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==
 
-prop-types@^15.6.2:
+prop-types@^15.6.2, prop-types@^15.8.1:
   version "15.8.1"
   resolved "https://registry.npmmirror.com/prop-types/-/prop-types-15.8.1.tgz#67d87bf1a694f48435cf332c24af10214a3140b5"
   integrity sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==
@@ -2435,6 +2455,11 @@ rc-virtual-list@^3.11.1, rc-virtual-list@^3.5.1, rc-virtual-list@^3.5.2:
     rc-resize-observer "^1.0.0"
     rc-util "^5.36.0"
 
+re-resizable@^6.9.11:
+  version "6.9.11"
+  resolved "https://registry.npmmirror.com/re-resizable/-/re-resizable-6.9.11.tgz#f356e27877f12d926d076ab9ad9ff0b95912b475"
+  integrity sha512-a3hiLWck/NkmyLvGWUuvkAmN1VhwAz4yOhS6FdMTaxCUVN9joIWkT11wsO68coG/iEYuwn+p/7qAmfQzRhiPLQ==
+
 react-dom@^16.8.0:
   version "16.14.0"
   resolved "https://registry.npmmirror.com/react-dom/-/react-dom-16.14.0.tgz#7ad838ec29a777fb3c75c3a190f661cf92ab8b89"
@@ -2453,6 +2478,14 @@ react-dom@^18.2.0:
     loose-envify "^1.1.0"
     scheduler "^0.23.0"
 
+react-draggable@^4.4.6:
+  version "4.4.6"
+  resolved "https://registry.npmmirror.com/react-draggable/-/react-draggable-4.4.6.tgz#63343ee945770881ca1256a5b6fa5c9f5983fe1e"
+  integrity sha512-LtY5Xw1zTPqHkVmtM3X8MUOxNDOUhv/khTgBgrUvwaS064bwVvxT+q5El0uUFNx5IEPKXuRejr7UqLwBIg5pdw==
+  dependencies:
+    clsx "^1.1.1"
+    prop-types "^15.8.1"
+
 react-is@^16.13.1:
   version "16.13.1"
   resolved "https://registry.npmmirror.com/react-is/-/react-is-16.13.1.tgz#789729a4dc36de2999dc156dd6c1d9c18cea56a4"
@@ -2468,6 +2501,13 @@ react-refresh@^0.14.0:
   resolved "https://registry.npmmirror.com/react-refresh/-/react-refresh-0.14.0.tgz#4e02825378a5f227079554d4284889354e5f553e"
   integrity sha512-wViHqhAd8OHeLS/IRMJjTSDHF3U9eWi62F/MledQGPdJGDhodXJ9PBLNGr6WWL7qlH12Mt3TyTpbS+hGXMjCzQ==
 
+react@>=16.8.0, react@^18.2.0:
+  version "18.2.0"
+  resolved "https://registry.npmjs.org/react/-/react-18.2.0.tgz#555bd98592883255fa00de14f1151a917b5d77d5"
+  integrity sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==
+  dependencies:
+    loose-envify "^1.1.0"
+
 react@^16.8.0:
   version "16.14.0"
   resolved "https://registry.npmmirror.com/react/-/react-16.14.0.tgz#94d776ddd0aaa37da3eda8fc5b6b18a4c9a3114d"
@@ -2476,13 +2516,6 @@ react@^16.8.0:
     loose-envify "^1.1.0"
     object-assign "^4.1.1"
     prop-types "^15.6.2"
-
-react@^18.2.0:
-  version "18.2.0"
-  resolved "https://registry.npmmirror.com/react/-/react-18.2.0.tgz#555bd98592883255fa00de14f1151a917b5d77d5"
-  integrity sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==
-  dependencies:
-    loose-envify "^1.1.0"
 
 regenerator-runtime@^0.11.0:
   version "0.11.1"
@@ -2643,7 +2676,7 @@ sprite-timeline@^1.10.2:
 
 spritejs@^3.8.3:
   version "3.8.3"
-  resolved "https://registry.npmmirror.com/spritejs/-/spritejs-3.8.3.tgz#4e113b754123632ada9977135fe2b1a948240047"
+  resolved "https://registry.npmjs.org/spritejs/-/spritejs-3.8.3.tgz#4e113b754123632ada9977135fe2b1a948240047"
   integrity sha512-Ar+BKZlgFBv9sAICzNJH2QV4HCKiq/opwz3DUH5/NtvBzGALsG62BTZNtzssjtQY6QLacC9BPWCdAhrngejYDA==
   dependencies:
     "@babel/runtime" "^7.4.5"
@@ -2827,7 +2860,7 @@ white-react-sdk@^2.16.47:
   dependencies:
     white-web-sdk "2.16.47"
 
-white-web-sdk@2.16.47, white-web-sdk@^2.16.47:
+white-web-sdk@2.16.47:
   version "2.16.47"
   resolved "https://registry.npmmirror.com/white-web-sdk/-/white-web-sdk-2.16.47.tgz#d47942e49654eabf30e2b23999a0f10a86a1092d"
   integrity sha512-zpIBIe1nfDaF34PE5hKIXB3DW5TyQvhqoApCqLEmXyg1IyWH6YpIAVEiTyngUxpLv+R7jX/a1eQ9ljvrfBEkrQ==

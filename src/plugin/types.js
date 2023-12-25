@@ -12,28 +12,39 @@ export var EStrokeType;
     EStrokeType[EStrokeType["Dotted"] = 2] = "Dotted";
     EStrokeType[EStrokeType["LongDotted"] = 3] = "LongDotted";
 })(EStrokeType || (EStrokeType = {}));
-export var EInternalEventType;
-(function (EInternalEventType) {
+export var EmitEventType;
+(function (EmitEventType) {
     /** 显示悬浮栏 */
-    EInternalEventType["ShowFloatBar"] = "ShowFloatBar";
-    /** 隐藏悬浮栏 */
-    EInternalEventType["HidFloatBar"] = "HidFloatBar";
-    /** 显示悬浮栏按钮组 */
-    EInternalEventType["ShowFloatBtns"] = "ShowFloatBtns";
-    /** 显示悬浮栏按钮组 */
-    EInternalEventType["HidFloatBtns"] = "HidFloatBtns";
+    EmitEventType["ShowFloatBar"] = "ShowFloatBar";
+    /** 设置悬浮栏层级 */
+    EmitEventType["ZIndexFloatBar"] = "ZIndexFloatBar";
     /** 删除节点 */
-    EInternalEventType["DeleteNode"] = "DeleteNode";
+    EmitEventType["DeleteNode"] = "DeleteNode";
     /** 复制节点 */
-    EInternalEventType["CopyNode"] = "CopyNode";
+    EmitEventType["CopyNode"] = "CopyNode";
+    /** 激活层级设置 */
+    EmitEventType["ZIndexActive"] = "ZIndexActive";
     /** 设置节点层级 */
-    EInternalEventType["ZIndexNode"] = "ZIndexNode";
+    EmitEventType["ZIndexNode"] = "ZIndexNode";
     /** 旋转节点 */
-    EInternalEventType["RotateNode"] = "RotateNode";
+    EmitEventType["RotateNode"] = "RotateNode";
     /** 设置节点颜色 */
-    EInternalEventType["SetColorNode"] = "SetColorNode";
+    EmitEventType["SetColorNode"] = "SetColorNode";
     /** 移动节点 */
-    EInternalEventType["TranslateNode"] = "TranslateNode";
+    EmitEventType["TranslateNode"] = "TranslateNode";
     /** 拉伸节点 */
-    EInternalEventType["ScaleNode"] = "ScaleNode";
-})(EInternalEventType || (EInternalEventType = {}));
+    EmitEventType["ScaleNode"] = "ScaleNode";
+    /** 原始事件 */
+    EmitEventType["OriginalEvent"] = "OriginalEvent";
+    /** 创建canvas */
+    EmitEventType["CreateScene"] = "createScene";
+    /** 更新canvas */
+    EmitEventType["UpdateScene"] = "UpdateScene";
+})(EmitEventType || (EmitEventType = {}));
+export var InternalMsgEmitterType;
+(function (InternalMsgEmitterType) {
+    InternalMsgEmitterType["DisplayState"] = "DisplayState";
+    InternalMsgEmitterType["FloatBar"] = "FloatBar";
+    InternalMsgEmitterType["CanvasSelector"] = "CanvasSelector";
+    InternalMsgEmitterType["MainEngine"] = "MainEngine";
+})(InternalMsgEmitterType || (InternalMsgEmitterType = {}));

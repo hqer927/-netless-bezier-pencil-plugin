@@ -1,4 +1,4 @@
-import { BaseCollectorReducerAction, DiffOne, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
+import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
 import { BaseCollector } from "./base";
 import { BezierPencilPlugin } from "../plugin";
 /**
@@ -11,10 +11,10 @@ export declare class Collector extends BaseCollector {
     protected namespace: string;
     private stateDisposer;
     constructor(plugin: BezierPencilPlugin);
-    addStorageStateListener(callBack: (key: string, value: DiffOne<BaseCollectorReducerAction | undefined>) => void): void;
+    addStorageStateListener(callBack: (diff: Diff<any>) => void): void;
     removeStorageStateListener(): void;
     private diffFun;
-    private transformKey;
+    transformKey(workId: number | string): string;
     isOwn(key: string): boolean;
     dispatch(action: BaseCollectorReducerAction): void;
     private setState;

@@ -492,6 +492,9 @@ export class Vec2d {
 	static ScaleWithOrigin(A: VecLike, scale: number, origin: VecLike) {
 		return Vec2d.Sub(A, origin).mul(scale).add(origin)
 	}
+	static ScaleWOrigin(A: VecLike, scale: VecLike, origin: VecLike) {
+		return Vec2d.Sub(A, origin).mulV(scale).add(origin)
+	}
 
 	static ToFixed(A: StrictVecLike, n = 2) {
 		return new Vec2d(+A.x.toFixed(n), +A.y.toFixed(n), +A.z!.toFixed(n))

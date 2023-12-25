@@ -28,13 +28,13 @@ export enum EvevtWorkState{
 /**
  * 消息变化顺序: init => Scene事件 => work事件 => node事件
  * 本地数据: Init、Transform、UpdateTools、CombineDraw
- * 服务端数据: 
+ * 服务端数据:
  */
 export enum EPostMessageType {
     /** 初始化,仅用于本地 */
     Init,
-    /** 本地动画,仅用于本地 */
-    Transform,
+    /** 本地视口切换,仅用于本地 */
+    UpdateCamera,
     /** 更新tool配置数据,仅用于本地 */
     UpdateTools,
     /** 更新offScene配置数据 */
@@ -52,7 +52,7 @@ export enum EPostMessageType {
     /** 删除node */
     RemoveNode,
     /** 清空 */
-    Clear,   
+    Clear,
     /** 选中 */
     Select,
     /** 销毁 */
@@ -72,11 +72,19 @@ export enum ECanvasContextType {
     Webgl = 'webgl',
     Canvas2d = '2d',
 }
-export enum EanimationMode {
-    immediately = 'immediately',
-    continuous = 'continuous'
-}
 export enum ECanvasShowType {
-    Float,
-    Bg
+    Float = 1,
+    Bg,
+    Selector
 }
+export enum EScaleDirection {
+    LT = 'topLeft',
+    LC = 'left',
+    LB = 'bottomLeft',
+    TC = 'top',
+    RT = 'topRight',
+    RC = 'right',
+    RB = 'bottomRight',
+    BC = 'bottom'
+}
+

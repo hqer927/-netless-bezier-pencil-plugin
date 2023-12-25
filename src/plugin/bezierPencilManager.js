@@ -1,11 +1,13 @@
 import { BezierPencilDisplayer } from "./bezierPencilDisplayer";
 import { Collector } from "../collector";
-import { DisplayStateEnum, EStrokeType } from "./types";
+import { DisplayStateEnum, EmitEventType, EStrokeType, InternalMsgEmitterType } from "./types";
 import { isRoom, toJS, ApplianceNames } from "white-web-sdk";
-import { EDataType, EToolsKey } from "../core/enum";
-import throttle from "lodash/throttle";
+import { EToolsKey, EvevtWorkState } from "../core/enum";
+// import throttle from "lodash/throttle";
 import { rgbToHex } from "../collector/utils/color";
 import { MainEngineForWorker } from "../core";
+import throttle from "lodash/throttle";
+import debounce from "lodash/debounce";
 export class BezierPencilManager {
     constructor(plugin, options) {
         Object.defineProperty(this, "plugin", {
@@ -38,100 +40,101 @@ export class BezierPencilManager {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "resizeChange", {
+        Object.defineProperty(this, "onCameraChange", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: () => {
-                const div = BezierPencilDisplayer.instance?.containerRef;
-                if (div) {
-                    const width = div.offsetWidth;
-                    const height = div.offsetHeight;
-                    this.worker?.updateCanvas({
-                        width,
-                        height
-                    }, EDataType.Local);
-                    const bgCanvas = BezierPencilDisplayer.instance?.canvasBgRef;
-                    const floatCanvas = BezierPencilDisplayer.instance?.canvasFloatRef;
-                    if (bgCanvas && floatCanvas) {
-                        floatCanvas.style.width = `${width}px`;
-                        floatCanvas.style.height = `${height}px`;
-                        bgCanvas.style.width = `${width}px`;
-                        bgCanvas.style.height = `${height}px`;
+            value: debounce((cameraState) => {
+                this.worker?.setCameraOpt(toJS(cameraState));
+            }, 100, { 'leading': false })
+        });
+        Object.defineProperty(this, "onSceneChange", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: throttle((sceneState) => {
+                this.collector?.setNamespace(sceneState.sceneName);
+                this.worker?.clearAll(true);
+                this.worker?.initSyncData(() => { });
+            }, 100, { 'leading': false })
+        });
+        Object.defineProperty(this, "onMemberChange", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: throttle((memberState) => {
+                if (!this.room) {
+                    return;
+                }
+                const currentApplianceName = memberState.currentApplianceName;
+                const toolsKey = currentApplianceName === ApplianceNames.pencil && memberState.useLaserPen ? EToolsKey.LaserPen :
+                    currentApplianceName === ApplianceNames.eraser ? EToolsKey.Eraser :
+                        currentApplianceName === ApplianceNames.pencil ? EToolsKey.Pencil :
+                            currentApplianceName === ApplianceNames.selector ? EToolsKey.Selector : EToolsKey.Clicker;
+                const opt = {
+                    color: rgbToHex(memberState.strokeColor[0], memberState.strokeColor[1], memberState.strokeColor[2]),
+                    opacity: memberState?.strokeOpacity || 1,
+                };
+                if (toolsKey === EToolsKey.Pencil) {
+                    opt.thickness = memberState.strokeWidth;
+                    opt.strokeType = memberState?.strokeType || EStrokeType.Stroke;
+                }
+                else if (toolsKey === EToolsKey.Eraser) {
+                    opt.thickness = memberState.strokeWidth;
+                    opt.isLine = memberState?.isLine || false;
+                }
+                else if (toolsKey === EToolsKey.LaserPen) {
+                    opt.thickness = memberState.strokeWidth;
+                    opt.duration = memberState?.duration || 1;
+                    opt.strokeType = memberState?.strokeType || EStrokeType.Normal;
+                }
+                this.worker?.setCurrentToolsData({
+                    toolsType: toolsKey,
+                    toolsOpt: opt,
+                });
+                if (currentApplianceName === ApplianceNames.selector) {
+                    BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode], this.linstenerSelector.bind(this));
+                }
+                else {
+                    BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode], this.linstenerSelector.bind(this));
+                    BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode], this.linstenerSelector.bind(this));
+                }
+                if (currentApplianceName === ApplianceNames.eraser || currentApplianceName === ApplianceNames.pencil ||
+                    currentApplianceName === ApplianceNames.selector) {
+                    if (currentApplianceName === ApplianceNames.pencil) {
+                        this.room.disableDeviceInputs = true;
                     }
+                    else {
+                        this.room.disableDeviceInputs = false;
+                    }
+                    this.worker?.abled();
+                    return;
                 }
-            }
-        });
-        Object.defineProperty(this, "_throttled", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: throttle(this.resizeChange, 500, { 'leading': false })
-        });
-        Object.defineProperty(this, "mousedown", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                if (e.button === 0) {
-                    this.worker?.onLocalEventStart([e.offsetX, e.offsetY]);
-                }
-            }
-        });
-        Object.defineProperty(this, "mousemove", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                this.worker?.onLocalEventDoing([e.offsetX, e.offsetY]);
-            }
-        });
-        Object.defineProperty(this, "mouseup", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                if (e.button === 0) {
-                    this.worker?.onLocalEventEnd([e.offsetX, e.offsetY]);
-                }
-            }
-        });
-        Object.defineProperty(this, "touchstart", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                this.worker?.onLocalEventStart([e.targetTouches[0].pageX, e.targetTouches[0].pageY]);
-            }
-        });
-        Object.defineProperty(this, "touchmove", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                this.worker?.onLocalEventDoing([e.targetTouches[0].pageX, e.targetTouches[0].pageY]);
-            }
-        });
-        Object.defineProperty(this, "touchend", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (e) => {
-                this.worker?.onLocalEventEnd([e.changedTouches[0].pageX, e.changedTouches[0].pageY]);
-            }
+                this.room.disableDeviceInputs = false;
+                this.worker?.unabled();
+            }, 100, { 'leading': false })
         });
         this.plugin = plugin;
         this.room = isRoom(plugin.displayer) ? plugin.displayer : undefined;
         this.pluginOptions = options;
+        window.onbeforeunload = () => {
+            this.onUnMountDisplayer();
+        };
     }
     init() {
-        BezierPencilDisplayer.InternalMsgEmitter.on('displayState', this.displayStateListener);
+        BezierPencilDisplayer.floatBarColors = this.room?.floatBarOptions?.colors || [];
+        BezierPencilDisplayer.InternalMsgEmitter.on(InternalMsgEmitterType.DisplayState, this.displayStateListener.bind(this));
     }
     cleanCurrentScene() {
         this.worker?.clearAll();
     }
     destroy() {
-        BezierPencilDisplayer.InternalMsgEmitter.off('displayState', this.displayStateListener);
+        BezierPencilDisplayer.InternalMsgEmitter.off(InternalMsgEmitterType.DisplayState, this.displayStateListener.bind(this));
     }
     displayStateListener(value) {
         if (value === DisplayStateEnum.mounted) {
@@ -141,52 +144,12 @@ export class BezierPencilManager {
             this.onUnMountDisplayer();
         }
     }
-    onCameraChange(cameraState) {
-        this.worker?.setCameraOpt(toJS(cameraState));
-    }
-    onSceneChange(sceneState) {
-        this.collector?.setNamespace(sceneState.sceneName);
-        this.worker?.clearAll(true);
-        this.worker?.initSyncData(() => { });
-    }
-    onMemberChange(memberState) {
-        if (!this.room) {
-            return;
+    linstenerSelector(data) {
+        if (this.room && data.workState === EvevtWorkState.Start) {
+            this.room.disableDeviceInputs = true;
         }
-        const currentApplianceName = memberState.currentApplianceName;
-        const toolsKey = currentApplianceName === ApplianceNames.pencil && memberState.useLaserPen ? EToolsKey.LaserPen :
-            currentApplianceName === ApplianceNames.eraser ? EToolsKey.Eraser :
-                currentApplianceName === ApplianceNames.pencil ? EToolsKey.Pencil : EToolsKey.Clicker;
-        const opt = {
-            color: rgbToHex(memberState.strokeColor[0], memberState.strokeColor[1], memberState.strokeColor[2]),
-            opacity: memberState?.strokeOpacity || 1,
-        };
-        if (toolsKey === EToolsKey.Pencil) {
-            opt.thickness = memberState.strokeWidth;
-            opt.strokeType = memberState?.strokeType || EStrokeType.Stroke;
-        }
-        else if (toolsKey === EToolsKey.Eraser) {
-            opt.thickness = memberState.strokeWidth;
-            opt.isLine = memberState?.isLine || false;
-        }
-        else if (toolsKey === EToolsKey.LaserPen) {
-            opt.thickness = memberState.strokeWidth;
-            opt.duration = memberState?.duration || 1;
-            opt.strokeType = memberState?.strokeType || EStrokeType.Normal;
-        }
-        this.worker?.setCurrentToolsData({
-            toolsType: toolsKey,
-            toolsOpt: opt,
-        });
-        if (currentApplianceName === ApplianceNames.eraser || currentApplianceName === ApplianceNames.pencil) {
-            if (currentApplianceName === ApplianceNames.pencil) {
-                this.room.disableDeviceInputs = true;
-            }
-            this.worker?.abled();
-        }
-        else {
+        else if (this.room && data.workState === EvevtWorkState.Done) {
             this.room.disableDeviceInputs = false;
-            this.worker?.unabled();
         }
     }
     onWritableChange(isWritable) {
@@ -202,79 +165,43 @@ export class BezierPencilManager {
         const floatCanvas = BezierPencilDisplayer.instance?.canvasFloatRef;
         const bgCanvas = BezierPencilDisplayer.instance?.canvasBgRef;
         if (floatCanvas && bgCanvas && div) {
-            floatCanvas.width = div.offsetWidth;
-            floatCanvas.height = div.offsetHeight;
-            bgCanvas.width = div.offsetWidth;
-            bgCanvas.height = div.offsetHeight;
             this.collector = new Collector(this.plugin);
-            this.worker = new MainEngineForWorker(bgCanvas, floatCanvas, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
-            this.collector.addStorageStateListener((key, diffOne) => {
-                // console.log('STATE',key,diffOne)
-                if (key === 'screen' && diffOne.newValue) {
-                    const { w, h } = diffOne.newValue;
-                    if (w && h) {
-                        if (bgCanvas && floatCanvas) {
-                            bgCanvas.width = w;
-                            bgCanvas.height = h;
-                            floatCanvas.width = w;
-                            floatCanvas.height = h;
+            this.worker = new MainEngineForWorker(BezierPencilDisplayer.instance, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
+            this.collector.addStorageStateListener((diff) => {
+                //console.log('STATE',key,diffOne)
+                if (diff) {
+                    if (this.collector?.storage) {
+                        const curKeys = Object.keys(this.collector.storage);
+                        if (curKeys.length === 0) {
+                            this.worker?.clearAll(true);
+                            return;
                         }
-                        // todo 等比例缩放
-                        this.worker?.updateCanvas({
-                            width: w,
-                            height: h
-                        }, EDataType.Service);
+                        if (this.worker) {
+                            let maxLayerIndex = 0;
+                            for (const key of curKeys) {
+                                const item = this.collector.storage[key];
+                                if (item) {
+                                    maxLayerIndex = Math.max(maxLayerIndex, (item.opt?.zIndex || 0));
+                                }
+                            }
+                            this.worker.maxLayerIndex = maxLayerIndex;
+                        }
                     }
-                }
-                else {
-                    this.worker?.onServiceDerive(key, diffOne);
-                }
-            });
-            this.worker.initSyncData((key, value) => {
-                if (key === 'screen' && value) {
-                    const { w, h } = value;
-                    if (w && h) {
-                        if (bgCanvas && floatCanvas) {
-                            bgCanvas.width = w;
-                            bgCanvas.height = h;
-                            floatCanvas.width = w;
-                            floatCanvas.height = h;
+                    for (const key of Object.keys(diff)) {
+                        const item = diff[key];
+                        if (item) {
+                            this.worker?.onServiceDerive(key, item);
                         }
                     }
                 }
             });
-            this.bindDisplayerEvent(div);
-            this.resizeChange();
+            this.worker.initSyncData();
         }
     }
     onUnMountDisplayer() {
-        const div = BezierPencilDisplayer.instance?.containerRef;
-        if (div) {
-            this.removeDisplayerEvent(div);
-        }
         this.collector?.destroy();
         this.worker?.destroy();
         this.collector = undefined;
         this.worker = undefined;
-    }
-    bindDisplayerEvent(div) {
-        div.addEventListener('mousedown', this.mousedown, true);
-        div.addEventListener('mousemove', this.mousemove, true);
-        div.addEventListener('mouseup', this.mouseup, true);
-        div.addEventListener('mouseleave', this.mouseup, true);
-        div.addEventListener('touchstart', this.touchstart, true);
-        div.addEventListener('touchmove', this.touchmove, true);
-        div.addEventListener('touchend', this.touchend, true);
-        window.addEventListener('resize', this._throttled);
-    }
-    removeDisplayerEvent(div) {
-        div.removeEventListener('mousedown', this.mousedown);
-        div.removeEventListener('mousemove', this.mousemove);
-        div.removeEventListener('mouseup', this.mouseup);
-        div.removeEventListener('mouseleave', this.mouseup);
-        div.removeEventListener('touchstart', this.touchstart);
-        div.removeEventListener('touchmove', this.touchmove);
-        div.removeEventListener('touchend', this.touchend);
-        window.removeEventListener('resize', this._throttled);
     }
 }

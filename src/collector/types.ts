@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EPostMessageType, EToolsKey } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools";
-import { IUpdateNodeOpt } from "../core/types";
+import { IUpdateNodeOpt, IworkId } from "../core/types";
+import { EmitEventType } from "../plugin/types";
 import { EEventDataKey } from "./enum";
 
 export declare type DiffOne<T> = {
@@ -23,8 +24,8 @@ export type SyncEventData = {
 export type IStorageValueItem = Partial<INormalPushMsg>;
 
 export interface INormalPushMsg {
-    workId?: number | string;
-    toolstype?: EToolsKey;
+    workId?: IworkId;
+    toolsType?: EToolsKey;
     opt?: BaseShapeOptions;
     uid?: string;
     taskId?: number;
@@ -38,7 +39,8 @@ export interface INormalPushMsg {
     // syncedType?: SyncedType;
     removeIds?:Array<string>;
     updateNodeOpt?: IUpdateNodeOpt;
-    // currentToolsData?: IActiveToolsDataType;
+    selectIds?:Array<string>;
+    emitEventType?:EmitEventType
 }
 
 export interface INormalStorageData {

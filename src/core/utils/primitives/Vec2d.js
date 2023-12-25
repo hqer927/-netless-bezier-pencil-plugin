@@ -404,6 +404,9 @@ export class Vec2d {
     static ScaleWithOrigin(A, scale, origin) {
         return Vec2d.Sub(A, origin).mul(scale).add(origin);
     }
+    static ScaleWOrigin(A, scale, origin) {
+        return Vec2d.Sub(A, origin).mulV(scale).add(origin);
+    }
     static ToFixed(A, n = 2) {
         return new Vec2d(+A.x.toFixed(n), +A.y.toFixed(n), +A.z.toFixed(n));
     }

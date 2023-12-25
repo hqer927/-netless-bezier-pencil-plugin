@@ -16,12 +16,3 @@ export function uint8ArrayToNormalData(data: Uint8Array): unknown {
 export const plainObjectKeys = Object.keys as <T>(
     o: T
   ) => Array<Extract<keyof T, string>>;
-
-// export function isEqual(a: any, b: any): boolean {
-//     if (a === b) return true;
-//     if (Array.isArray(a)) return a.every((x, i) => isEqual(x, b[i]));
-//     for (const value in Object.values(a)) {
-        
-//     }
-//     // return false;
-// }
