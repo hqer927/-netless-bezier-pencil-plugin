@@ -1,5 +1,5 @@
 import { WorkThreadEngine } from "../base";
-import { ECanvasShowType, EDataType, EPostMessageType, EvevtWorkState } from "../enum";
+import { EDataType, EPostMessageType, EvevtWorkState } from "../enum";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
 export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     constructor() {
@@ -53,7 +53,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         this.scene = this.createScene(offscreenCanvasOpt);
         this.scene = this.createScene(offscreenCanvasOpt);
         this.drawLayer = this.createLayer({ ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height });
-        this.localWork = new SubLocalDrawWorkForWorker(this.drawLayer, this.post.bind(this));
+        this.localWork = new SubLocalDrawWorkForWorker(this.curNodeMap, this.drawLayer, this.post.bind(this));
     }
     getOffscreen() {
         return this.drawLayer.parent?.canvas;
@@ -97,22 +97,9 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             }
         });
     }
-    updateScene(offscreenCanvasOpt) {
-        super.updateScene(offscreenCanvasOpt);
-        // this.drawLayer.setAttribute('width', offscreenCanvasOpt.width);
-        // this.drawLayer.setAttribute('height', offscreenCanvasOpt.height);
-        // const viewport = {
-        //     x: 0 / this.scale - this.translate[0],
-        //     y: 0 / this.scale - this.translate[1],
-        //     w: offscreenCanvasOpt.width,
-        //     h: offscreenCanvasOpt.height,
-        // }
-        // const res: IMainMessage = {
-        //     type: EPostMessageType.UpdateScene,
-        //     rect: viewport
-        // };
-        // return res;
-    }
+    // protected updateScene(offscreenCanvasOpt:IOffscreenCanvasOptionType) {
+    //     super.updateScene(offscreenCanvasOpt);
+    // }
     setToolsOpt(opt) {
         this.localWork.setToolsOpt(opt);
     }
@@ -128,7 +115,10 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     }
     setCameraOpt(cameraOpt) {
         this.cameraOpt = cameraOpt;
-        const { scale, centerX, centerY } = cameraOpt;
+        const { scale, centerX, centerY, width, height } = cameraOpt;
+        if (width !== this.scene.width || height !== this.scene.height) {
+            this.updateScene({ width, height });
+        }
         this.drawLayer.setAttribute('scale', [scale, scale]);
         this.drawLayer.setAttribute('translate', [-centerX, -centerY]);
     }
@@ -137,13 +127,6 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         const y = rect.y * this.dpr;
         const w = rect.w * this.dpr;
         const h = rect.h * this.dpr;
-        // if (this.cameraOpt) {
-        //     const {scale,centerX,centerY} = this.cameraOpt;
-        //     w = w * scale;
-        //     h = h * scale;
-        //     x = ((rect.x - centerX) * scale + this.scene.width/2) * this.dpr;
-        //     y = ((rect.y - centerY) * scale + this.scene.height/2) * this.dpr;  
-        // }
         return createImageBitmap(this.getOffscreen(), x, y, w, h, {
             resizeQuality: 'low'
         });
@@ -155,6 +138,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         }
         const renderData = msg.render;
         if (renderData) {
+            // console.log('post2', renderData.rect);
             this.drawLayer.parent.render();
             if (renderData.rect) {
                 this.getRectImageBitmap(renderData.rect).then(imageBitmap => {
@@ -181,32 +165,15 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 }
                 callBack(e.data.values());
                 const hasClearAll = e.data.has('ClearAll');
-                const updateSceneJob = e.data.get('UpdateScene');
+                // const updateSceneJob = e.data.get('UpdateScene');
                 const updateCameraJob = e.data.get('UpdateCamera');
-                const isFullRender = !!(hasClearAll || updateSceneJob || updateCameraJob);
-                if (updateSceneJob) {
-                    const { offscreenCanvasOpt } = updateSceneJob;
-                    offscreenCanvasOpt && this.updateScene(offscreenCanvasOpt);
-                }
+                // if (updateSceneJob) {
+                //     const {offscreenCanvasOpt} = updateSceneJob;
+                //     offscreenCanvasOpt && this.updateScene(offscreenCanvasOpt);
+                // }
                 if (updateCameraJob) {
                     const { cameraOpt } = updateCameraJob;
                     cameraOpt && this.setCameraOpt(cameraOpt);
-                }
-                if (!hasClearAll && isFullRender) {
-                    this.post({
-                        render: {
-                            rect: {
-                                x: 0,
-                                y: 0,
-                                w: this.scene.width,
-                                h: this.scene.height,
-                            },
-                            drawCanvas: ECanvasShowType.Bg,
-                            clearCanvas: ECanvasShowType.Bg,
-                            isClear: true,
-                            isFullWork: true
-                        }
-                    });
                 }
                 if (hasClearAll) {
                     this.clearAll();

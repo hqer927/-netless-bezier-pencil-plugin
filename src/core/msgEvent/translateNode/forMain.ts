@@ -13,6 +13,12 @@ export type TranslateNodeEmtData = {
 }
 export class TranslateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.TranslateNode;
+    private oldRect: {
+        height: number;
+        width: number;
+        x: number;
+        y: number;
+    } | undefined;
     collect(data: TranslateNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
@@ -23,6 +29,26 @@ export class TranslateNodeMethod extends BaseMsgMethod {
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         const selectIds: string[] = [];
+        const bgRect = this.mainEngine.displayer?.canvasBgRef?.getBoundingClientRect();
+        const floatBarRect = this.mainEngine.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
+        let willRefreshSelector = false;
+        if (bgRect && floatBarRect && this.oldRect) {
+            if (this.oldRect.x < bgRect.x && floatBarRect.x > this.oldRect.x) {
+                willRefreshSelector = true;
+            } else 
+            if (this.oldRect.y < bgRect.y && floatBarRect.y > this.oldRect.y) {
+                willRefreshSelector = true;
+            } else 
+            if (this.oldRect.x + this.oldRect.width > bgRect.x + bgRect.width && floatBarRect.x < this.oldRect.x) {
+                willRefreshSelector = true;
+            } else 
+            if (this.oldRect.y + this.oldRect.height > bgRect.y + bgRect.height && floatBarRect.y < this.oldRect.y) {
+                willRefreshSelector = true;
+            }
+        }
+        if(floatBarRect){
+            this.oldRect = floatBarRect;
+        }
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -50,7 +76,7 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             dataType: EDataType.Local,
                             updateNodeOpt,
                             emitEventType: this.emitEventType,
-                            willRefreshSelector: false,
+                            willRefreshSelector,
                             willSyncService: true
                         };
                         if (workState === EvevtWorkState.Done) {

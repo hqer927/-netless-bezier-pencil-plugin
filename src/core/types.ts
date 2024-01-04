@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Group } from 'spritejs';
 import { BaseCollectorReducerAction, INormalPushMsg } from '../collector/types';
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool } from './tools';
@@ -93,6 +92,7 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
     }>;
     willSerializeData?:boolean;
     isRunSubWork?:boolean;
+    noRender?:boolean;
 }
 export interface IRectType {
     x:number;
@@ -119,6 +119,12 @@ export interface IMainMessage extends INormalPushMsg {
     updateNodeOpts?: Map<string, IUpdateNodeOpt>;
     nodeColor?:string;
     willSyncService?:boolean;
+    newWorkDatas?:Array<{
+        op:number[];
+        opt: BaseShapeOptions;
+        workId: IworkId;
+        toolsType: EToolsKey;
+    }>
 }
 export interface IMainMessageRenderData {
     rect?: IRectType,
@@ -174,9 +180,13 @@ export type IServiceWorkItem = {
     bindSelector?: string;
     selectIds?: string[];
     oldRect?:IRectType;
+    totalRect?: IRectType;
+    noRender?:boolean;
 }
 export type BaseNodeMapItem = {
     name: string;
     rect: IRectType;
-    layer: Group;
+    ops?: string;
+    opt?: BaseShapeOptions;
+    toolsType?: EToolsKey;
 }

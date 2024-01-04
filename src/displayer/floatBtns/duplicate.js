@@ -9,6 +9,9 @@ export const Duplicate = () => {
             e.preventDefault();
             e.stopPropagation();
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
+        }, onTouchEnd: (e) => {
+            e.stopPropagation();
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
         } },
         React.createElement("img", { alt: "icon", src: IconURL('duplicate') })));
 };

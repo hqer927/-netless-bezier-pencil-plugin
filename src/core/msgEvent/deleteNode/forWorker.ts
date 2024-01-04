@@ -3,8 +3,8 @@ import { BaseMsgMethodForWorker } from "../baseForWorker";
 import { IRectType, IWorkerMessage, IworkId } from "../../types";
 import { ECanvasShowType, EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
-import { Layer, Path } from "spritejs";
-import { getPathRect } from "../../utils";
+import { Layer } from "spritejs";
+import { computRect, getNodeRect, getSafetyRect } from "../../utils";
 
 export type DeleteNodeEmtData = {
     workIds: IworkId[]
@@ -16,7 +16,7 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         if (msgType !== EPostMessageType.RemoveNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
             this.consumeForLocalWorker(data);
-            this.localWork?.computNodeMap();
+            // this.localWork?.computNodeMap();
             return true;
         }
         if (dataType === EDataType.Service && emitEventType === this.emitEventType) {
@@ -40,24 +40,26 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
                 this.localWork?.drawLayer?.getElementsByName(name).forEach(n => {
                     n.remove();
                 })
+                this.localWork?.curNodeMap.delete(name);
             })
             rect = (workShape as SelectorShape).oldRect;
             (this.localWork.drawLayer?.parent as Layer)?.getElementById(SelectorShape.selectorId)?.remove();
             this.localWork.workShapes.delete(SelectorShape.selectorId);
         } else if (workId) {
-            this.localWork.fullLayer.getElementsByName(workId.toString()).concat(this.localWork?.drawLayer?.getElementsByName(workId.toString())??[]).forEach(item=>{
-                rect = getPathRect((item as Path), rect, 10);
-                item.remove();
-                console.log('consumeForLocalWorker', item.name)
-            })
-            if(rect){
-                rect = {
-                    x: rect.x - this.localWork?.fullLayer.worldPosition[0],
-                    y: rect.y - this.localWork?.fullLayer.worldPosition[1],
-                    w: rect.w,
-                    h: rect.h,
-                }
+            const key = workId.toString();
+            let rect = getNodeRect(key, this.localWork.fullLayer);
+            if (rect) {
+                this.localWork.fullLayer.getElementsByName(key).forEach(c=>c.remove());
             }
+            const r = getNodeRect(key, this.localWork.drawLayer);
+            if (r) {
+                rect = computRect(rect, r);
+                this.localWork.drawLayer?.getElementsByName(key).forEach(c=>c.remove());
+            }
+            if(rect){
+                rect = getSafetyRect(rect)
+            }
+            this.localWork?.curNodeMap.delete(key);
         }
         if(rect && willRefresh) {
             this.localWork._post({

@@ -204,7 +204,8 @@ export class BezierPencilDisplayer extends React.Component {
         BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
         const div = BezierPencilDisplayer.instance?.containerRef;
         if (div) {
-            this.removeDisplayerEvent(div);
+            const eventTraget = div.parentNode?.children[0];
+            this.removeDisplayerEvent(eventTraget);
         }
     }
     getRatioWithContext(context) {
@@ -233,10 +234,10 @@ export class BezierPencilDisplayer extends React.Component {
                 bgCanvas.width = width * dpr;
                 bgCanvas.height = height * dpr;
                 BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], div.offsetWidth, div.offsetHeight, dpr);
-                const eventTraget = document.getElementsByClassName('netless-whiteboard');
-                if (eventTraget && eventTraget[0]) {
-                    this.containerOffset = this.getContainerOffset(eventTraget[0], this.containerOffset);
-                    this.bindDisplayerEvent(eventTraget[0]);
+                const eventTraget = div.parentNode?.children[0];
+                if (eventTraget) {
+                    this.containerOffset = this.getContainerOffset(div, this.containerOffset);
+                    this.bindDisplayerEvent(eventTraget);
                 }
                 this.setState({ dpr });
             }
@@ -263,24 +264,23 @@ export class BezierPencilDisplayer extends React.Component {
     }
     removeDisplayerEvent(div) {
         div.removeEventListener('mousedown', this.mousedown);
-        div.removeEventListener('mousemove', this.mousemove);
-        div.removeEventListener('mouseup', this.mouseup);
-        div.removeEventListener('mouseleave', this.mouseup);
+        window.removeEventListener('mousemove', this.mousemove);
+        window.removeEventListener('mouseup', this.mouseup);
+        window.removeEventListener('mouseleave', this.mouseup);
         div.removeEventListener('touchstart', this.touchstart);
-        div.removeEventListener('touchmove', this.touchmove);
-        div.removeEventListener('touchend', this.touchend);
+        window.removeEventListener('touchmove', this.touchmove);
+        window.removeEventListener('touchend', this.touchend);
     }
     render() {
         return (React.createElement(React.Fragment, null,
             this.props.children,
-            React.createElement("div", { id: "bezier-pencil-plugin", className: styles['Container'], onMouseDown: (e) => {
+            React.createElement("div", { id: "bezier-pencil-plugin", className: styles['Container'], ref: (ref) => this.containerRef = ref, onMouseDown: (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                 }, onTouchStart: (e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                 } },
-                React.createElement("div", { className: styles['CanvasBox'], ref: (ref) => this.containerRef = ref },
+                React.createElement("div", { className: styles['CanvasBox'] },
                     React.createElement("canvas", { id: "bezier-pencil-float-canvas", className: styles['FloatCanvas'], ref: (ref) => this.canvasFloatRef = ref }),
                     React.createElement("canvas", { id: "bezier-pencil-bg-canvas", ref: (ref) => this.canvasBgRef = ref })),
                 React.createElement(DisplayerContext.Provider, { value: {

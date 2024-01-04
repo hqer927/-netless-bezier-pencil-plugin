@@ -3,11 +3,12 @@ import { BaseCollector } from "../collector";
 import { BaseCollectorReducerAction, DiffOne } from "../collector/types";
 import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "./enum";
 import { BaseShapeOptions, BaseShapeTool, EraserOptions, EraserShape, PencilOptions, PencilShape, SelectorOptions, SelectorShape } from "./tools";
-import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IRectType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
-import { Group, Path, Scene } from "spritejs";
+import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
+import { Group, Scene } from "spritejs";
 import { LaserPenOptions, LaserPenShape } from "./tools/laserPen";
 import { BezierPencilDisplayer } from "../plugin";
-import { computRect } from "./utils";
+import { getNodeRect } from "./utils";
+import { SubServiceWorkForWorker } from "./worker/service";
 
 export abstract class MainEngine {
     /** 设备像素比 */
@@ -15,7 +16,7 @@ export abstract class MainEngine {
     /** 数据收集器 */
     protected collector: BaseCollector;
     /** view容器 */
-    protected displayer: BezierPencilDisplayer;
+    public displayer: BezierPencilDisplayer;
     /** 主线程还是工作线程 */
     // protected threadType: EThreadType;
     /** 主线程和工作线程通信机 */
@@ -59,7 +60,7 @@ export abstract class MainEngine {
        return this.currentLocalWorkData.workId;
     }
     /** 用于接收服务端同步的数据 */
-    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>):void;
+    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>, relevantId?:string):void;
     /** 消费批处理池数据 */
     abstract consume():void;
     /** 禁止使用 */
@@ -84,6 +85,7 @@ export abstract class WorkThreadEngine {
     protected abstract drawLayer: Group;
     protected abstract fullLayer: Group;
     protected abstract cameraOpt?: Pick<ICameraOpt, 'centerX'|'centerY'|'scale'>;
+    curNodeMap: Map<string, BaseNodeMapItem> = new Map();
     abstract getOffscreen(isFullWork:boolean):OffscreenCanvas;
     abstract setToolsOpt(opt: IActiveToolsDataType):void;
     abstract setWorkOpt(opt:IActiveWorkDataType):void;
@@ -94,16 +96,15 @@ export abstract class WorkThreadEngine {
         (this.scene.container as unknown as OffscreenCanvas).height = height;
         this.scene.width = width;
         this.scene.height = height;
-        this.scene.forceUpdate();
+        // this.scene.forceUpdate();
         this.updateLayer({width, height});
     }
     protected updateLayer(layerOpt:Required<Pick<ILayerOptionType, 'width' | 'height'>>) {
         const { width, height } = layerOpt;
-        const centerPos = this.cameraOpt || {centerX:0,centerY:0};
         this.fullLayer?.setAttribute('size',[width, height]);
-        this.fullLayer?.setAttribute('pos',[width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
+        this.fullLayer?.setAttribute('pos',[width * 0.5, height * 0.5]);
         this.drawLayer?.setAttribute('size',[width, height]);
-        this.drawLayer?.setAttribute('pos',[width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
+        this.drawLayer?.setAttribute('pos',[width * 0.5, height * 0.5]);
     }
     protected createScene(opt:IOffscreenCanvasOptionType) {
         const { width, height } = opt;
@@ -143,18 +144,19 @@ export abstract class WorkThreadEngine {
 export abstract class SubLocalWork {
     fullLayer: Group;
     drawLayer?: Group;
+    curNodeMap: Map<string, BaseNodeMapItem>;
     protected tmpWorkShapeNode?: BaseShapeTool;
     protected tmpOpt?: IActiveToolsDataType;
     protected abstract workShapes: Map<IworkId, BaseShapeTool>;
-    public curNodeMap: Map<string, BaseNodeMapItem> = new Map();
     protected effectWorkId?: number;
-    constructor(fullLayer: Group, drawLayer?: Group){
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer?: Group){
+        this.curNodeMap = curNodeMap;
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
     }
     abstract _post:(msg: IBatchMainMessage) => void;
-    abstract consumeDraw(data:IWorkerMessage): IMainMessage | undefined;
-    abstract consumeDrawAll(data:IWorkerMessage): IMainMessage | undefined;
+    abstract consumeDraw(data:IWorkerMessage, serviceWork:SubServiceWorkForWorker): IMainMessage | undefined;
+    abstract consumeDrawAll(data:IWorkerMessage, serviceWork:SubServiceWorkForWorker): IMainMessage | undefined;
     getWorkShape(workId:IworkId){
         return this.workShapes.get(workId);
     }
@@ -203,7 +205,6 @@ export abstract class SubLocalWork {
         return tmpWorkShapeNode
     }
     setToolsOpt(opt: IActiveToolsDataType) {
-        let canEffect:boolean = false
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
             if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
                 this.blurSelector();
@@ -212,15 +213,9 @@ export abstract class SubLocalWork {
                 // console.log('firsthis.tmpOpt?.toolsTypet', this.tmpOpt?.toolsType, opt.toolsType)
                 this.clearAllWorkShapesCache();
             }
-            if (opt.toolsType === EToolsKey.Selector) {
-                canEffect = true
-            }
         }
         this.tmpOpt = opt;
         this.tmpWorkShapeNode = this.createWorkShapeNode(opt);
-        if(canEffect){
-            this.runEffectWork();
-        }
     }
     abstract blurSelector(): void;
     clearWorkShapeNodeCache(workId:IworkId) {
@@ -231,86 +226,116 @@ export abstract class SubLocalWork {
         this.workShapes.forEach(w=>w.clearTmpPoints());
         this.workShapes.clear();
     }
-    runEffectWork(){
-        if(!this.effectWorkId) {
-            this.effectWorkId = setTimeout(()=>{
-                this.effectWorkId = undefined;
-                this.computNodeMap();
-                this.rerRenderSelector();
-            }, 0) as unknown as number;
+    runEffectWork(callBack?:()=>void){
+        if (this.effectWorkId) {
+            clearTimeout(this.effectWorkId);
+            this.effectWorkId = undefined
         }
+        this.effectWorkId = setTimeout(()=>{
+            this.effectWorkId = undefined;
+            this.computNodeMap();
+            this.rerRenderSelector();
+            callBack && callBack();
+        }, 50) as unknown as number;
     }
     computNodeMap() {
-        this.curNodeMap.clear();
-        if(this.tmpOpt?.toolsType === EToolsKey.Selector || this.tmpOpt?.toolsType === EToolsKey.Eraser){
-            this.fullLayer.children.forEach(c => {
-                if (c.name !== SelectorShape.selectorId) {
-                    let rect: IRectType | undefined;
-                    this.fullLayer.getElementsByName(c.name).forEach(f => {
-                        const r = (f as Path)?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            })
-                        }
-                    })
-                    if (rect) {
+        const willRemoveIds = new Set<string>(this.curNodeMap.keys());
+        this.fullLayer.children.forEach(c => {
+            if (c.name !== SelectorShape.selectorId) {
+                const rect = getNodeRect(c.name, this.fullLayer);
+                if (rect) {
+                    const value = this.curNodeMap.get(c.name);
+                    if (value) {
+                        value.rect = rect;
+                        willRemoveIds.delete(c.name);
+                    } else {
                         this.curNodeMap.set(c.name, {
                             name: c.name,
                             rect,
-                            layer: c.parent as Group
                         })
                     }
                 }
-            })
-            this.drawLayer?.children?.forEach(c => {
-                if (c.name !== SelectorShape.selectorId) {
-                    let rect: IRectType | undefined;
-                    this.drawLayer?.getElementsByName(c.name).forEach(f => {
-                        const r = (f as Path)?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            })
-                        }
-                    })
-                    if (rect) {
+            }
+        })
+        this.drawLayer?.children?.forEach(c => {
+            if (c.name !== SelectorShape.selectorId) {
+                const rect = getNodeRect(c.name, this.drawLayer);
+                if (rect) {
+                    const value = this.curNodeMap.get(c.name);
+                    if (value) {
+                        value.rect = rect;
+                        willRemoveIds.delete(c.name);
+                    } else {
                         this.curNodeMap.set(c.name, {
                             name: c.name,
                             rect,
-                            layer: c.parent as Group
                         })
                     }
                 }
-            })
+            }
+        })
+        if (willRemoveIds.size) {
+           for (const key of willRemoveIds.keys()) {
+                this.curNodeMap.delete(key);
+           }
         }
-        // console.log('computNodeMap', this.curNodeMap)
+        //console.log('computNodeMap', this.curNodeMap)
+    }
+    updataNodeMap(param:{key:string, ops?:string, opt?:BaseShapeOptions, toolsType?:EToolsKey}){
+        const {key,ops,opt, toolsType} = param;
+        let rect = getNodeRect(key, this.fullLayer);
+        const value = this.curNodeMap.get(key) || {
+            name: key,
+            rect
+        } as BaseNodeMapItem;
+        if (ops) {
+            value.ops = ops;
+        }
+        if (opt) {
+            value.opt = opt;
+        }
+        if (rect) {
+            value.rect = rect;
+        }
+        if (toolsType) {
+            value.toolsType = toolsType;
+        }
+        if (this.drawLayer) {
+            rect = getNodeRect(key, this.drawLayer);
+            if (rect && this.drawLayer) {
+                value.rect = rect;
+            }
+        }
+        if (!value.rect) {
+            this.curNodeMap.delete(key);
+        } else {
+            this.curNodeMap.set(key, value);
+        }
+        // console.log('updataNodeMap-local', key, this.curNodeMap)
     }
     rerRenderSelector(){
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
+        // console.log('rerRenderSelector', workShapeNode)
         if (!workShapeNode?.selectIds?.length) return;
         if (this.drawLayer) {
             const newRect = workShapeNode.getSelector(this.curNodeMap);
-            this._post({
-                render: {
-                    rect: newRect,
-                    isClear:true,
-                    isFullWork:false,
-                    clearCanvas:ECanvasShowType.Selector,
-                    drawCanvas:ECanvasShowType.Selector,
-                },
-                sp:[{
-                    type: EPostMessageType.Select,
-                    selectIds: workShapeNode.selectIds,
-                    selectRect: newRect,
-                }]
-            });
+            if (newRect) {
+                this._post({
+                    render: {
+                        rect: newRect,
+                        isClear:true,
+                        isFullWork:false,
+                        clearCanvas:ECanvasShowType.Selector,
+                        drawCanvas:ECanvasShowType.Selector,
+                    },
+                    sp:[{
+                        type: EPostMessageType.Select,
+                        selectIds: workShapeNode.selectIds,
+                        selectRect: newRect,
+                        willSyncService: false
+                    }]
+                });
+            }
         }
     }
 }
@@ -319,11 +344,41 @@ export abstract class SubServiceWork {
     protected abstract animationId?:number;
     drawLayer: Group;
     fullLayer: Group;
-    constructor(fullLayer: Group, drawLayer: Group){
+    curNodeMap: Map<string, BaseNodeMapItem>;
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer: Group){
+        this.curNodeMap = curNodeMap;
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
     }
     abstract consumeDraw(data:IWorkerMessage): void;
     abstract consumeFull(data:IWorkerMessage): void;
     abstract runSelectWork(data:IWorkerMessage): void;
+    updataNodeMap(key:string, ops?:string, opt?:BaseShapeOptions){
+        let rect = getNodeRect(key, this.fullLayer);
+        const value = this.curNodeMap.get(key) || {
+            name: key,
+            rect,
+        } as BaseNodeMapItem;
+        if (ops) {
+            value.ops = ops;
+        }
+        if (opt) {
+            value.opt = opt;
+        }
+        if (rect) {
+            value.rect = rect;
+        }
+        if (this.drawLayer) {
+            rect = getNodeRect(key, this.drawLayer);
+            if (rect && this.drawLayer) {
+                value.rect = rect;
+            }
+        }
+        if (!value.rect) {
+            this.curNodeMap.delete(key);
+        } else {
+            this.curNodeMap.set(key, value);
+        }
+        // console.log('updataNodeMap-service', this.curNodeMap)
+    }
 }

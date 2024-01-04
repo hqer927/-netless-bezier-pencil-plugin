@@ -44,6 +44,12 @@ export class LaserPenShape extends BaseShapeTool {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "consumeIndex", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
         this.workOptions = workOptions;
         this.syncTimestamp = 0;
     }
@@ -58,41 +64,28 @@ export class LaserPenShape extends BaseShapeTool {
         if (op?.length === 0) {
             return { type: EPostMessageType.None };
         }
-        const lastPointIndex = Math.max(0, this.tmpPoints.length - 1);
-        const consumeIndex = this.tmpPoints.length;
         this.updateTempPoints(op || []);
-        if (consumeIndex === this.tmpPoints.length) {
+        if (this.consumeIndex > this.tmpPoints.length - 4) {
             return { type: EPostMessageType.None };
         }
         const { color, thickness, strokeType, opacity } = this.workOptions;
-        let rect;
+        const rect = getRectFromPoints(this.tmpPoints, thickness);
         let isSync = false;
         const index = this.syncIndex;
-        let points = this.tmpPoints.slice(lastPointIndex);
-        const isDot = points.length === 1;
-        if (isDot) {
-            const dotData = this.computDotStroke({
-                point: points[0],
-                radius: thickness / 2
-            });
-            points = dotData.ps;
-            rect = dotData.rect;
-        }
-        else {
-            rect = getRectFromPoints(this.tmpPoints, thickness);
-        }
+        const points = this.tmpPoints.slice(this.consumeIndex);
+        this.consumeIndex = this.tmpPoints.length - 1;
         if (this.syncTimestamp === 0) {
             this.syncTimestamp = Date.now();
         }
         const attrs = {
             name: workId?.toString(),
             className: 'LaserPen',
-            fillColor: isDot ? color : undefined,
+            // fillColor: isDot ? color : undefined,
             opacity: opacity || 1,
-            lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
+            lineDash: strokeType === EStrokeType.Dotted ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted ? [thickness, thickness * 2] : undefined,
             strokeColor: color,
-            lineCap: isDot ? undefined : 'round',
-            lineWidth: isDot ? 0 : thickness,
+            lineCap: 'round',
+            lineWidth: thickness,
             anchor: [0.5, 0.5],
         };
         //console.log('attrs',attrs, strokeType)
@@ -104,7 +97,7 @@ export class LaserPenShape extends BaseShapeTool {
                 this.syncTimestamp = now;
                 this.syncIndex = this.tmpPoints.length;
             }
-            !isFullWork && this.draw({ attrs, tasks, isDot });
+            !isFullWork && this.draw({ attrs, tasks, isDot: false });
         }
         const nop = [];
         this.tmpPoints.slice(index).forEach(p => {
@@ -126,11 +119,49 @@ export class LaserPenShape extends BaseShapeTool {
     }
     consumeAll() {
         const workId = this.workId?.toString();
+        let rect;
+        if (this.tmpPoints.length - 1 > this.consumeIndex) {
+            let points = this.tmpPoints.slice(this.consumeIndex);
+            const isDot = points.length === 1;
+            const { color, thickness, strokeType, opacity } = this.workOptions;
+            if (isDot) {
+                const dotData = this.computDotStroke({
+                    point: points[0],
+                    radius: thickness / 2
+                });
+                points = dotData.ps;
+                rect = dotData.rect;
+            }
+            else {
+                rect = getRectFromPoints(this.tmpPoints, thickness);
+            }
+            const attrs = {
+                name: workId?.toString(),
+                className: 'LaserPen',
+                fillColor: isDot ? color : undefined,
+                opacity: opacity || 1,
+                lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
+                strokeColor: color,
+                lineCap: isDot ? undefined : 'round',
+                lineWidth: isDot ? 0 : thickness,
+                anchor: [0.5, 0.5],
+            };
+            const tasks = this.getTaskPoints(points);
+            if (tasks.length) {
+                this.draw({ attrs, tasks, isDot });
+            }
+        }
         const nop = [];
         this.tmpPoints.slice(this.syncIndex).forEach(p => {
             nop.push(p.x, p.y);
         });
         return {
+            rect: rect && {
+                x: rect.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
+                y: rect.y * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1],
+                w: rect.w * this.fullLayer.worldScaling[0],
+                h: rect.h * this.fullLayer.worldScaling[1],
+            },
             type: EPostMessageType.DrawWork,
             dataType: EDataType.Local,
             workId: workId,

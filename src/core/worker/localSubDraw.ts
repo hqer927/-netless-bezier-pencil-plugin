@@ -3,7 +3,7 @@ import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey } from "../enum";
 import { BaseShapeTool } from "../tools";
 import { LaserPenOptions } from "../tools/laserPen";
-import { IWorkerMessage, IMainMessage, IworkId, IRectType, IBatchMainMessage } from "../types";
+import { IWorkerMessage, IMainMessage, IworkId, IRectType, IBatchMainMessage, BaseNodeMapItem } from "../types";
 import { computRect } from "../utils";
 
 export class SubLocalDrawWorkForWorker extends SubLocalWork {
@@ -13,43 +13,61 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
     private drawCount: number = 0;
     private animationWorkRects?: Map<IworkId, {
         res: IMainMessage,
-        canDel: boolean
+        canDel: boolean,
+        isRect: boolean;
     }> = new Map();
     private animationId?: number | undefined;
-    private closeAnimationTime: number = 1000;
-    constructor(layer: Group, postFun: (msg: IBatchMainMessage)=>void) {
-        super(layer);
+    private closeAnimationTime: number = 1100;
+    private runLaserPenStep:number = 0;
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>,layer: Group, postFun: (msg: IBatchMainMessage)=>void) {
+        super(curNodeMap, layer);
         this._post = postFun;
     }
     blurSelector(): void {}
     private runLaserPenAnimation() {
         if (!this.animationId) {
             this.animationId = requestAnimationFrame(() => {
+                this.animationId = undefined;
+                this.runLaserPenStep++;
+                if (this.runLaserPenStep > 1) {
+                    this.runLaserPenStep = 0;
+                    this.runLaserPenAnimation();
+                    return;
+                }
                 let rect:IRectType | undefined;
-                const sp: IMainMessage[] = []; 
+                const sp: IMainMessage[] = [];
                 this.animationWorkRects?.forEach((value, key, map)=>{
-                    rect = computRect(rect, value.res.rect);
+                    if (value.isRect) {
+                        rect = computRect(rect, value.res.rect)
+                    }
                     if (value.res.workId) {
                         sp.push(value.res);
+                    }
+                    const hasRect = this.fullLayer.getElementsByName(key.toString()).length;
+                    if (hasRect) {
+                        value.isRect = true;
+                    } else {
+                        value.isRect = false;
                     }
                     if (value.canDel) {
                         map.delete(key);
                     }
                 })
-                this.animationId = undefined;
                 if (this.animationWorkRects?.size) {
                     this.runLaserPenAnimation();
                 }
-                this._post({
-                    render: {
-                        rect,
-                        drawCanvas: ECanvasShowType.Float,
-                        isClear: true,
-                        clearCanvas: ECanvasShowType.Float,
-                        isFullWork: false,
-                    },
-                    sp: sp.length ? sp : undefined
-                });
+                if (rect) {
+                    this._post({
+                        render: {
+                            rect,
+                            drawCanvas: ECanvasShowType.Float,
+                            isClear: true,
+                            clearCanvas: ECanvasShowType.Float,
+                            isFullWork: false,
+                        },
+                        sp: sp.length ? sp : undefined
+                    });
+                }
             });
         }
     }
@@ -73,12 +91,13 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 return
             }
             const toolsType = workShapeNode.toolsType;
-            const result = workShapeNode.consume({data,isFullWork: false});
+            const result = workShapeNode.consume({data,isFullWork: false, isClearAll:true, isSubWorker:true});
             if (toolsType === EToolsKey.LaserPen) {
                 if (result?.rect) {
                     this.animationWorkRects?.set(workId,{
                         res: result,
-                        canDel: false
+                        canDel: false,
+                        isRect: true,
                     });
                 }
                 this.runLaserPenAnimation();
@@ -101,11 +120,20 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
             if (toolsType === EToolsKey.LaserPen && this.animationId) {
                 const result = workShapeNode.consumeAll({data});
                 if (result?.op) {
+                    if (result?.rect) {
+                        this.animationWorkRects?.set(workId,{
+                            res: result,
+                            canDel: false,
+                            isRect: true,
+                        });
+                        this.runLaserPenAnimation();
+                    }
                     this._post({
                         sp: [result]
                     });
                 }
-                this.closeAnimationTime = (workShapeNode.getWorkOptions() as LaserPenOptions)?.duration || this.closeAnimationTime;
+                const duration = (workShapeNode.getWorkOptions() as LaserPenOptions)?.duration;
+                this.closeAnimationTime = duration ?  duration * 1000 + 100 : this.closeAnimationTime;
                 setTimeout(() => {                   
                     this.fullLayer.getElementsByName(workId.toString()).map(p => p.remove());
                     this.clearWorkShapeNodeCache(workId);
@@ -113,13 +141,15 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                     if (rectData) {
                         rectData.canDel = true;
                     }
-                    this._post({
-                        sp: [{
-                            removeIds:[workId.toString()],
-                            type: EPostMessageType.RemoveNode,
-                        }]
-                    });
-                }, this.closeAnimationTime * 2000 + 500);
+                    setTimeout(()=>{
+                        this._post({
+                            sp: [{
+                                removeIds:[workId.toString()],
+                                type: EPostMessageType.RemoveNode,
+                            }]
+                        });
+                    }, workShapeNode.getWorkOptions().syncUnitTime || this.closeAnimationTime )
+                }, this.closeAnimationTime);
                 return;
             }
             if ( toolsType === EToolsKey.Pencil){

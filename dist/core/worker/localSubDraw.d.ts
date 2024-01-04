@@ -1,7 +1,7 @@
 import { Group } from "spritejs";
 import { SubLocalWork } from "../base";
 import { BaseShapeTool } from "../tools";
-import { IWorkerMessage, IMainMessage, IworkId, IBatchMainMessage } from "../types";
+import { IWorkerMessage, IMainMessage, IworkId, IBatchMainMessage, BaseNodeMapItem } from "../types";
 export declare class SubLocalDrawWorkForWorker extends SubLocalWork {
     _post: (msg: IBatchMainMessage) => void;
     protected workShapes: Map<IworkId, BaseShapeTool>;
@@ -10,7 +10,8 @@ export declare class SubLocalDrawWorkForWorker extends SubLocalWork {
     private animationWorkRects?;
     private animationId?;
     private closeAnimationTime;
-    constructor(layer: Group, postFun: (msg: IBatchMainMessage) => void);
+    private runLaserPenStep;
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, postFun: (msg: IBatchMainMessage) => void);
     blurSelector(): void;
     private runLaserPenAnimation;
     private drawPencil;

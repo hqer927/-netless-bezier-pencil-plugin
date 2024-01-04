@@ -8,8 +8,8 @@ import Draggable from "react-draggable";
 import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
 const ColorBtn = (props) => {
-    const { color, opacity, activeColor, onClickHandler } = props;
-    return (React.createElement("div", { className: `font-color-button ${color === activeColor ? 'active' : ''}`, onClick: onClickHandler },
+    const { color, opacity, activeColor, onClickHandler, onTouchEndHandler } = props;
+    return (React.createElement("div", { className: `font-color-button ${color === activeColor ? 'active' : ''}`, onClick: onClickHandler, onTouchEnd: onTouchEndHandler },
         React.createElement("div", { className: "circle", style: { backgroundColor: activeColor && hexToRgba(color, opacity) } })));
 };
 const OpacityBtn = (props) => {
@@ -66,8 +66,7 @@ export const Colors = () => {
     }, [InternalMsgEmitter, activeColor, floatBarData?.opacity]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-colors-menu", onTouchStart: (e) => {
-                    e.preventDefault();
+            return (React.createElement("div", { className: "font-colors-menu", onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -77,7 +76,11 @@ export const Colors = () => {
                 } },
                 floatBarColors.map((c, index) => {
                     const curColor = rgbToHex(...c);
-                    return (React.createElement(ColorBtn, { key: index, color: curColor, opacity: opacity, activeColor: activeColor, onClickHandler: (e) => {
+                    return (React.createElement(ColorBtn, { key: index, color: curColor, opacity: opacity, activeColor: activeColor, onTouchEndHandler: (e) => {
+                            e.stopPropagation();
+                            setColor(curColor);
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
+                        }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
@@ -94,8 +97,7 @@ export const Colors = () => {
         }
         return null;
     }, [activeColor, opacity]);
-    return (React.createElement("div", { className: `button normal-button font-colors-icon ${showSubBtn && 'active'}`, onTouchStart: (e) => {
-            e.preventDefault();
+    return (React.createElement("div", { className: `button normal-button font-colors-icon ${showSubBtn && 'active'}`, onTouchEnd: (e) => {
             e.stopPropagation();
             e.nativeEvent.stopImmediatePropagation();
             showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);

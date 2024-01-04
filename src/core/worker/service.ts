@@ -1,28 +1,27 @@
 import { SubServiceWork } from "../base";
 import { ECanvasShowType, EToolsKey } from "../enum";
 import { BaseShapeOptions, BaseShapeTool, PencilOptions, PencilShape, SelectorOptions, SelectorShape } from "../tools";
-import { IServiceWorkItem, IWorkerMessage, IRectType, IBatchMainMessage } from "../types";
+import { IServiceWorkItem, IWorkerMessage, IRectType, IBatchMainMessage, BaseNodeMapItem } from "../types";
 import { computRect } from "../utils";
 import { transformToNormalData } from "../../collector/utils";
 import { LaserPenOptions, LaserPenShape } from "../tools/laserPen";
-import { Group, Path, Node, Layer } from "spritejs";
+import { Group, Path, Node } from "spritejs";
 
 export class SubServiceWorkForWorker extends SubServiceWork {
     protected workShapes: Map<string, IServiceWorkItem> = new Map();
     protected animationId?: number | undefined;
     // private showRunSelectorEffect:boolean = false;
-    private selectorWorkShapes: Map<string, IServiceWorkItem> = new Map();
+    selectorWorkShapes: Map<string, IServiceWorkItem> = new Map();
     _post:(msg: IBatchMainMessage) => void;
     private willRunEffectSelectorIds: Set<string> = new Set;
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
-
-    constructor(layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>void) {
-        super(layer, drawLayer);
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>void) {
+        super(curNodeMap, layer, drawLayer);
         this._post = postFun;
     }
     private activeWorkShape(data: IWorkerMessage){
-        const {workId, opt, toolsType, type, updateNodeOpt, ops, op, useAnimation } = data;
+        const {workId, opt, toolsType, type, updateNodeOpt, ops, op, useAnimation, noRender } = data;
         if (!workId) {
             return;
         }
@@ -36,7 +35,8 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                 updateNodeOpt,
                 ops,
                 useAnimation: typeof useAnimation !== 'undefined' ? useAnimation : typeof updateNodeOpt?.useAnimation !== 'undefined' ? updateNodeOpt?.useAnimation : true,
-                oldRect: this.getNodeRect(key)
+                oldRect: this.getNodeRect(key),
+                noRender,
             } as IServiceWorkItem;
             if (toolsType && opt) {
                 workItem = this.setNodeKey(workItem, toolsType, opt);
@@ -50,13 +50,16 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (ops) {
             workShape.animationWorkData = transformToNormalData(ops);
+            workShape.ops = ops;
         }
         if (updateNodeOpt) {
             workShape.updateNodeOpt = updateNodeOpt;
         }
         if (op) {
-            //console.log('op1', op)
             workShape.animationWorkData = op;
+        }
+        if (noRender) {
+            workShape.noRender = noRender;
         }
         if (workShape.node && workShape.node.getWorkId() !== key) {
             workShape.node.setWorkId(key);
@@ -113,7 +116,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
     }
     private computNextAnimationIndex(workShape:IServiceWorkItem, pointUnit:number){
         // const pointUnit = workShape.toolsType === EToolsKey.Pencil ? 3 : 2;
-        const step = Math.floor((workShape.animationWorkData || []).slice(workShape.animationIndex).length * 16 / pointUnit / (workShape.node?.syncUnitTime || 1000)) * pointUnit;
+        const step = Math.floor((workShape.animationWorkData || []).slice(workShape.animationIndex).length * 32 / pointUnit / (workShape.node?.syncUnitTime || 1000)) * pointUnit;
         return Math.min((workShape.animationIndex || 0) + (step || pointUnit), (workShape.animationWorkData||[]).length);
     }
     private animationDraw() {
@@ -135,7 +138,9 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                     // console.log('consumeService', rect1)
                     rect1 = computRect(rect1, workShape.node?.updataOptService(workShape.updateNodeOpt));
                     // console.log('consumeService1', rect1)
-                    noAnimationRect = computRect(noAnimationRect, rect1);
+                    if (!workShape.noRender) {
+                        noAnimationRect = computRect(noAnimationRect, rect1);
+                    }
                     // console.log('consumeService2', noAnimationRect);
                     this.selectorWorkShapes.forEach((s,selectorId)=>{
                         if (s.selectIds?.includes(key)) {
@@ -145,6 +150,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                             this.runEffect();
                         }
                     })
+                    this.updataNodeMap(key, workShape.ops, workShape.node?.getWorkOptions());
                     this.workShapes.delete(key);
                 }
             } else {
@@ -166,7 +172,10 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                             workShape.timer = undefined;
                         }
                     } else {
-                        rect = computRect(rect, rect1);
+                        if (!workShape.noRender) {
+                            rect = computRect(rect, rect1);
+                            workShape.totalRect = computRect(workShape.totalRect, rect1);
+                        }
                     }
                     isNext = true;
                     workShape.animationIndex = nextAnimationIndex;
@@ -178,9 +187,12 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                             isFullWork: true,
                             replaceId: workShape.node.getWorkId()?.toString(),
                         });
-                        clearRect = computRect(clearRect, rect1);
                         workShape.isDel = true;
                         isFullWork = true;
+                        if (!workShape.noRender) {
+                            clearRect = computRect(clearRect, rect1);
+                            workShape.totalRect = clearRect;
+                        }
                     }
                     if (workShape.toolsType === EToolsKey.LaserPen) {
                         if (!workShape.timer) {
@@ -204,8 +216,11 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                             op:[],
                             isFullWork: false
                         });
-                        clearRect = computRect(clearRect, rect1);
+                        if (!workShape.noRender) {
+                            clearRect = computRect(clearRect, rect1);
+                        }
                     }
+                    this.updataNodeMap(key, workShape.ops, workShape.node?.getWorkOptions());
                     this.workShapes.delete(key);
                 }
             }
@@ -215,7 +230,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             this.runAnimation();
         }
         if (rect) {
-            //console.log('animationDraw2', isFullWork, rect)
+            // console.log('animationDraw1', rect)
             this._post({render: {
                 rect,
                 drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
@@ -226,6 +241,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (clearRect) {
             Promise.resolve().then(()=>{
+                // console.log('animationDraw2', clearRect)
                 this._post({render: {
                     rect: clearRect,
                     drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
@@ -237,7 +253,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (noAnimationRect) {
             Promise.resolve().then(()=>{
-                //console.log('animationDraw3', noAnimationRect)
+                // console.log('animationDraw3', noAnimationRect)
                 this._post({render: {
                     rect: noAnimationRect,
                     drawCanvas: ECanvasShowType.Bg,
@@ -300,7 +316,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         let rect: IRectType | undefined = this.noAnimationRect;
         this.willRunEffectSelectorIds.forEach(id => {
             const workShape = this.selectorWorkShapes.get(id);
-            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape);
+            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape, this.curNodeMap);
             rect = computRect(rect, r);
             if (!workShape?.selectIds?.length) {
                 this.selectorWorkShapes.delete(id);
@@ -322,38 +338,47 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         const {workId} = data;
         const key = workId?.toString();
         if(key){
-            let nodes:Node[] = this.fullLayer.getElementsByName(key).concat(this.drawLayer?.getElementsByName(key));
-            if (key.indexOf(SelectorShape.selectorId) > -1) {
-                this.removeSelectWork(data);
-                nodes = (this.fullLayer.parent as Layer).getElementsByName(SelectorShape.selectorId).concat((this.drawLayer?.parent as Layer)?.getElementsByName(SelectorShape.selectorId));
+            const workShape = this.workShapes.get(key);
+            if (workShape) {
+                this.workShapes.delete(key);
+                this.removeNode(key, data, workShape?.totalRect, false);
+                return;
             }
-            this.workShapes.has(key) && this.workShapes.clear();
-            const removeNode:Node[]=[]
-            let rect:IRectType|undefined;
-            nodes.forEach(node=>{
-                const r = (node as Path).getBoundingClientRect();
-                rect = computRect(rect, {
-                    x: r.x - 10,
-                    y: r.y - 10,
-                    w: r.width + 20,
-                    h: r.height + 20,
-                });
-                removeNode.push(node);
+            this.removeNode(key, data);
+        }
+    }
+    private removeNode(key: string, data:IWorkerMessage, oldRect?: IRectType, isFullWork:boolean=true){
+        const nodes:Node[] = this.fullLayer.getElementsByName(key).concat(this.drawLayer?.getElementsByName(key));
+        if (key.indexOf(SelectorShape.selectorId) > -1) {
+            this.removeSelectWork(data);
+            // nodes = (this.fullLayer.parent as Layer).getElementsByName(SelectorShape.selectorId).concat((this.drawLayer?.parent as Layer)?.getElementsByName(SelectorShape.selectorId));
+        }
+        const removeNode:Node[]=[]
+        let rect:IRectType|undefined = oldRect;
+        nodes.forEach(node=>{
+            const r = (node as Path).getBoundingClientRect();
+            rect = computRect(rect, {
+                x: Math.floor(r.x - 10),
+                y: Math.floor(r.y - 10),
+                w: Math.floor(r.width + 20),
+                h: Math.floor(r.height + 20),
+            });
+            removeNode.push(node);
+        })
+        if(removeNode.length) {
+            removeNode.forEach(r=>r.remove());
+        }
+        if (rect) {
+            this._post({
+                render:{
+                    rect,
+                    isClear:true,
+                    isFullWork,
+                    clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                    drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float
+                }
             })
-            if(removeNode.length) {
-                removeNode.forEach(r=>r.remove());
-            }          
-            if (rect) {
-                this._post({
-                    render:{
-                        rect,
-                        isClear:true,
-                        isFullWork:true,
-                        clearCanvas: ECanvasShowType.Bg,
-                        drawCanvas: ECanvasShowType.Bg
-                    }
-                })
-            }
+            this.curNodeMap.delete(key);
         }
     }
     private getNodeRect(workId:string){
@@ -368,5 +393,21 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         })
         // console.log('rect', worldPosition, rect)
         return rect;
+    }
+    runReverseSelectWork(selectIds: string[]){
+        selectIds.forEach(id=>{
+            this.selectorWorkShapes.forEach((workShapes,key)=>{
+                if (workShapes.selectIds?.length) {
+                    const i = workShapes.selectIds.indexOf(id);
+                    if ( i > -1) {
+                        workShapes.selectIds.splice(i,1);
+                        this.willRunEffectSelectorIds.add(key);
+                    }
+                }
+            })
+        })
+        if (this.willRunEffectSelectorIds.size) {
+            this.runEffect();
+        }
     }
 }

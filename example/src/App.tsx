@@ -31,7 +31,7 @@ export default function App() {
           break;
           case EToolsKey.Eraser:
             // window.room.disableDeviceInputs = true;
-          window.room.setMemberState({currentApplianceName: ApplianceNames.eraser, isLine:true});
+          window.room.setMemberState({currentApplianceName: ApplianceNames.pencilEraser});
           break;
           case EToolsKey.Clicker:
             // window.room.disableDeviceInputs = false;

@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
-import { BaseCollector, BaseCollectorReducerAction, DiffOne } from "../../collector";
+import { BaseCollector, BaseCollectorReducerAction, Diff, DiffOne } from "../../collector";
 import { MainEngine, WorkThreadEngine } from "../base";
 import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IBatchMainMessage, IworkId, IUpdateNodeOpt, IMainMessage, IMainMessageRenderData } from "../types";
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
@@ -44,6 +45,7 @@ export class MainEngineForWorker extends MainEngine {
     private subWorker: Worker | undefined;
     private maxDrawCount: number = 0;
     private wokerDrawCount: number = 0;
+    private cacheDrawCount: number = 0;
     private reRenders: Array<IMainMessageRenderData> = [];
     private bgCanvas: HTMLCanvasElement | null;
     private floatCanvas: HTMLCanvasElement | null;
@@ -143,9 +145,7 @@ export class MainEngineForWorker extends MainEngine {
         this.subWorker.onmessage = (e: MessageEvent<IBatchMainMessage>) => {
             if (e.data) {
                 const {render, drawCount, sp} = e.data;
-                // console.log('submsg', sp)
                 if (sp?.length) {
-                    // console.log('subSp', sp )
                     this.collectorSyncData(sp);
                 }
                 if (!drawCount && render) {
@@ -221,11 +221,7 @@ export class MainEngineForWorker extends MainEngine {
     private setLayerOpt(layerOpt: ILayerOptionType) {
         this.layerOpt = layerOpt;
     }
-    public updateCanvas(opt:IOffscreenCanvasOptionType, dataType:EDataType) {
-        const workState = this.currentLocalWorkData.workState;
-        if(workState === EvevtWorkState.Unwritable) {
-            return;
-        }
+    public updateCanvas(opt:IOffscreenCanvasOptionType) {
         const {width, height} = opt
         if (this.bgCanvas && this.floatCanvas) {
             this.bgCanvas.width = width * this.dpr;
@@ -233,15 +229,10 @@ export class MainEngineForWorker extends MainEngine {
             this.floatCanvas.width = width * this.dpr;
             this.floatCanvas.height = height * this.dpr;
         }
-        this.offscreenCanvasOpt = opt;
-        const setOffscreenTaskOpt = {
-            msgType: EPostMessageType.UpdateScene,
-            offscreenCanvasOpt: this.offscreenCanvasOpt,
-            dataType,
-            isRunSubWork: true,
-        }
-        this.taskBatchData.set('UpdateScene', setOffscreenTaskOpt);
-        this.runAnimation();
+        this.originalPoint = [width * 0.5, height * 0.5];
+        // console.log('this.originalPoint', this.originalPoint)
+        this.offscreenCanvasOpt.width = width;
+        this.offscreenCanvasOpt.height = height;
     }
     private pushPoint(point: [number, number]): void {
         this.localPointsBatchData.push(point[0],point[1]);
@@ -258,16 +249,6 @@ export class MainEngineForWorker extends MainEngine {
     initSyncData(callBack?: (key: string, value: BaseCollectorReducerAction | undefined) => void): void {
         const store = this.collector?.storage;
         if (store) {
-            // why ???
-            // const hasSelector = store['selector'];
-            // if (hasSelector) {
-            //     Promise.resolve().then(()=>{
-            //         this.collector.dispatch({
-            //             ...hasSelector,
-            //             selectIds: undefined
-            //         })
-            //     })
-            // }
             for (const key of Object.keys(store).filter(f=>this.collector.getLocalId(f) !== 'selector')) {
                 callBack && callBack(key, store[key]);
                 const msgType = store[key]?.type
@@ -277,7 +258,7 @@ export class MainEngineForWorker extends MainEngine {
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
                     data.useAnimation = false;
-                    //console.log('data', data)
+                    // console.log('data', data)
                     this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`, data);
                     if (data.opt?.zIndex) {
                         this.maxLayerIndex = Math.max(this.maxLayerIndex, data.opt.zIndex);
@@ -287,7 +268,28 @@ export class MainEngineForWorker extends MainEngine {
             this.runAnimation();
         }
     }
-    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void {
+    getRelevantWork(diff: Diff<any>){
+        let relevantId:string|undefined;
+        for (const [key,value] of Object.entries(diff)) {
+            if (value) {
+                const {newValue, oldValue} = value;
+                if (!newValue && oldValue) {
+                    const isRelevant = Object.keys(diff).some(k=>{
+                        if (k !== key && k.indexOf(`${key}_s_`)>-1) {
+                            relevantId = key;
+                            return true;
+                        }
+                        return false;
+                    })
+                    if (isRelevant) {
+                        break;
+                    }
+                }
+            } 
+        }
+        return relevantId
+    }
+    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>, relevantId?:string): void {
         const {newValue, oldValue} = data;
         const msg:BaseCollectorReducerAction = cloneDeep(newValue) || {};
         const workId:IworkId = key;
@@ -303,8 +305,24 @@ export class MainEngineForWorker extends MainEngine {
             data.workId = this.collector.isOwn(key) ? this.collector.getLocalId(key) : workId;
             data.msgType = msgType;
             data.dataType = EDataType.Service;
-            // console.log('service-data', data)
-            this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
+            if (data.selectIds) {
+                data.selectIds = data.selectIds.map(id=>{
+                    return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
+                })
+            }
+            if (relevantId === key) {
+                setTimeout(()=>{
+                    // console.log('onServiceDerive1', data)
+                    this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
+                    this.runAnimation();
+                }, 32);
+            } else {
+                // if (subRelevantIds && subRelevantIds.includes(key)) {
+                //     data.noRender = true;
+                // }
+                // console.log('onServiceDerive', data)
+                this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
+            }
         }
         this.runAnimation();
     }
@@ -316,9 +334,6 @@ export class MainEngineForWorker extends MainEngine {
         if (workState === EvevtWorkState.Start || workState === EvevtWorkState.Doing) {
             const _point:[number,number] = this.transformToScenePoint(point);
             this.pushPoint(_point);
-            this.maxDrawCount = 0;
-            this.wokerDrawCount = 0;
-            this.reRenders.length = 0;
             this.setCurrentLocalWorkData({workId:this.currentLocalWorkData.workId, workState: EvevtWorkState.Done});
             if (this.currentToolsData.toolsType === EToolsKey.Selector) {
                 this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], 2);
@@ -356,8 +371,10 @@ export class MainEngineForWorker extends MainEngine {
         }, EPostMessageType.CreateWork)
         const _point:[number,number] = this.transformToScenePoint(point);
         this.pushPoint(_point);
-        // this.consume();
-        this.runAnimation();
+        this.maxDrawCount = 0;
+        this.wokerDrawCount = 0;
+        this.reRenders.length = 0;
+        this.consume();
         if (this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen) {
             this.collector?.dispatch({
                 type: EPostMessageType.CreateWork,
@@ -374,19 +391,33 @@ export class MainEngineForWorker extends MainEngine {
         const workState = this.currentLocalWorkData.workState;
         if (!this.workerLockId) {
             if (this.localPointsBatchData.length) {
-                // console.log('this.taskBatchData', this.localPointsBatchData.map(p=>p))
-                this.taskBatchData.set(this.currentLocalWorkData.workId,{
-                    op: this.localPointsBatchData,
-                    workState,
-                    workId: this.currentLocalWorkData.workId,
-                    dataType: EDataType.Local,
-                    msgType: EPostMessageType.DrawWork,
-                    drawCount: this.maxDrawCount,
-                    isRunSubWork: this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen,
-                })
+                const isRunSubWork = this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen;
+                if (isRunSubWork) {
+                    if ((this.maxDrawCount && this.maxDrawCount !== this.cacheDrawCount) || !this.maxDrawCount) {
+                        this.cacheDrawCount = this.maxDrawCount;
+                        this.taskBatchData.set(this.currentLocalWorkData.workId,{
+                            op: this.localPointsBatchData,
+                            workState,
+                            workId: this.currentLocalWorkData.workId,
+                            dataType: EDataType.Local,
+                            msgType: EPostMessageType.DrawWork,
+                            drawCount: this.maxDrawCount,
+                            isRunSubWork
+                        })
+                    }
+                } else {
+                    this.taskBatchData.set(this.currentLocalWorkData.workId,{
+                        op: this.localPointsBatchData,
+                        workState,
+                        workId: this.currentLocalWorkData.workId,
+                        dataType: EDataType.Local,
+                        msgType: EPostMessageType.DrawWork,
+                        drawCount: this.maxDrawCount,
+                        isRunSubWork
+                    })
+                }
             }
             if (this.taskBatchData.size) {
-                // console.log('this.taskBatchData', [...this.taskBatchData.values()])
                 this.post(this.taskBatchData);
                 this.taskBatchData.clear();
                 this.localPointsBatchData.length = 0;
@@ -405,17 +436,19 @@ export class MainEngineForWorker extends MainEngine {
             msgType: EPostMessageType.Clear,
         });
         this.runAnimation();
-        if (this.bgCanvas && this.floatCanvas) {
-            const ctx = this.bgCanvas.getContext('2d');
-            ctx?.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
-            const floatCtx = this.floatCanvas.getContext('2d');
-            floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
-            this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false)
-            if (!justLocal) {
-                this.collector?.dispatch({
-                    type: EPostMessageType.Clear
-                })
+        setTimeout(()=>{
+            if (this.bgCanvas && this.floatCanvas) {
+                const ctx = this.bgCanvas.getContext('2d');
+                ctx?.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
+                const floatCtx = this.floatCanvas.getContext('2d');
+                floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
+                this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false)
             }
+        },100);
+        if (!justLocal) {
+            this.collector?.dispatch({
+                type: EPostMessageType.Clear
+            })
         }
         this.maxLayerIndex = 0;
     }
@@ -446,8 +479,8 @@ export class MainEngineForWorker extends MainEngine {
         this.msgEmitter.onmessage = (e: MessageEvent<IBatchMainMessage>) => {
             if (e.data) {
                 const {render, sp, drawCount} = e.data;
+                // console.log('render1', render )
                 if (sp?.length) {
-                    // console.log('sp', sp )
                     this.collectorSyncData(sp);
                 }
                 if (!drawCount && render) {
@@ -475,7 +508,7 @@ export class MainEngineForWorker extends MainEngine {
     }
     private collectorSyncData(sp: IMainMessage[]){
         for (const data of sp) {
-            const {type, op, workId, index, removeIds, ops, selectIds, opt, padding, selectRect, updateNodeOpt, nodeColor, willSyncService} = data;
+            const {type, op, workId, index, removeIds, ops, selectIds, opt, padding, selectRect, updateNodeOpt, nodeColor, willSyncService, toolsType} = data;
             switch (type) {
                 case EPostMessageType.DrawWork:
                     if (op?.length && workId && typeof index === 'number') {
@@ -492,7 +525,7 @@ export class MainEngineForWorker extends MainEngine {
                 case EPostMessageType.FullWork:
                     if (ops) {
                         requestIdleCallback(()=>{
-                            this.collector?.dispatch({type, ops, workId, updateNodeOpt})
+                            this.collector?.dispatch({type, ops, workId, updateNodeOpt, opt, toolsType})
                         },{timeout: MainEngineForWorker.maxLastSyncTime})
                     }
                     break;
@@ -544,12 +577,6 @@ export class MainEngineForWorker extends MainEngine {
             updateNodeOpt,
             dataType: EDataType.Local
         })
-        // todo
-        // this.collector.dispatch({
-        //     type: EPostMessageType.UpdateNode,
-        //     workId,
-        //     updateNodeOpt
-        // })
         this.runAnimation();
     }
     public setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType, msgType: EPostMessageType = EPostMessageType.None) {
@@ -586,7 +613,6 @@ export class MainEngineForWorker extends MainEngine {
     public setCameraOpt(cameraOpt: ICameraOpt){
         super.setCameraOpt(cameraOpt);
         const {width,height} = cameraOpt;
-        // this.originalPoint = [width * ]
         if (width !== this.offscreenCanvasOpt.width || height !== this.offscreenCanvasOpt.height) {
             if (this.bgCanvas) {
                 this.bgCanvas.style.width = `${width}px`;
@@ -596,12 +622,13 @@ export class MainEngineForWorker extends MainEngine {
                 this.floatCanvas.style.width = `${width}px`;
                 this.floatCanvas.style.height = `${height}px`;
             }
-            this.updateCanvas({...this.offscreenCanvasOpt, width, height}, EDataType.Local)
+            this.updateCanvas({width, height});
         }
         this.taskBatchData.set(`UpdateCamera`,{
             msgType: EPostMessageType.UpdateCamera,
             dataType: EDataType.Local,
-            cameraOpt
+            cameraOpt,
+            isRunSubWork: true
         })
         this.runAnimation();
     }

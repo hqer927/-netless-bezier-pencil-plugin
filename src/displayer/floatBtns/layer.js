@@ -5,8 +5,8 @@ import { DisplayerContext } from "../../plugin";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
 const SubBtn = (props) => {
-    const { icon, onClickHandler } = props;
-    return (React.createElement("div", { className: "button normal-button", onClick: onClickHandler, onTouchEnd: onClickHandler },
+    const { icon, onClickHandler, onTouchEndHandler } = props;
+    return (React.createElement("div", { className: "button normal-button", onClick: onClickHandler, onTouchEnd: onTouchEndHandler },
         React.createElement("img", { src: IconURL(icon) })));
 };
 export const Layer = () => {
@@ -18,21 +18,31 @@ export const Layer = () => {
                 React.createElement(SubBtn, { icon: 'to-top', onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode], ['selector'], +11 )
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
+                    }, onTouchEndHandler: (e) => {
+                        e.stopPropagation();
                         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
                     } }),
                 React.createElement(SubBtn, { icon: 'to-bottom', onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        // InternalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode], ['selector'], -11 )
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
+                    }, onTouchEndHandler: (e) => {
+                        e.stopPropagation();
                         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
                     } })));
         }
         return null;
     }, [InternalMsgEmitter, showSubBtn]);
     const onClickHandler = (e) => {
-        //console.log('Layer-onClick', e)
         e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+        const isActive = !showSubBtn;
+        setShowSubBtn(!showSubBtn);
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive });
+    };
+    const onTouchEndHandler = (e) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
@@ -47,7 +57,7 @@ export const Layer = () => {
             }
         };
     }, [InternalMsgEmitter, showSubBtn, floatBarData?.x, floatBarData?.y]);
-    return (React.createElement("div", { className: `button normal-button ${showSubBtn && 'active'}`, onClick: onClickHandler, onTouchEnd: onClickHandler },
+    return (React.createElement("div", { className: `button normal-button ${showSubBtn && 'active'}`, onClick: onClickHandler, onTouchEnd: onTouchEndHandler },
         SubBtns,
         React.createElement("img", { alt: "icon", src: IconURL(showSubBtn ? 'layer-pressed' : 'layer') })));
 };

@@ -1,17 +1,18 @@
 import { BaseCollector } from "../collector";
 import { BaseCollectorReducerAction, DiffOne } from "../collector/types";
-import { EDataType } from "./enum";
+import { EDataType, EToolsKey } from "./enum";
 import { BaseShapeOptions, BaseShapeTool } from "./tools";
 import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
 import { Group, Scene } from "spritejs";
 import { BezierPencilDisplayer } from "../plugin";
+import { SubServiceWorkForWorker } from "./worker/service";
 export declare abstract class MainEngine {
     /** 设备像素比 */
     protected abstract dpr: number;
     /** 数据收集器 */
     protected collector: BaseCollector;
     /** view容器 */
-    protected displayer: BezierPencilDisplayer;
+    displayer: BezierPencilDisplayer;
     /** 主线程还是工作线程 */
     /** 主线程和工作线程通信机 */
     protected abstract msgEmitter: Worker;
@@ -42,7 +43,7 @@ export declare abstract class MainEngine {
     /** 获取当前绘制任务id */
     protected getWorkId(): IworkId | undefined;
     /** 用于接收服务端同步的数据 */
-    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
+    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>, relevantId?: string): void;
     /** 消费批处理池数据 */
     abstract consume(): void;
     /** 禁止使用 */
@@ -67,6 +68,7 @@ export declare abstract class WorkThreadEngine {
     protected abstract drawLayer: Group;
     protected abstract fullLayer: Group;
     protected abstract cameraOpt?: Pick<ICameraOpt, 'centerX' | 'centerY' | 'scale'>;
+    curNodeMap: Map<string, BaseNodeMapItem>;
     abstract getOffscreen(isFullWork: boolean): OffscreenCanvas;
     abstract setToolsOpt(opt: IActiveToolsDataType): void;
     abstract setWorkOpt(opt: IActiveWorkDataType): void;
@@ -86,15 +88,15 @@ export declare abstract class WorkThreadEngine {
 export declare abstract class SubLocalWork {
     fullLayer: Group;
     drawLayer?: Group;
+    curNodeMap: Map<string, BaseNodeMapItem>;
     protected tmpWorkShapeNode?: BaseShapeTool;
     protected tmpOpt?: IActiveToolsDataType;
     protected abstract workShapes: Map<IworkId, BaseShapeTool>;
-    curNodeMap: Map<string, BaseNodeMapItem>;
     protected effectWorkId?: number;
-    constructor(fullLayer: Group, drawLayer?: Group);
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer?: Group);
     abstract _post: (msg: IBatchMainMessage) => void;
-    abstract consumeDraw(data: IWorkerMessage): IMainMessage | undefined;
-    abstract consumeDrawAll(data: IWorkerMessage): IMainMessage | undefined;
+    abstract consumeDraw(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
+    abstract consumeDrawAll(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
     getWorkShape(workId: IworkId): BaseShapeTool | undefined;
     getTmpWorkShapeNode(): BaseShapeTool | undefined;
     setTmpWorkId(workId: IworkId | undefined): void;
@@ -105,8 +107,14 @@ export declare abstract class SubLocalWork {
     abstract blurSelector(): void;
     clearWorkShapeNodeCache(workId: IworkId): void;
     clearAllWorkShapesCache(): void;
-    runEffectWork(): void;
+    runEffectWork(callBack?: () => void): void;
     computNodeMap(): void;
+    updataNodeMap(param: {
+        key: string;
+        ops?: string;
+        opt?: BaseShapeOptions;
+        toolsType?: EToolsKey;
+    }): void;
     rerRenderSelector(): void;
 }
 export declare abstract class SubServiceWork {
@@ -114,8 +122,10 @@ export declare abstract class SubServiceWork {
     protected abstract animationId?: number;
     drawLayer: Group;
     fullLayer: Group;
-    constructor(fullLayer: Group, drawLayer: Group);
+    curNodeMap: Map<string, BaseNodeMapItem>;
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer: Group);
     abstract consumeDraw(data: IWorkerMessage): void;
     abstract consumeFull(data: IWorkerMessage): void;
     abstract runSelectWork(data: IWorkerMessage): void;
+    updataNodeMap(key: string, ops?: string, opt?: BaseShapeOptions): void;
 }

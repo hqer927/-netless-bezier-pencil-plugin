@@ -109,6 +109,10 @@ export class BezierPencilPlugin extends InvisiblePlugin {
         BezierPencilPlugin.invisiblePlugins.set(displayer, invisiblePlugin$);
         if (isRoom(displayer)) {
             this.createCurrentManager();
+            const state = displayer.state;
+            if (state?.memberState) {
+                BezierPencilPlugin.currentManager.onMemberChange(state.memberState);
+            }
         }
         this.displayer.callbacks.on(this.callbackName, this.roomStateChangeListener);
         this.displayer.callbacks.on("onEnableWriteNowChanged", this.updateRoomWritable);

@@ -193,7 +193,7 @@ export class Collector extends BaseCollector {
                 break;
             case EPostMessageType.Select:
                 let _selectIds: string[] | undefined;
-                if (selectIds?.length && opt) {
+                if (selectIds?.length) {
                     _selectIds = selectIds.map(id => {
                         if (this.isLocalId(id + '')) {
                             return this.transformKey(id);
@@ -202,11 +202,13 @@ export class Collector extends BaseCollector {
                     })
                 }
                 const key = this.transformKey(SelectorShape.selectorId);
+                const old = this.storage[key];
+                const _opt = opt || old?.opt;
                 this.updateValue(key, _selectIds && {
                     type: EPostMessageType.Select,
                     toolsType: EToolsKey.Selector,
-                    selectIds: _selectIds,
-                    opt
+                    opt: _opt,
+                    selectIds: _selectIds
                 }); 
                 break;
             default:

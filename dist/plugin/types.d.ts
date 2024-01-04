@@ -28,6 +28,8 @@ export type MemberState = _MemberState & {
     useLaserPen?: boolean;
     /** 激光笔保持时间, second */
     duration?: number;
+    /** 是否使用新铅笔教具 */
+    useNewPencil?: boolean;
 };
 export type SyncOpt = {
     /** 同步间隔 */

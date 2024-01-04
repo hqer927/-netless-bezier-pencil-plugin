@@ -2,7 +2,7 @@ import { ECanvasShowType, EPostMessageType, EToolsKey } from "./enum";
 import { EraserShape, PencilShape, SelectorShape } from "./tools";
 import { Group, Scene } from "spritejs";
 import { LaserPenShape } from "./tools/laserPen";
-import { computRect } from "./utils";
+import { getNodeRect } from "./utils";
 export class MainEngine {
     constructor(displayer, collector) {
         /** 数据收集器 */
@@ -47,6 +47,14 @@ export class MainEngine {
     }
 }
 export class WorkThreadEngine {
+    constructor() {
+        Object.defineProperty(this, "curNodeMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+    }
     updateScene(offscreenCanvasOpt) {
         this.scene.attr({ ...offscreenCanvasOpt });
         const { width, height } = offscreenCanvasOpt;
@@ -54,16 +62,15 @@ export class WorkThreadEngine {
         this.scene.container.height = height;
         this.scene.width = width;
         this.scene.height = height;
-        this.scene.forceUpdate();
+        // this.scene.forceUpdate();
         this.updateLayer({ width, height });
     }
     updateLayer(layerOpt) {
         const { width, height } = layerOpt;
-        const centerPos = this.cameraOpt || { centerX: 0, centerY: 0 };
         this.fullLayer?.setAttribute('size', [width, height]);
-        this.fullLayer?.setAttribute('pos', [width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
+        this.fullLayer?.setAttribute('pos', [width * 0.5, height * 0.5]);
         this.drawLayer?.setAttribute('size', [width, height]);
-        this.drawLayer?.setAttribute('pos', [width / 2 + centerPos.centerX, height / 2 + centerPos.centerY]);
+        this.drawLayer?.setAttribute('pos', [width * 0.5, height * 0.5]);
     }
     createScene(opt) {
         const { width, height } = opt;
@@ -94,7 +101,7 @@ export class WorkThreadEngine {
     }
 }
 export class SubLocalWork {
-    constructor(fullLayer, drawLayer) {
+    constructor(curNodeMap, fullLayer, drawLayer) {
         Object.defineProperty(this, "fullLayer", {
             enumerable: true,
             configurable: true,
@@ -102,6 +109,12 @@ export class SubLocalWork {
             value: void 0
         });
         Object.defineProperty(this, "drawLayer", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "curNodeMap", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -119,18 +132,13 @@ export class SubLocalWork {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "curNodeMap", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Map()
-        });
         Object.defineProperty(this, "effectWorkId", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
+        this.curNodeMap = curNodeMap;
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
     }
@@ -182,21 +190,17 @@ export class SubLocalWork {
         return tmpWorkShapeNode;
     }
     setToolsOpt(opt) {
-        let canEffect = false;
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
             if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
                 this.blurSelector();
             }
-            this.clearAllWorkShapesCache();
-            if (opt.toolsType === EToolsKey.Selector) {
-                canEffect = true;
+            if (this.tmpOpt?.toolsType) {
+                // console.log('firsthis.tmpOpt?.toolsTypet', this.tmpOpt?.toolsType, opt.toolsType)
+                this.clearAllWorkShapesCache();
             }
         }
         this.tmpOpt = opt;
         this.tmpWorkShapeNode = this.createWorkShapeNode(opt);
-        if (canEffect) {
-            this.runEffectWork();
-        }
     }
     clearWorkShapeNodeCache(workId) {
         this.getWorkShape(workId)?.clearTmpPoints();
@@ -206,92 +210,125 @@ export class SubLocalWork {
         this.workShapes.forEach(w => w.clearTmpPoints());
         this.workShapes.clear();
     }
-    runEffectWork() {
-        if (!this.effectWorkId) {
-            this.effectWorkId = setTimeout(() => {
-                this.effectWorkId = undefined;
-                this.computNodeMap();
-                this.rerRenderSelector();
-            }, 0);
+    runEffectWork(callBack) {
+        if (this.effectWorkId) {
+            clearTimeout(this.effectWorkId);
+            this.effectWorkId = undefined;
         }
+        this.effectWorkId = setTimeout(() => {
+            this.effectWorkId = undefined;
+            this.computNodeMap();
+            this.rerRenderSelector();
+            callBack && callBack();
+        }, 50);
     }
     computNodeMap() {
-        this.curNodeMap.clear();
-        if (this.tmpOpt?.toolsType === EToolsKey.Selector || this.tmpOpt?.toolsType === EToolsKey.Eraser) {
-            this.fullLayer.children.forEach(c => {
-                if (c.name !== SelectorShape.selectorId) {
-                    let rect;
-                    this.fullLayer.getElementsByName(c.name).forEach(f => {
-                        const r = f?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            });
-                        }
-                    });
-                    if (rect) {
+        const willRemoveIds = new Set(this.curNodeMap.keys());
+        this.fullLayer.children.forEach(c => {
+            if (c.name !== SelectorShape.selectorId) {
+                const rect = getNodeRect(c.name, this.fullLayer);
+                if (rect) {
+                    const value = this.curNodeMap.get(c.name);
+                    if (value) {
+                        value.rect = rect;
+                        willRemoveIds.delete(c.name);
+                    }
+                    else {
                         this.curNodeMap.set(c.name, {
                             name: c.name,
                             rect,
-                            layer: c.parent
                         });
                     }
                 }
-            });
-            this.drawLayer?.children?.forEach(c => {
-                if (c.name !== SelectorShape.selectorId) {
-                    let rect;
-                    this.drawLayer?.getElementsByName(c.name).forEach(f => {
-                        const r = f?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            });
-                        }
-                    });
-                    if (rect) {
+            }
+        });
+        this.drawLayer?.children?.forEach(c => {
+            if (c.name !== SelectorShape.selectorId) {
+                const rect = getNodeRect(c.name, this.drawLayer);
+                if (rect) {
+                    const value = this.curNodeMap.get(c.name);
+                    if (value) {
+                        value.rect = rect;
+                        willRemoveIds.delete(c.name);
+                    }
+                    else {
                         this.curNodeMap.set(c.name, {
                             name: c.name,
                             rect,
-                            layer: c.parent
                         });
                     }
                 }
-            });
+            }
+        });
+        if (willRemoveIds.size) {
+            for (const key of willRemoveIds.keys()) {
+                this.curNodeMap.delete(key);
+            }
         }
-        // console.log('computNodeMap', this.curNodeMap)
+        //console.log('computNodeMap', this.curNodeMap)
+    }
+    updataNodeMap(param) {
+        const { key, ops, opt, toolsType } = param;
+        let rect = getNodeRect(key, this.fullLayer);
+        const value = this.curNodeMap.get(key) || {
+            name: key,
+            rect
+        };
+        if (ops) {
+            value.ops = ops;
+        }
+        if (opt) {
+            value.opt = opt;
+        }
+        if (rect) {
+            value.rect = rect;
+        }
+        if (toolsType) {
+            value.toolsType = toolsType;
+        }
+        if (this.drawLayer) {
+            rect = getNodeRect(key, this.drawLayer);
+            if (rect && this.drawLayer) {
+                value.rect = rect;
+            }
+        }
+        if (!value.rect) {
+            this.curNodeMap.delete(key);
+        }
+        else {
+            this.curNodeMap.set(key, value);
+        }
+        // console.log('updataNodeMap-local', key, this.curNodeMap)
     }
     rerRenderSelector() {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId);
+        // console.log('rerRenderSelector', workShapeNode)
         if (!workShapeNode?.selectIds?.length)
             return;
         if (this.drawLayer) {
             const newRect = workShapeNode.getSelector(this.curNodeMap);
-            this._post({
-                render: {
-                    rect: newRect,
-                    isClear: true,
-                    isFullWork: false,
-                    clearCanvas: ECanvasShowType.Selector,
-                    drawCanvas: ECanvasShowType.Selector,
-                },
-                sp: [{
-                        type: EPostMessageType.Select,
-                        selectIds: workShapeNode.selectIds,
-                        selectRect: newRect,
-                    }]
-            });
+            if (newRect) {
+                this._post({
+                    render: {
+                        rect: newRect,
+                        isClear: true,
+                        isFullWork: false,
+                        clearCanvas: ECanvasShowType.Selector,
+                        drawCanvas: ECanvasShowType.Selector,
+                    },
+                    sp: [{
+                            type: EPostMessageType.Select,
+                            selectIds: workShapeNode.selectIds,
+                            selectRect: newRect,
+                            willSyncService: false
+                        }]
+                });
+            }
         }
     }
 }
 export class SubServiceWork {
-    constructor(fullLayer, drawLayer) {
+    constructor(curNodeMap, fullLayer, drawLayer) {
         Object.defineProperty(this, "drawLayer", {
             enumerable: true,
             configurable: true,
@@ -304,7 +341,43 @@ export class SubServiceWork {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "curNodeMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.curNodeMap = curNodeMap;
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
+    }
+    updataNodeMap(key, ops, opt) {
+        let rect = getNodeRect(key, this.fullLayer);
+        const value = this.curNodeMap.get(key) || {
+            name: key,
+            rect,
+        };
+        if (ops) {
+            value.ops = ops;
+        }
+        if (opt) {
+            value.opt = opt;
+        }
+        if (rect) {
+            value.rect = rect;
+        }
+        if (this.drawLayer) {
+            rect = getNodeRect(key, this.drawLayer);
+            if (rect && this.drawLayer) {
+                value.rect = rect;
+            }
+        }
+        if (!value.rect) {
+            this.curNodeMap.delete(key);
+        }
+        else {
+            this.curNodeMap.set(key, value);
+        }
+        // console.log('updataNodeMap-service', this.curNodeMap)
     }
 }

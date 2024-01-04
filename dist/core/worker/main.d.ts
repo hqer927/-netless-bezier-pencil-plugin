@@ -1,7 +1,7 @@
-import { BaseCollector, BaseCollectorReducerAction, DiffOne } from "../../collector";
+import { BaseCollector, BaseCollectorReducerAction, Diff, DiffOne } from "../../collector";
 import { MainEngine, WorkThreadEngine } from "../base";
 import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IworkId, IUpdateNodeOpt } from "../types";
-import { ECanvasContextType, EDataType, EPostMessageType } from "../enum";
+import { ECanvasContextType, EPostMessageType } from "../enum";
 import { BezierPencilDisplayer, BezierPencilPluginOptions } from "../../plugin";
 import EventEmitter2 from "eventemitter2";
 export declare class MainEngineForWorker extends MainEngine {
@@ -33,6 +33,7 @@ export declare class MainEngineForWorker extends MainEngine {
     private subWorker;
     private maxDrawCount;
     private wokerDrawCount;
+    private cacheDrawCount;
     private reRenders;
     private bgCanvas;
     private floatCanvas;
@@ -51,11 +52,12 @@ export declare class MainEngineForWorker extends MainEngine {
     private render;
     runAnimation(): void;
     private setLayerOpt;
-    updateCanvas(opt: IOffscreenCanvasOptionType, dataType: EDataType): void;
+    updateCanvas(opt: IOffscreenCanvasOptionType): void;
     private pushPoint;
     transformToScenePoint(p: [number, number]): [number, number];
     initSyncData(callBack?: (key: string, value: BaseCollectorReducerAction | undefined) => void): void;
-    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
+    getRelevantWork(diff: Diff<any>): string | undefined;
+    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>, relevantId?: string): void;
     private onLocalEventEnd;
     private onLocalEventDoing;
     private onLocalEventStart;

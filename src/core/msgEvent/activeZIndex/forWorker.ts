@@ -31,12 +31,7 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
             const cloneNodes: Node[] = [];
             const removeNodes: Node[] = [];
             workShapeNode.curNodeMap.forEach((value, key)=>{
-                if (isIntersect(rect, {
-                    x: value.rect.x,
-                    y: value.rect.y,
-                    w: value.rect.w,
-                    h: value.rect.h,
-                })) {
+                if (isIntersect(rect, value.rect)) {
                     this.localWork?.fullLayer.getElementsByName(key).forEach(cNode=>{
                         if (cNode) {
                             const c = cNode.cloneNode(true);

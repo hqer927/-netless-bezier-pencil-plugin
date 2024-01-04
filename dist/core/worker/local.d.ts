@@ -2,22 +2,23 @@ import { Group } from "spritejs";
 import { SubLocalWork } from "../base";
 import { EToolsKey } from "../enum";
 import { BaseShapeOptions, BaseShapeTool } from "../tools";
-import { IWorkerMessage, IMainMessage, IBatchMainMessage, IworkId, IUpdateNodeOpt } from "../types";
+import { IWorkerMessage, IMainMessage, IBatchMainMessage, IworkId, IUpdateNodeOpt, BaseNodeMapItem } from "../types";
 import { EmitEventType } from "../../plugin/types";
+import { SubServiceWorkForWorker } from "./service";
 export declare class SubLocalWorkForWorker extends SubLocalWork {
     _post: (msg: IBatchMainMessage) => void;
     workShapes: Map<IworkId, BaseShapeTool>;
     private combineUnitTime;
     private combineTimerId?;
     private drawCount;
-    constructor(layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
     private drawPencilCombine;
     private drawSelector;
     private drawEraser;
     private drawPencil;
     private drawPencilFull;
-    consumeDraw(data: IWorkerMessage): IMainMessage | undefined;
-    consumeDrawAll(data: IWorkerMessage): IMainMessage | undefined;
+    consumeDraw(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
+    consumeDrawAll(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
     updateSelector(param: {
         updateSelectorOpt: IUpdateNodeOpt;
         willRefreshSelector?: boolean;
@@ -41,4 +42,5 @@ export declare class SubLocalWorkForWorker extends SubLocalWork {
         willSyncService?: boolean;
     }): void;
     removeWork(data: IWorkerMessage): void;
+    runReverseSelectWork(data: IWorkerMessage): void;
 }

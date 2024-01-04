@@ -13,7 +13,7 @@ export declare class BezierPencilManager {
     cleanCurrentScene(): void;
     destroy(): void;
     private displayStateListener;
-    onCameraChange: import("lodash").DebouncedFunc<(cameraState: CameraState) => void>;
+    onCameraChange: (cameraState: CameraState) => void;
     onSceneChange: import("lodash").DebouncedFunc<(sceneState: SceneState) => void>;
     onMemberChange: import("lodash").DebouncedFunc<(memberState: MemberState) => void>;
     private linstenerSelector;

@@ -46,7 +46,12 @@ export abstract class BaseShapeTool {
         this.workOptions = workOptions;
         this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
     }
-    abstract consume(props:{data: IWorkerMessage, isFullWork?:boolean, nodeMaps?: Map<string, BaseNodeMapItem>}): IMainMessage;
+    abstract consume(props:{data: IWorkerMessage, 
+        isFullWork?:boolean, 
+        nodeMaps?: Map<string, BaseNodeMapItem>, 
+        isClearAll?:boolean,
+        isSubWorker?:boolean,
+    }): IMainMessage;
     abstract consumeAll(props:{data?: IWorkerMessage, nodeMaps?: Map<string, BaseNodeMapItem>}): IMainMessage;
     abstract consumeService(props:{
         op: number[];

@@ -5,6 +5,7 @@ import { EDataType, EPostMessageType } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
 import { SelectorShape } from "../../tools";
 import cloneDeep from "lodash/cloneDeep";
+import { transformToNormalData, transformToSerializableData } from "../../../collector/utils";
 
 export type CopyNodeEmtData = {
     workIds: IworkId[]
@@ -51,22 +52,40 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 }
                 updateNodeOpt.pos = [pos[0] + t[0]+ random, pos[1] + t[1] + random];
                 updateNodeOpt.useAnimation = false;
-                serviceMsgs.push({
-                    ...curStore,
-                    updateNodeOpt,
-                    type: EPostMessageType.FullWork,
-                    workId: copyNodeKey,
-                })
-                localMsgs.push({
-                    ...curStore,
-                    workId: copyNodeKey,
-                    msgType: EPostMessageType.FullWork,
-                    dataType: EDataType.Local,
-                    updateNodeOpt,
-                    emitEventType: this.emitEventType,
-                    willSyncService: false,
-                    willRefresh: true
-                })
+                // console.log('curStore', pos, curStore.updateNodeOpt?.pos?.map(x=>x), updateNodeOpt)
+                const translate = [updateNodeOpt.pos[0] - pos[0], updateNodeOpt.pos[1] - pos[1]];
+                if (curStore.ops) {
+                    const op = (transformToNormalData(curStore.ops) as number[]).map((n,index)=>{
+                        const i = index % 3
+                        if ( i === 0) {
+                            return n + translate[0];
+                        } 
+                        if( i === 1) {
+                            return n + translate[1];
+                        }
+                        return n
+                    })
+                    const newOps = transformToSerializableData(op);
+                    curStore.ops = newOps;
+                    serviceMsgs.push({
+                        ...curStore,
+                        updateNodeOpt,
+                        type: EPostMessageType.FullWork,
+                        workId: copyNodeKey,
+                    })
+                    localMsgs.push({
+                        ...curStore,
+                        workId: copyNodeKey,
+                        msgType: EPostMessageType.FullWork,
+                        dataType: EDataType.Local,
+                        updateNodeOpt,
+                        emitEventType: this.emitEventType,
+                        willSyncService: false,
+                        willRefresh: true
+                    })
+                }
+                
+
             }
         }
         if (localMsgs.length) {

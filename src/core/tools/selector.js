@@ -1,9 +1,10 @@
-import { Path, Rect, Group } from "spritejs";
+import { Rect, Group } from "spritejs";
 import { BaseShapeTool } from "./base";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import { computRect, getRectFromPoints, isIntersect, isSameArray } from "../utils";
+import { computRect, getNodeRect, getRectFromPoints, isIntersect, isSameArray } from "../utils";
 import { Point2d } from "../utils/primitives/Point2d";
 import { colorRGBA2Hex } from "../../collector/utils/color";
+import { EStrokeType } from "../../plugin/types";
 export class SelectorShape extends BaseShapeTool {
     updataOptService() {
         return;
@@ -84,10 +85,19 @@ export class SelectorShape extends BaseShapeTool {
     computNodeMap(nodeMaps) {
         this.curNodeMap.clear();
         nodeMaps.forEach(v => {
-            const c = v.layer.getElementsByName(v.name)[0];
+            const c = this.fullLayer.getElementsByName(v.name)[0];
             if (c) {
-                const color = c instanceof Path ? c.getAttribute('strokeColor') : c.getAttribute('bgcolor');
                 const gPos = c.worldPosition;
+                let color = c.getAttribute('strokeColor');
+                const className = c.className.split(',');
+                if (c.tagName === "GROUP") {
+                    if (Number(className[2]) === EStrokeType.Stroke) {
+                        color = c.getAttribute('bgcolor');
+                    }
+                    else {
+                        color = c.children[0].getAttribute('strokeColor');
+                    }
+                }
                 this.curNodeMap.set(v.name, {
                     name: v.name,
                     rect: v.rect,
@@ -98,41 +108,7 @@ export class SelectorShape extends BaseShapeTool {
                 });
             }
         });
-        this.fullLayer.children.forEach(c => {
-            if (c.name !== SelectorShape.selectorId) {
-                const d = this.curNodeMap.get(c.name);
-                if (!d) {
-                    let rect;
-                    this.fullLayer.getElementsByName(c.name).forEach(f => {
-                        const r = f?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            });
-                        }
-                    });
-                    if (rect) {
-                        const color = c instanceof Path ? c.getAttribute('strokeColor') : c.getAttribute('bgcolor');
-                        this.curNodeMap.set(c.name, {
-                            name: c.name,
-                            rect,
-                            color: colorRGBA2Hex(color)[0],
-                            pos: c.getAttribute('pos'),
-                            rotate: c.getAttribute('rotate') || 0,
-                            scale: c.getAttribute('scale') || [1, 1]
-                        });
-                        nodeMaps.set(c.name, {
-                            rect,
-                            name: c.name,
-                            layer: c.parent
-                        });
-                    }
-                }
-            }
-        });
+        // console.log('computNodeMap', nodeMaps.keys(), this.curNodeMap.keys())
     }
     computSelector() {
         let intersectRect;
@@ -241,16 +217,22 @@ export class SelectorShape extends BaseShapeTool {
         if (this.selectIds?.length) {
             this.sealToDrawLayer();
         }
+        // console.log('consume0-0', (this.drawLayer?.parent as Layer).getElementsByName(SelectorShape.selectorId).length, this.selectIds?.length, this.workOptions, this.oldRect, this.oldSelectRect)
+        if (this.oldSelectRect) {
+            return {
+                type: EPostMessageType.Select,
+                dataType: EDataType.Local,
+                rect: this.oldRect,
+                selectIds: this.selectIds,
+                opt: this.workOptions,
+                padding: SelectorShape.SelectBorderPadding,
+                selectRect: this.oldSelectRect,
+                nodeColor: this.nodeColor,
+                willSyncService: false,
+            };
+        }
         return {
-            type: EPostMessageType.Select,
-            dataType: EDataType.Local,
-            rect: this.oldRect,
-            selectIds: this.selectIds,
-            opt: this.workOptions,
-            padding: SelectorShape.SelectBorderPadding,
-            selectRect: this.oldSelectRect,
-            nodeColor: this.nodeColor,
-            willSyncService: false,
+            type: EPostMessageType.None
         };
     }
     consumeService() {
@@ -259,7 +241,6 @@ export class SelectorShape extends BaseShapeTool {
     }
     clearTmpPoints() {
         this.tmpPoints.length = 0;
-        // this.curNodeMap.clear();
     }
     clearSelectData() {
         this.selectIds = undefined;
@@ -274,17 +255,17 @@ export class SelectorShape extends BaseShapeTool {
             if (c.id !== SelectorShape.selectorId) {
                 const cloneP = c.cloneNode(true);
                 if (cloneP.tagName === 'GROUP') {
-                    cloneP.seal();
+                    const other = c.className.split(',');
+                    if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
+                        cloneP.seal();
+                    }
                 }
                 cloneNodes.push(cloneP);
                 removeNodes.push(c);
-                const r = c?.getBoundingClientRect();
-                rect = computRect(rect, {
-                    x: Math.floor(r.x),
-                    y: Math.floor(r.y),
-                    w: Math.round(r.width),
-                    h: Math.round(r.height),
-                });
+                const r = getNodeRect(c.name, this.drawLayer);
+                if (r) {
+                    rect = computRect(rect, r);
+                }
             }
         });
         removeNodes.forEach(r => r.remove());
@@ -305,7 +286,10 @@ export class SelectorShape extends BaseShapeTool {
             this.fullLayer.getElementsByName(name.toString()).forEach(c => {
                 const cloneP = c.cloneNode(true);
                 if (cloneP.tagName === 'GROUP') {
-                    cloneP.seal();
+                    const other = c.className.split(',');
+                    if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
+                        cloneP.seal();
+                    }
                 }
                 cloneNodes.push(cloneP);
                 removeNodes.push(c);
@@ -386,7 +370,7 @@ export class SelectorShape extends BaseShapeTool {
     }
     getSelectorRect(layer, selectorId, hasPadding) {
         let rect;
-        const selector = layer.parent?.getElementsByName(selectorId)[0];
+        const selector = layer.parent?.getElementById(selectorId);
         const box = selector?.getElementById(SelectorShape.selectorBorderId);
         const r = box?.getBoundingClientRect();
         if (r) {
@@ -444,13 +428,8 @@ export class SelectorShape extends BaseShapeTool {
                                 c.setAttribute('rotate', itemOpt.angle);
                             }
                             updateNodeOpts.set(c.name, itemOpt);
-                            const r = c?.getBoundingClientRect();
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            });
+                            const r = getNodeRect(c.name, this.drawLayer);
+                            rect = computRect(rect, r);
                         }
                     });
                 }, this);
@@ -481,9 +460,22 @@ export class SelectorShape extends BaseShapeTool {
                             }
                             if (updateSelectorOpt.color) {
                                 itemOpt.color = updateSelectorOpt.color;
-                                c.setAttribute('strokeColor', itemOpt.color);
-                                if (c.getAttribute('fillColor')) {
-                                    c.setAttribute('fillColor', itemOpt.color);
+                                const className = c.className.split(',');
+                                if (c.tagName === "GROUP") {
+                                    if (Number(className[2]) === EStrokeType.Stroke) {
+                                        c.setAttribute('bgcolor', itemOpt.color);
+                                    }
+                                    else {
+                                        c.children.forEach(f => {
+                                            f.setAttribute('strokeColor', itemOpt.color);
+                                        });
+                                    }
+                                }
+                                else if (c.tagName === "PATH") {
+                                    c.setAttribute('strokeColor', itemOpt.color);
+                                    if (c.getAttribute('fillColor')) {
+                                        c.setAttribute('fillColor', itemOpt.color);
+                                    }
                                 }
                             }
                             if (updateSelectorOpt.opacity) {
@@ -519,7 +511,6 @@ export class SelectorShape extends BaseShapeTool {
                         h: Math.round(r.height),
                     });
                 }
-                // console.log('box', r, rect)
             }
         }
         if (rect) {
@@ -549,6 +540,7 @@ export class SelectorShape extends BaseShapeTool {
             dataType: EDataType.Local,
             rect,
             selectIds: [],
+            willSyncService: true,
         };
     }
     getRightServiceId(serviceWorkId) {
@@ -603,34 +595,25 @@ export class SelectorShape extends BaseShapeTool {
         (layer?.parent).appendChild(group);
         // console.log('layer?.parent', layer?.parent)
     }
-    selectServiceNode(workId, workItem) {
+    selectServiceNode(workId, workItem, curNodeMap) {
         const { selectIds } = workItem;
         const rightWorkId = this.getRightServiceId(workId);
         const oldRect = this.getSelectorRect(this.fullLayer, rightWorkId, true);
         this.fullLayer.parent.getElementById(rightWorkId)?.remove();
-        //console.log('oldRect', oldRect)
         let rect;
         const subRects = new Map();
         const subPos = new Map();
         selectIds?.forEach(name => {
-            this.fullLayer.getElementsByName(name).forEach(f => {
-                const b = f?.getBoundingClientRect();
-                if (b) {
-                    const r = {
-                        x: Math.floor(b.x),
-                        y: Math.floor(b.y),
-                        w: Math.round(b.width),
-                        h: Math.round(b.height),
-                    };
-                    rect = computRect(rect, r);
-                    subRects.set(name, r);
-                    const gPos = f.worldPosition;
-                    const rotate = f.getAttribute('rotate') || 0;
-                    subPos.set(name, [...gPos, rotate]);
-                }
-            });
+            const c = curNodeMap.get(name);
+            const f = this.fullLayer.getElementsByName(name)[0];
+            if (c && f) {
+                rect = computRect(rect, c.rect);
+                subRects.set(name, c.rect);
+                const gPos = f.worldPosition;
+                const rotate = c.opt?.rotate || f.getAttribute('rotate') || 0;
+                subPos.set(name, [...gPos, rotate]);
+            }
         });
-        //console.log('rect', rect, subRects)
         if (rect) {
             this.fullLayer && this.drawSelector({
                 drawRect: rect,
@@ -639,11 +622,6 @@ export class SelectorShape extends BaseShapeTool {
                 selectorId: rightWorkId,
                 layer: this.fullLayer
             });
-            // this.draw({
-            //     intersectRect: rect,
-            //     subRects,
-            //     subPos
-            // });
         }
         rect = computRect(rect, oldRect);
         if (rect) {

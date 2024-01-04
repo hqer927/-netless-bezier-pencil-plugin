@@ -35,6 +35,8 @@ export declare abstract class BaseShapeTool {
         data: IWorkerMessage;
         isFullWork?: boolean;
         nodeMaps?: Map<string, BaseNodeMapItem>;
+        isClearAll?: boolean;
+        isSubWorker?: boolean;
     }): IMainMessage;
     abstract consumeAll(props: {
         data?: IWorkerMessage;

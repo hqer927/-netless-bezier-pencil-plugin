@@ -1,15 +1,15 @@
 import { SubServiceWork } from "../base";
-import { IServiceWorkItem, IWorkerMessage, IBatchMainMessage } from "../types";
+import { IServiceWorkItem, IWorkerMessage, IBatchMainMessage, BaseNodeMapItem } from "../types";
 import { Group } from "spritejs";
 export declare class SubServiceWorkForWorker extends SubServiceWork {
     protected workShapes: Map<string, IServiceWorkItem>;
     protected animationId?: number | undefined;
-    private selectorWorkShapes;
+    selectorWorkShapes: Map<string, IServiceWorkItem>;
     _post: (msg: IBatchMainMessage) => void;
     private willRunEffectSelectorIds;
     private runEffectId?;
     private noAnimationRect;
-    constructor(layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
     private activeWorkShape;
     private activeSelectorShape;
     private setNodeKey;
@@ -24,5 +24,7 @@ export declare class SubServiceWorkForWorker extends SubServiceWork {
     removeSelectWork(data: IWorkerMessage): void;
     private effectRunSelector;
     removeWork(data: IWorkerMessage): void;
+    private removeNode;
     private getNodeRect;
+    runReverseSelectWork(selectIds: string[]): void;
 }

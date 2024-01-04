@@ -1,5 +1,5 @@
 import { WorkThreadEngine } from "../base";
-import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IOffscreenCanvasOptionType, IWorkerMessage } from "../types";
+import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IWorkerMessage } from "../types";
 import { EDataType } from "../enum";
 import { Scene, Group } from "spritejs";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
@@ -16,7 +16,6 @@ export declare class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     private init;
     getOffscreen(): OffscreenCanvas;
     private register;
-    protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): void;
     setToolsOpt(opt: IActiveToolsDataType): void;
     setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
     private clearAll;

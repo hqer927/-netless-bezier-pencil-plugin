@@ -16,6 +16,7 @@ export declare class LaserPenShape extends BaseShapeTool {
     readonly toolsType: EToolsKey;
     protected tmpPoints: Array<Point2d>;
     protected workOptions: LaserPenOptions;
+    private consumeIndex;
     constructor(workOptions: LaserPenOptions, fullLayer: Group);
     combineConsume(): undefined;
     setWorkOptions(workOptions: LaserPenOptions): void;

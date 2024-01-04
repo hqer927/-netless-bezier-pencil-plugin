@@ -27,8 +27,8 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
         this.scene = this.createScene(offscreenCanvasOpt);
         this.drawLayer = this.createLayer({...layerOpt, width:offscreenCanvasOpt.width, height:offscreenCanvasOpt.height})
         this.fullLayer = this.createLayer({...layerOpt, width:offscreenCanvasOpt.width, height:offscreenCanvasOpt.height, bufferSize: 5000})
-        this.localWork = new SubLocalWorkForWorker(this.fullLayer, this.drawLayer, this.post.bind(this));
-        this.serviceWork = new SubServiceWorkForWorker(this.fullLayer, this.drawLayer, this.post.bind(this));
+        this.localWork = new SubLocalWorkForWorker(this.curNodeMap, this.fullLayer, this.drawLayer, this.post.bind(this));
+        this.serviceWork = new SubServiceWorkForWorker(this.curNodeMap, this.fullLayer, this.drawLayer, this.post.bind(this));
         this.methodBuilder = new MethodBuilderWorker([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
@@ -71,6 +71,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                         break;
                     case EPostMessageType.Select:
                         if (dataType === EDataType.Service) {
+                            this.localWork.runReverseSelectWork(data);
                             this.serviceWork.runSelectWork(data);
                         }
                         break;
@@ -100,10 +101,10 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
             this.serviceWork.consumeFull(data);
         }
     }
-    protected updateScene(offscreenCanvasOpt:IOffscreenCanvasOptionType) {
-        super.updateScene(offscreenCanvasOpt);
-        this.localWork.runEffectWork();
-    }
+    // protected updateScene(offscreenCanvasOpt:IOffscreenCanvasOptionType) {
+    //     super.updateScene(offscreenCanvasOpt);
+    //     this.localWork.runEffectWork();
+    // }
     setToolsOpt(opt: IActiveToolsDataType) {
         this.localWork.setToolsOpt(opt);
     }
@@ -136,14 +137,26 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     private setCameraOpt(cameraOpt:ICameraOpt) {
         this.cameraOpt = cameraOpt;
-        const {scale,centerX,centerY} = cameraOpt;
-        // console.log('setCameraOpt', this.fullLayer.worldPosition, this.scene.width/2, this.scene.height/2)
+        const {scale,centerX,centerY, width, height} = cameraOpt;
+        if (width !== this.scene.width || height!== this.scene.height) {
+            this.updateScene({width, height});
+        }
         this.fullLayer.setAttribute('scale', [scale, scale]);
         this.fullLayer.setAttribute('translate', [-centerX,-centerY]);
         this.drawLayer.setAttribute('scale', [scale, scale]);
         this.drawLayer.setAttribute('translate', [-centerX,-centerY]);
-        // console.log('setCameraOpt', this.fullLayer.worldPosition)
-        this.localWork.runEffectWork();
+        this.localWork.runEffectWork(()=>{
+            if (this.serviceWork.selectorWorkShapes.size) {
+                for (const [key,value] of this.serviceWork.selectorWorkShapes.entries()) {
+                    this.serviceWork.runSelectWork({
+                        workId: key,
+                        selectIds: value.selectIds,
+                        msgType: EPostMessageType.Select,
+                        dataType: EDataType.Service
+                    })
+                }
+            }
+        });
     }
     private getRectImageBitmap(rect:IRectType, isFullWork:boolean): Promise<ImageBitmap>  {
         const x = rect.x * this.dpr;
@@ -157,10 +170,10 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     post(msg: IBatchMainMessage): void {
         const renderData = msg.render;
         if (renderData) {
+            // console.log('post1', renderData.rect);
             ((renderData.isFullWork ? this.fullLayer : this.drawLayer)?.parent as Layer).render();
             if (renderData.rect) {
                 if (renderData.drawCanvas) {
-                    // console.log('renderData', renderData.rect)
                     this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork).then(imageBitmap=>{
                         renderData.imageBitmap = imageBitmap;
                         msg.render = renderData;
@@ -186,18 +199,12 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                 }
                 callBack(e.data.values());
                 const hasClearAll = e.data.has('ClearAll');
-                const updateSceneJob = e.data.get('UpdateScene');
                 const updateCameraJob  = e.data.get('UpdateCamera');
-                const isFullRender: boolean = !!(hasClearAll || updateSceneJob || updateCameraJob);
-                if (updateSceneJob) {
-                    const {offscreenCanvasOpt} = updateSceneJob;
-                    offscreenCanvasOpt && this.updateScene(offscreenCanvasOpt);
-                }
+                const isFullRender: boolean = !!(hasClearAll || updateCameraJob);
                 if (updateCameraJob) {
                     const {cameraOpt} = updateCameraJob;
                     cameraOpt && this.setCameraOpt(cameraOpt);
                 }
-                
                 if (!hasClearAll && isFullRender) {
                     this.post({
                         render: {
@@ -213,6 +220,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                             isFullWork: true
                         }
                     })
+                   
                 }
                 if (hasClearAll) {
                     this.clearAll();
@@ -222,7 +230,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     consumeDraw(type: EDataType, data: IWorkerMessage): undefined {
         if (type === EDataType.Local) {
-            this.localWork.consumeDraw(data);
+            this.localWork.consumeDraw(data, this.serviceWork);
         } 
         if (type === EDataType.Service) {
             this.serviceWork.consumeDraw(data);
@@ -230,7 +238,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     consumeDrawAll(type: EDataType, data: IWorkerMessage) {
         if (type === EDataType.Local) {
-            this.localWork.consumeDrawAll(data);
+            this.localWork.consumeDrawAll(data, this.serviceWork);
         }
     }
     consumeFull(type: EDataType, data: IWorkerMessage) {

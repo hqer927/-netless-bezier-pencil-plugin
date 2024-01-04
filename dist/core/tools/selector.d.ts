@@ -57,10 +57,11 @@ export declare class SelectorShape extends BaseShapeTool {
         dataType: EDataType;
         rect: IRectType | undefined;
         selectIds: never[];
+        willSyncService: boolean;
     };
     private getRightServiceId;
     private drawSelector;
-    selectServiceNode(workId: string, workItem: IServiceWorkItem): IRectType | undefined;
+    selectServiceNode(workId: string, workItem: IServiceWorkItem, curNodeMap: Map<string, BaseNodeMapItem>): IRectType | undefined;
     removeService(): IRectType | undefined;
     getSelector(nodeMaps: Map<string, BaseNodeMapItem>): IRectType | undefined;
 }

@@ -3,10 +3,10 @@ import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { SelectorShape } from "../tools";
 import { computRect, rotatePoints, scalePoints } from "../utils";
-import { EmitEventType } from "../../plugin/types";
+import { EStrokeType, EmitEventType } from "../../plugin/types";
 export class SubLocalWorkForWorker extends SubLocalWork {
-    constructor(layer, drawLayer, postFun) {
-        super(layer, drawLayer);
+    constructor(curNodeMap, layer, drawLayer, postFun) {
+        super(curNodeMap, layer, drawLayer);
         Object.defineProperty(this, "_post", {
             enumerable: true,
             configurable: true,
@@ -111,9 +111,23 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             });
         }
     }
-    drawEraser(res) {
+    drawEraser(res, workShapeNode) {
         Promise.resolve(res).then((result) => {
-            //console.log('Promise', result)
+            const sp = [];
+            if (result.newWorkDatas?.length) {
+                sp.push(...result.newWorkDatas.map(d => ({
+                    type: EPostMessageType.FullWork,
+                    workId: d.workId,
+                    ops: transformToSerializableData(d.op),
+                    opt: d.opt,
+                    toolsType: d.toolsType,
+                    updateNodeOpt: {
+                        useAnimation: false
+                    }
+                })));
+                delete result.newWorkDatas;
+            }
+            sp.push(result);
             this._post({
                 render: {
                     rect: result.rect,
@@ -122,8 +136,31 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                     clearCanvas: ECanvasShowType.Bg,
                     isFullWork: true,
                 },
-                sp: [result]
+                sp
             });
+            for (let i = 0; i < sp.length; i++) {
+                if (sp[i].removeIds?.length) {
+                    sp[i].removeIds?.forEach(id => {
+                        this.curNodeMap.delete(id);
+                        workShapeNode.curNodeMap.delete(id);
+                    });
+                }
+                else if (sp[i].type === EPostMessageType.FullWork) {
+                    const key = sp[i].workId?.toString();
+                    if (key) {
+                        const ops = sp[i].ops;
+                        const opt = sp[i].opt;
+                        const toolsType = sp[i].toolsType;
+                        this.updataNodeMap({
+                            key,
+                            ops,
+                            opt,
+                            toolsType,
+                        });
+                        // console.log('updataNodeMap111')
+                    }
+                }
+            }
         });
     }
     drawPencil(res) {
@@ -132,8 +169,8 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             sp: res?.op && [res]
         });
     }
-    drawPencilFull(res, isClearBg) {
-        if (isClearBg) {
+    drawPencilFull(res, opt) {
+        if ((opt.opacity || 1) < 1) {
             this._post({
                 render: res.rect && {
                     rect: res.rect,
@@ -153,8 +190,16 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             },
             sp: [res]
         });
+        if (res.workId) {
+            this.updataNodeMap({
+                key: res.workId.toString(),
+                ops: res.ops,
+                toolsType: EToolsKey.Pencil,
+                opt
+            });
+        }
     }
-    consumeDraw(data) {
+    consumeDraw(data, serviceWork) {
         const { op, workId } = data;
         if (op?.length && workId) {
             const workShapeNode = this.workShapes.get(workId);
@@ -172,13 +217,38 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             });
             if (toolsType === EToolsKey.Selector) {
                 if (result.type === EPostMessageType.Select) {
+                    result.selectIds && serviceWork.runReverseSelectWork(result.selectIds);
                     this.drawSelector(result, true);
                 }
                 return;
             }
             if (toolsType === EToolsKey.Eraser) {
+                if (result.newWorkDatas?.length) {
+                    let rect = result?.rect;
+                    result.newWorkDatas.forEach(c => {
+                        const workShape = this.setFullWork(c);
+                        const r = workShape && workShape.consumeService({
+                            op: c.op,
+                            isFullWork: true,
+                        });
+                        const name = c.workId.toString();
+                        if (r) {
+                            workShapeNode.updataNodeMap(name, {
+                                name,
+                                rect: r,
+                                opt: c.opt,
+                                toolsType: c.toolsType,
+                                op: c.op
+                            });
+                            rect = computRect(rect, r);
+                        }
+                    });
+                    if (rect) {
+                        result.rect = rect;
+                    }
+                }
                 if (result?.rect) {
-                    this.drawEraser(result);
+                    this.drawEraser(result, workShapeNode);
                 }
                 return;
             }
@@ -187,7 +257,7 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                     this.combineTimerId = setTimeout(() => {
                         this.combineTimerId = undefined;
                         this.drawPencilCombine(workId);
-                    }, this.combineUnitTime);
+                    }, Math.floor(workShapeNode.getWorkOptions().syncUnitTime || this.combineUnitTime / 2));
                 }
                 if (result) {
                     this.drawCount++;
@@ -196,7 +266,7 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             }
         }
     }
-    consumeDrawAll(data) {
+    consumeDrawAll(data, serviceWork) {
         if (this.combineTimerId) {
             clearTimeout(this.combineTimerId);
             this.combineTimerId = undefined;
@@ -218,6 +288,7 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                 nodeMaps: this.curNodeMap
             });
             if (toolsType === EToolsKey.Selector) {
+                r.selectIds && serviceWork.runReverseSelectWork(r.selectIds);
                 this.drawSelector(r, false);
                 if (!workShapeNode.selectIds?.length) {
                     this.clearWorkShapeNodeCache(workId);
@@ -229,15 +300,15 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             }
             if (toolsType === EToolsKey.Eraser) {
                 if (r?.rect) {
-                    this.drawEraser(r);
+                    this.drawEraser(r, workShapeNode);
                 }
                 workShapeNode.clearTmpPoints();
                 return;
             }
             if (toolsType === EToolsKey.Pencil) {
                 if (r?.rect) {
-                    const opacity = workShapeNode.getWorkOptions().opacity || 1;
-                    this.drawPencilFull(r, opacity < 1);
+                    // const opacity = workShapeNode.getWorkOptions().opacity || 1 ;
+                    this.drawPencilFull(r, workShapeNode.getWorkOptions());
                 }
                 this.clearWorkShapeNodeCache(workId);
             }
@@ -307,17 +378,18 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                             return n;
                         });
                         if (newUpdateNodeOpt.scale) {
-                            // console.log('op', op.map(o=>o), newUpdateNodeOpt.originPos);
                             scalePoints(op, newUpdateNodeOpt.pos, newUpdateNodeOpt.scale);
-                            // console.log('op1', op.map(o=>o));
                             nop = op;
+                            delete newUpdateNodeOpt.scale;
                         }
                         newPos = transformToSerializableData(op);
-                        this.drawLayer?.getElementsByName(key).forEach(c => newUpdateNodeOpt.pos && c.setAttribute('className', `${newUpdateNodeOpt.pos[0]}, ${newUpdateNodeOpt.pos[1]}`));
-                        delete newUpdateNodeOpt.scale;
+                        this.drawLayer?.getElementsByName(key).forEach(c => {
+                            if (newUpdateNodeOpt.pos) {
+                                const className = c.className.split(',');
+                                c.setAttribute('className', `${newUpdateNodeOpt.pos[0]}, ${newUpdateNodeOpt.pos[1]}, ${className[2]}`);
+                            }
+                        });
                         delete newUpdateNodeOpt.originPos;
-                        // console.log('newUpdateNodeOpt', newUpdateNodeOpt)
-                        // this.drawLayer?.getElementsByName(key).forEach(c=>c.remove());
                     }
                     if (ops && newUpdateNodeOpt.angle && newUpdateNodeOpt.originPos) {
                         const op = transformToNormalData(ops);
@@ -347,7 +419,6 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         opt: newOpt,
                         toolsType
                     });
-                    // console.log('newServiceStore', newServiceStore)
                 }
             }
         }
@@ -393,34 +464,27 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         render,
                     });
                     if (workState === EvevtWorkState.Done) {
-                        this.computNodeMap();
+                        workShapeNode.selectIds?.forEach(key => {
+                            const info = sp?.find(s => s?.workId && s.workId === key);
+                            this.updataNodeMap({
+                                key,
+                                ops: info?.ops,
+                                opt: info?.opt
+                            });
+                        });
                     }
                 }, 20);
             }
             if (!isDelay && workState === EvevtWorkState.Done) {
-                this.computNodeMap();
+                workShapeNode.selectIds?.forEach(key => {
+                    const info = sp?.find(s => s?.workId && s.workId === key);
+                    this.updataNodeMap({
+                        key,
+                        ops: info?.ops,
+                        opt: info?.opt
+                    });
+                });
             }
-            // this._post({ render:{
-            //     rect: res?.rect,
-            //     isClear: true,
-            //     isFullWork: true,
-            //     clearCanvas: ECanvasShowType.Bg,
-            //     drawCanvas: ECanvasShowType.Bg
-            // } })
-            // const rect1 = {
-            //     x:0,
-            //     y:0,
-            //     w: this.fullLayer?.parent?.getAttribute('width'),
-            //     h: this.fullLayer?.parent?.getAttribute('height')
-            // };
-            // console.log('rect1', rect1);
-            // this._post({ render:{
-            //     rect:rect1,
-            //     isClear: true,
-            //     isFullWork: false,
-            //     clearCanvas: ECanvasShowType.Float,
-            //     drawCanvas: ECanvasShowType.Float
-            // } })
         }
     }
     blurSelector() {
@@ -481,6 +545,14 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                             updateNodeOpt: data.updateNodeOpt
                         }]) || undefined
                 });
+                if (data.workId) {
+                    this.updataNodeMap({
+                        key: data.workId?.toString(),
+                        ops: data.ops,
+                        opt: data.opt,
+                        toolsType: data.toolsType,
+                    });
+                }
             }
             data.workId && this.workShapes.delete(data.workId);
         }
@@ -557,14 +629,15 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             this.workShapes.has(key) && this.clearWorkShapeNodeCache(key);
             let rect;
             const removeNode = [];
-            const nodeItem = this.curNodeMap.get(key);
-            const node = nodeItem && nodeItem?.layer.getElementById(key);
-            if (nodeItem && node) {
-                rect = computRect(rect, nodeItem.rect);
-                removeNode.push(node);
+            const nodeMapItem = this.curNodeMap.get(key);
+            if (nodeMapItem) {
+                this.curNodeMap.delete(key);
             }
-            if (!node) {
-                this.fullLayer.getElementsByName(key).concat(this.drawLayer?.getElementsByName(key) || []).forEach(node => {
+            this.fullLayer.getElementsByName(key).concat(this.drawLayer?.getElementsByName(key) || []).forEach(node => {
+                if (nodeMapItem) {
+                    rect = computRect(rect, nodeMapItem.rect);
+                }
+                else {
                     const r = node.getBoundingClientRect();
                     rect = computRect(rect, {
                         x: r.x,
@@ -572,9 +645,9 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         w: r.width,
                         h: r.height
                     });
-                    removeNode.push(node);
-                });
-            }
+                }
+                removeNode.push(node);
+            });
             if (removeNode.length) {
                 removeNode.forEach(r => r.remove());
             }
@@ -588,6 +661,64 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         drawCanvas: ECanvasShowType.Bg
                     }
                 });
+            }
+            this.curNodeMap.delete(key);
+        }
+    }
+    runReverseSelectWork(data) {
+        const workShapeNode = this.workShapes.get(SelectorShape.selectorId);
+        const { selectIds } = data;
+        const backIds = [];
+        if (workShapeNode && selectIds && workShapeNode.selectIds) {
+            for (const id of selectIds) {
+                const i = workShapeNode.selectIds.findIndex(_id => _id === id);
+                if (i > -1) {
+                    workShapeNode.selectIds.splice(i, 1);
+                    backIds.push(id);
+                }
+            }
+            if (backIds.length) {
+                const cloneNodes = [];
+                if (workShapeNode.selectIds.length !== 0) {
+                    this.rerRenderSelector();
+                }
+                let rect;
+                backIds.forEach(id => {
+                    const node = this.drawLayer?.getElementsByName(id)[0];
+                    if (node) {
+                        const cloneP = node.cloneNode(true);
+                        if (cloneP.tagName === 'GROUP') {
+                            const other = node.className.split(',');
+                            if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
+                                cloneP.seal();
+                            }
+                        }
+                        cloneNodes.push(cloneP);
+                        // console.log('runReverseSelectWork')
+                        node.remove();
+                        const n = this.curNodeMap.get(id);
+                        if (n) {
+                            rect = computRect(rect, n.rect);
+                        }
+                    }
+                });
+                cloneNodes.length && this.fullLayer.append(...cloneNodes);
+                if (rect) {
+                    this._post({
+                        render: {
+                            rect: rect,
+                            isClear: true,
+                            isFullWork: true,
+                            clearCanvas: ECanvasShowType.Bg,
+                            drawCanvas: ECanvasShowType.Bg,
+                        },
+                        sp: workShapeNode.selectIds.length === 0 && [{
+                                type: EPostMessageType.Select,
+                                selectIds: [],
+                                willSyncService: false
+                            }] || undefined
+                    });
+                }
             }
         }
     }

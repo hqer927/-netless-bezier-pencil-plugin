@@ -11,7 +11,7 @@ import { rgbToHex } from "../collector/utils/color";
 import { MainEngineForWorker} from "../core";
 import { LaserPenOptions } from "../core/tools/laserPen";
 import throttle from "lodash/throttle";
-import debounce from "lodash/debounce";
+// import debounce from "lodash/debounce";
 
 export class BezierPencilManager {
     private plugin: BezierPencilPlugin;
@@ -45,9 +45,9 @@ export class BezierPencilManager {
             this.onUnMountDisplayer();
         }
     }
-    onCameraChange = debounce((cameraState: CameraState) => {
+    onCameraChange = (cameraState: CameraState) => {
         this.worker?.setCameraOpt(toJS(cameraState))
-    }, 50, {'leading':false})
+    }
     onSceneChange = throttle((sceneState: SceneState) => {
         this.collector?.setNamespace(sceneState.sceneName);
         this.worker?.clearAll(true);
@@ -59,8 +59,8 @@ export class BezierPencilManager {
         }
         const currentApplianceName = memberState.currentApplianceName as ApplianceNames;
         const toolsKey = currentApplianceName === ApplianceNames.pencil && memberState.useLaserPen ? EToolsKey.LaserPen : 
-            currentApplianceName === ApplianceNames.eraser ? EToolsKey.Eraser : 
-            currentApplianceName === ApplianceNames.pencil ? EToolsKey.Pencil : 
+            currentApplianceName === ApplianceNames.eraser || currentApplianceName === ApplianceNames.pencilEraser ? EToolsKey.Eraser : 
+            currentApplianceName === ApplianceNames.pencil && memberState.useNewPencil ? EToolsKey.Pencil : 
             currentApplianceName === ApplianceNames.selector ? EToolsKey.Selector : EToolsKey.Clicker ;
         const opt:BaseShapeOptions = {
             color: rgbToHex(memberState.strokeColor[0], memberState.strokeColor[1], memberState.strokeColor[2]),
@@ -68,10 +68,10 @@ export class BezierPencilManager {
         };
         if (toolsKey === EToolsKey.Pencil) {
             (opt as PencilOptions).thickness = memberState.strokeWidth;
-            (opt as PencilOptions).strokeType = memberState?.strokeType || EStrokeType.Stroke;
+            (opt as PencilOptions).strokeType = memberState?.strokeType || EStrokeType.Normal;
         } else if(toolsKey === EToolsKey.Eraser) {
-            (opt as EraserOptions).thickness = memberState.strokeWidth;
-            (opt as EraserOptions).isLine = memberState?.isLine || false;
+            (opt as EraserOptions).thickness = Math.min(3, Math.max(1, Math.floor(memberState.pencilEraserSize || 3))) - 1; 
+            (opt as EraserOptions).isLine = currentApplianceName === ApplianceNames.eraser && true;
         } else if(toolsKey === EToolsKey.LaserPen) {
             (opt as LaserPenOptions).thickness = memberState.strokeWidth;
             (opt as LaserPenOptions).duration = memberState?.duration || 1;
@@ -81,7 +81,7 @@ export class BezierPencilManager {
             toolsType: toolsKey,
             toolsOpt: opt,
         });
-        if (currentApplianceName === ApplianceNames.selector) {
+        if (toolsKey === EToolsKey.Selector) {
             BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode], this.linstenerSelector.bind(this));
             BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode], this.linstenerSelector.bind(this));
             BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode], this.linstenerSelector.bind(this));
@@ -92,10 +92,16 @@ export class BezierPencilManager {
             BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode], this.linstenerSelector.bind(this));
             BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode], this.linstenerSelector.bind(this));
         }
-        if ( currentApplianceName === ApplianceNames.eraser || currentApplianceName === ApplianceNames.pencil || 
-            currentApplianceName === ApplianceNames.selector ) {
-            if (currentApplianceName === ApplianceNames.pencil) {
+        if ( toolsKey === EToolsKey.Eraser || toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen || 
+            toolsKey === EToolsKey.Selector ) {
+            if (toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen) {
                 this.room.disableDeviceInputs = true;
+                setTimeout(() => {
+                    const eventTraget = BezierPencilDisplayer.instance.containerRef?.parentNode?.children[0] as HTMLDivElement;
+                    if (eventTraget) {
+                        eventTraget.className = eventTraget.className + ' cursor-pencil';
+                    }
+                }, 0);
             } else {
                 this.room.disableDeviceInputs = false;
             }
@@ -128,7 +134,6 @@ export class BezierPencilManager {
             this.collector = new Collector(this.plugin);
             this.worker = new MainEngineForWorker(BezierPencilDisplayer.instance, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
             this.collector.addStorageStateListener((diff)=>{
-                //console.log('STATE',key,diffOne)
                 if(diff){
                     if (this.collector?.storage) {
                         const curKeys = Object.keys(this.collector.storage);
@@ -147,11 +152,14 @@ export class BezierPencilManager {
                             this.worker.maxLayerIndex = maxLayerIndex;
                         }
                     }
-                    for (const key of Object.keys(diff)) {
-                        const item = diff[key];
-                        if (item) {
-                            this.worker?.onServiceDerive(key, item);
-                        }
+                    if (this.worker) {
+                        const relevantId = this.worker.getRelevantWork(diff);
+                        Object.keys(diff).forEach((key)=>{
+                            const item = diff[key];
+                            if (item) {
+                                this.worker?.onServiceDerive(key, item, relevantId);
+                            }
+                        })
                     }
                 }
             })

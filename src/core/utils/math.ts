@@ -1,7 +1,8 @@
-import { Path } from "spritejs";
+import { Group, Path } from "spritejs";
 import { IRectType } from "../types";
 import { Point2d } from "./primitives/Point2d";
 import { Vec2d } from "./primitives/Vec2d";
+import { EStrokeType } from "../../plugin/types";
 
 export function computRect(rect1?: IRectType, rect2?: IRectType){
     if(rect1 && rect2){
@@ -43,19 +44,14 @@ export function isSameArray(a:Array<string|number>, b:Array<string|number>) {
   return a.length === b.length && a.sort().toString() === b.sort().toString();
 }
 
-export function getPathRect(node: Path, oldRect?:IRectType, tolerance:number = 0) {
-  const r = node?.getBoundingClientRect();
-  if (r) {
-      return computRect(oldRect, {
-          x: Math.floor(r.x - tolerance),
-          y: Math.floor(r.y - tolerance),
-          w: Math.floor(r.width + tolerance * 2),
-          h: Math.floor(r.height + tolerance * 2)
-      });
+export function getSafetyRect(oldRect:IRectType, tolerance:number = 10) {
+  return {
+      x: Math.floor(oldRect.x - tolerance),
+      y: Math.floor(oldRect.y - tolerance),
+      w: Math.floor(oldRect.w + tolerance * 2),
+      h: Math.floor(oldRect.h + tolerance * 2)
   }
-  return oldRect
 }
-
 export function getRectRotated(rect:IRectType, angle:number) {
   const p1 = new Vec2d(rect.x, rect.y);
   const p2 = new Vec2d(rect.x + rect.w, rect.y);
@@ -67,6 +63,20 @@ export function getRectRotated(rect:IRectType, angle:number) {
   const np2 = Vec2d.RotWith(p2,cp,dir);
   const np3 = Vec2d.RotWith(p3,cp,dir);
   const np4 = Vec2d.RotWith(p4,cp,dir);
+  return getRectFromPoints([np1,np2,np3,np4])
+}
+
+export function getRectScaleed(rect:IRectType, scale:[number,number]) {
+  const p1 = new Vec2d(rect.x, rect.y);
+  const p2 = new Vec2d(rect.x + rect.w, rect.y);
+  const p3 = new Vec2d(rect.x + rect.w, rect.y + rect.h);
+  const p4 = new Vec2d(rect.x, rect.y + rect.h);
+  const cp = new Vec2d(rect.x + rect.w/2, rect.y + rect.h/2);
+  const sv =  new Vec2d(scale[0], scale[1]);
+  const np1 = Vec2d.ScaleWOrigin(p1, sv, cp);
+  const np2 = Vec2d.ScaleWOrigin(p2, sv, cp);
+  const np3 = Vec2d.ScaleWOrigin(p3, sv, cp);
+  const np4 = Vec2d.ScaleWOrigin(p4, sv, cp);
   return getRectFromPoints([np1,np2,np3,np4])
 }
 
@@ -100,3 +110,104 @@ export function scalePoints(points:number[], originPos:[number,number], scale:[n
     points[i + 1] = np.y;
   }
 }
+
+export function getNodeRect(key:string, layer?: Group):IRectType|undefined {
+  let rect: IRectType | undefined;
+  layer?.getElementsByName(key).forEach(f => {
+      if (f.tagName === "PATH") {
+          const r = (f as Path)?.getBoundingClientRect();
+          if (r) {
+              rect = computRect(rect, {
+                  x: Math.floor(r.x),
+                  y: Math.floor(r.y),
+                  w: Math.round(r.width),
+                  h: Math.round(r.height),
+              })
+          }
+      } else if (f.tagName === 'GROUP') {
+          const other = (f as Group).className.split(',');
+          if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
+              const r = (f as Group)?.getBoundingClientRect();
+              if (r) {
+                  rect = computRect(rect, {
+                      x: Math.floor(r.x),
+                      y: Math.floor(r.y),
+                      w: Math.round(r.width),
+                      h: Math.round(r.height),
+                  })
+              }
+          } else {
+              (f as Group).children.forEach(c =>{
+                  if (c.tagName === "PATH") {
+                      const r = (c as Path)?.getBoundingClientRect();
+                      if (r) {
+                          rect = computRect(rect, {
+                              x: Math.floor(r.x),
+                              y: Math.floor(r.y),
+                              w: Math.round(r.width),
+                              h: Math.round(r.height),
+                          })
+                      }
+                  }
+              })
+          }
+      }
+  })
+  return rect
+}
+
+export function isIntersectForPoint(point:[number,number],rect:IRectType):boolean {
+  if (point[0] >= rect.x && point[0] <= rect.x + rect.w && point[1] >= rect.y && point[1] <= rect.y + rect.h) {
+    return true;
+  }
+  return false;
+}
+
+export const getLineSegIntersection = (
+  p1: [number,number],
+  p2: [number,number],
+  p3: [number,number],
+  p4: [number,number]
+): [number,number] | null => {
+  const { 0: x1, 1: y1 } = p1;
+  const { 0: x2, 1: y2 } = p2;
+  const { 0: x3, 1: y3 } = p3;
+  const { 0: x4, 1: y4 } = p4;
+
+  const a = y2 - y1;
+  const b = x1 - x2;
+  const c = x1 * y2 - x2 * y1;
+
+  const d = y4 - y3;
+  const e = x3 - x4;
+  const f = x3 * y4 - x4 * y3;
+
+  // 计算分母
+  const denominator = a * e - b * d;
+
+  // 判断分母是否为 0（代表平行）
+  if (Math.abs(denominator) < 0.000000001) {
+    // 这里有个特殊的重叠但只有一个交点的情况，可以考虑处理一下
+    return null;
+  }
+
+  const px = (c * e - f * b) / denominator;
+  const py = (a * f - c * d) / denominator;
+
+  // 判断交点是否在两个线段上
+  if (
+    px >= Math.min(x1, x2) &&
+    px <= Math.max(x1, x2) &&
+    py >= Math.min(y1, y2) &&
+    py <= Math.max(y1, y2) &&
+    px >= Math.min(x3, x4) &&
+    px <= Math.max(x3, x4) &&
+    py >= Math.min(y3, y4) &&
+    py <= Math.max(y3, y4)
+  ) {
+    return [px, py];
+  }
+
+  return null;
+};
+

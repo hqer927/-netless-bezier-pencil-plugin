@@ -25,6 +25,8 @@ export declare class PencilShape extends BaseShapeTool {
     consume(props: {
         data: IWorkerMessage;
         isFullWork?: boolean;
+        isClearAll?: boolean;
+        isSubWorker?: boolean;
     }): IMainMessage;
     consumeAll(props: {
         data?: IWorkerMessage;

@@ -6,7 +6,7 @@ import { Point2d } from "../utils/primitives/Point2d";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
 import { transformToSerializableData } from "../../collector/utils";
-import { computRect, getRectFromPoints, getRectRotated } from "../utils";
+import { computRect, getRectFromPoints, getRectRotated, getRectScaleed } from "../utils";
 import { EStrokeType } from "../../plugin/types";
 export class PencilShape extends BaseShapeTool {
     constructor(workOptions, fullLayer, drawlayer) {
@@ -86,7 +86,7 @@ export class PencilShape extends BaseShapeTool {
         this.syncTimestamp = Date.now();
     }
     consume(props) {
-        const { data, isFullWork } = props;
+        const { data, isFullWork, isClearAll, isSubWorker } = props;
         if (data.op?.length === 0) {
             return { type: EPostMessageType.None };
         }
@@ -110,13 +110,22 @@ export class PencilShape extends BaseShapeTool {
                 this.syncTimestamp = tasks[0].taskId;
                 this.syncIndex = this.tmpPoints.length;
             }
-            rect = this.draw({ attrs, tasks, effects, isFullWork });
+            rect = this.draw({ attrs, tasks, effects, isFullWork, isClearAll });
+        }
+        if (isSubWorker) {
+            if (consumeIndex > 10) {
+                this.tmpPoints.splice(0, consumeIndex - 10);
+            }
+            return {
+                rect,
+                type: EPostMessageType.DrawWork,
+                dataType: EDataType.Local,
+            };
         }
         const op = [];
         this.tmpPoints.slice(index).forEach(p => {
             op.push(p.x, p.y, this.computRadius(p.z, this.workOptions.thickness));
         });
-        // console.log('consume', this.fullLayer.children.map(c=>[c.tagName, c.name]))
         return {
             rect,
             type: EPostMessageType.DrawWork,
@@ -244,17 +253,26 @@ export class PencilShape extends BaseShapeTool {
                 strokeColor: color,
                 lineCap: strokeType === EStrokeType.Stroke || isDot ? undefined : 'round',
                 lineWidth: strokeType === EStrokeType.Stroke || isDot ? 0 : thickness,
-                className: `${pos[0]},${pos[1]}`,
+                className: `${pos[0]},${pos[1]},${strokeType}`,
             };
             if (tasks.length === 1 && normalize) {
                 const centerPos = [rect.x + rect.w / 2, rect.y + rect.h / 2];
                 this.centerPos = [centerPos[0] + pos[0], centerPos[1] + pos[1]];
                 attr.normalize = true;
                 attr.pos = this.centerPos;
-                attr.className = `${this.centerPos[0]},${this.centerPos[1]}`;
+                attr.className = `${this.centerPos[0]},${this.centerPos[1]},${strokeType}`;
                 attr.id = attrs.name;
                 attr.zIndex = zIndex;
-                attr.scale = scale;
+                if (scale) {
+                    attr.scale = scale;
+                    const r1 = getRectScaleed({
+                        x: Math.floor(rect.x + pos[0] + worldPosition[0] - PencilShape.PencilBorderPadding),
+                        y: Math.floor(rect.y + pos[1] + worldPosition[1] - PencilShape.PencilBorderPadding),
+                        w: Math.floor(rect.w + 2 * PencilShape.PencilBorderPadding),
+                        h: Math.floor(rect.h + 2 * PencilShape.PencilBorderPadding)
+                    }, scale);
+                    r = computRect(r, r1);
+                }
                 if (rotate) {
                     attr.rotate = rotate;
                     const r1 = getRectRotated({
@@ -295,12 +313,12 @@ export class PencilShape extends BaseShapeTool {
                 ...attrs,
                 id: attrs.name,
                 anchor: [0.5, 0.5],
-                bgcolor: color,
+                bgcolor: strokeType === EStrokeType.Stroke ? color : undefined,
                 scale,
                 opacity,
                 pos: this.centerPos,
                 rotate,
-                className: `${this.centerPos[0]},${this.centerPos[1]}`,
+                className: `${this.centerPos[0]},${this.centerPos[1]},${strokeType}`,
                 size: [r.w, r.h],
                 zIndex,
             });
@@ -309,7 +327,9 @@ export class PencilShape extends BaseShapeTool {
                 const node = new Path(attr);
                 group.appendChild(node);
             });
-            group.seal();
+            if (strokeType === EStrokeType.Stroke) {
+                group.seal();
+            }
             // console.log('group', group, this.centerPos)
             layer.append(group);
         }
@@ -479,7 +499,6 @@ export class PencilShape extends BaseShapeTool {
                             }
                             this.tmpPoints[i - 1].setz(preZ);
                             willChangeMinIndex = Math.min(willChangeMinIndex, i - 1);
-                            //console.log('addEffect2',willChangeMinIndex)
                             i--;
                         }
                     }
@@ -615,14 +634,14 @@ export class PencilShape extends BaseShapeTool {
             const lastTemPoint = this.tmpPoints[lastIndex];
             const vector = Vec2d.Sub(nextPoint, lastTemPoint).uni();
             // 合并附近点,不需要nextPoint
-            if (nextPoint.isNear(lastTemPoint, thickness / 2)) {
+            if (nextPoint.isNear(lastTemPoint, thickness / 4)) {
                 if (lastTemPoint.z < this.MAX_REPEAR) {
                     lastTemPoint.setz(Math.min(lastTemPoint.z + 1, this.MAX_REPEAR));
                     if (length > 1) {
                         let i = length - 1;
                         while (i > 0) {
                             const distance = this.tmpPoints[i].distance(this.tmpPoints[i - 1]);
-                            const preZ = Math.max(this.tmpPoints[i].z - this.uniThickness * distance, 0);
+                            const preZ = Math.max(this.tmpPoints[i].z - this.uniThickness * distance, -thickness / 4);
                             if (this.tmpPoints[i - 1].z >= preZ) {
                                 i == 0;
                                 break;
@@ -636,7 +655,7 @@ export class PencilShape extends BaseShapeTool {
             }
             nextPoint.setv(vector);
             const distance = nextPoint.distance(lastTemPoint);
-            const z = Math.max(lastTemPoint.z - this.uniThickness * distance, -this.MAX_REPEAR / 5);
+            const z = Math.max(lastTemPoint.z - this.uniThickness * 5 * distance, -thickness / 2);
             // 向量一致的点，在z可线性变化下移除
             if (length > 1 && Vec2d.Equals(vector, lastTemPoint.v, 0.02) && lastTemPoint.z <= 0) {
                 this.tmpPoints.pop();
@@ -658,6 +677,10 @@ export class PencilShape extends BaseShapeTool {
             }
             if (pos) {
                 attr.pos = [pos[0], pos[1]];
+                if (paths[0]) {
+                    const oldClassName = paths[0].className.split(',');
+                    attr.className = `${pos[0]},${pos[1]},${oldClassName[2]}`;
+                }
             }
             if (color) {
                 attr.strokeColor = color;

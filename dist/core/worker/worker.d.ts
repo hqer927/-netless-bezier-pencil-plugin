@@ -1,5 +1,5 @@
 import { WorkThreadEngine } from "../base";
-import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IOffscreenCanvasOptionType, IWorkerMessage } from "../types";
+import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IWorkerMessage } from "../types";
 import { EDataType } from "../enum";
 import { SubLocalWorkForWorker } from "./local";
 import { SubServiceWorkForWorker } from "./service";
@@ -19,7 +19,6 @@ export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     getOffscreen(isFullWork: boolean): OffscreenCanvas;
     private register;
     private updateNode;
-    protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): void;
     setToolsOpt(opt: IActiveToolsDataType): void;
     setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
     private clearAll;

@@ -5,6 +5,11 @@ import pkg from './package.json'
 
 export default defineConfig(({ mode }) => {
   const isProd = mode === "production";
+  const external = Object.keys({
+    ...pkg.peerDependencies,
+    ...pkg.dependencies
+  }).filter(k=>k!=='spritejs');
+  // console.log('external', external)
   return {
     css: {
       modules:{
@@ -21,12 +26,9 @@ export default defineConfig(({ mode }) => {
         formats: ["es", "cjs"],
       },
       outDir: "dist",
-      sourcemap: isProd,
+      sourcemap: false,
       rollupOptions: {
-        external: Object.keys({
-          ...pkg.peerDependencies,
-          ...pkg.dependencies
-        }),
+        external,
       },
       minify: isProd,
     },
