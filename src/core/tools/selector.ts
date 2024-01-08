@@ -507,7 +507,7 @@ export class SelectorShape extends BaseShapeTool{
         }
     }
     private getRightServiceId(serviceWorkId:string) {
-        return serviceWorkId.replace("++++",'-');
+        return serviceWorkId.replace("++",'-');
     }
     private drawSelector(data:{ 
         drawRect: IRectType;

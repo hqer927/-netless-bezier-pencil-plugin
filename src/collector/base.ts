@@ -4,6 +4,8 @@ import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageD
 import { BezierPencilPlugin } from "../plugin";
 import { IworkId } from "../core";
 
+export const Storage_Splitter = '++';
+
 export abstract class BaseCollector {
     public abstract uid:string;
     public abstract plugin: BezierPencilPlugin;
@@ -14,10 +16,10 @@ export abstract class BaseCollector {
         this.storage = toJS(this.plugin.attributes[namespace]) || {};
     }
     public isLocalId(key:string): boolean {
-        return key.split('++++').length === 1;
+        return key.split(Storage_Splitter).length === 1;
     }
     public getLocalId(key:string): string {
-        return key.split('++++')[1];
+        return key.split(Storage_Splitter)[1];
     }
     abstract transformKey(key: IworkId): string;
     abstract keyTransformWorkId(key:string):string;

@@ -22,7 +22,6 @@ export declare class EraserShape extends BaseShapeTool {
     readonly toolsType: EToolsKey;
     protected tmpPoints: Array<number>;
     protected workOptions: EraserOptions;
-    private removeIds;
     worldPosition: [number, number];
     worldScaling: [number, number];
     eraserRect: IRectType | undefined;
@@ -41,6 +40,8 @@ export declare class EraserShape extends BaseShapeTool {
     private createEraserRect;
     consumeService(): IRectType | undefined;
     setWorkOptions(setWorkOptions: EraserOptions): void;
+    private computRectCenterPoints;
+    private isNear;
     consume(props: {
         data: IWorkerMessage;
         nodeMaps: Map<string, BaseNodeMapItem>;

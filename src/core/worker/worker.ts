@@ -75,9 +75,6 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                             this.serviceWork.runSelectWork(data);
                         }
                         break;
-                    case EPostMessageType.RemoveNode:
-                        this.removeNode(data);
-                        break;
                     case EPostMessageType.UpdateNode:
                         this.updateNode(data);
                         break;
@@ -90,6 +87,9 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                         } else {
                             this.consumeDraw(dataType, data);
                         }
+                        break;
+                    case EPostMessageType.RemoveNode:
+                        this.removeNode(data);
                         break;
                 }
             }

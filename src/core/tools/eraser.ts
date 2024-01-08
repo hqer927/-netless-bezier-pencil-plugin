@@ -2,7 +2,7 @@
 import { Group, Node } from "spritejs";
 import { BaseShapeOptions, BaseShapeTool } from "./base";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType, BaseNodeMapItem } from "../types";
+import { IWorkerMessage, IMainMessage, IRectType, BaseNodeMapItem, IworkId } from "../types";
 import { computRect, isIntersect } from "../utils";
 // import { EStrokeType } from "../../plugin/types";
 import { transformToNormalData } from "../../collector/utils";
@@ -37,7 +37,7 @@ export class EraserShape extends BaseShapeTool{
     readonly toolsType: EToolsKey = EToolsKey.Eraser;
     protected tmpPoints: Array<number> = [];
     protected workOptions: EraserOptions;
-    private removeIds:Array<string>= [];
+    // private removeIds:Array<string>= [];
     public worldPosition:[number, number];
     public worldScaling:[number, number];
     public eraserRect:IRectType | undefined;
@@ -135,6 +135,34 @@ export class EraserShape extends BaseShapeTool{
         super.setWorkOptions(setWorkOptions);
         this.syncTimestamp = Date.now();
     }
+    private computRectCenterPoints(){
+      const ps = this.tmpPoints.slice(-2);
+      if (this.tmpPoints.length === 4) {
+        const v1 = new Vec2d(this.tmpPoints[0],this.tmpPoints[1]);
+        const v2 = new Vec2d(this.tmpPoints[2],this.tmpPoints[3]);
+        const v3 = Vec2d.Sub(v2,v1).uni();
+        const distance = Vec2d.Dist(v1,v2);
+        const {width, height} = EraserShape.eraserSizes[this.workOptions.thickness];
+        const vd = Math.min(width,height);
+        const count = Math.round(distance / vd);
+        // console.log('v3', count)
+        if (count > 1) {
+          const points:number[] = [];
+          for (let i = 0; i < count; i++) {
+            const np = Vec2d.Mul(v3, i * vd);
+            points.push(this.tmpPoints[0] + np.x, this.tmpPoints[1] + np.y);
+          }
+          return points.concat(ps);
+        }
+      }
+      return ps;
+    }
+    private isNear(p1:[number,number],p2:[number,number]){
+      const v1 = new Vec2d(p1[0],p1[1]);
+      const v2 = new Vec2d(p2[0],p2[1]);
+      const {width, height} = EraserShape.eraserSizes[this.workOptions.thickness];
+      return Vec2d.Dist(v1,v2) < Math.hypot(width,height) * 0.5;
+    }
     public consume(props:{data: IWorkerMessage, nodeMaps: Map<string, BaseNodeMapItem>}): IMainMessage {
       const {op, workState} = props.data;
       if(!op || op.length === 0){
@@ -143,19 +171,49 @@ export class EraserShape extends BaseShapeTool{
       if (workState === EvevtWorkState.Start) {
         props.nodeMaps && this.computNodeMap(props.nodeMaps);
       }
-      if (this.isSamePoint([op[0],op[1]], [this.tmpPoints[0],this.tmpPoints[1]])) {
+      const oldTmpLength = this.tmpPoints.length;
+      if (oldTmpLength > 1 && this.isNear([op[0],op[1]], [this.tmpPoints[oldTmpLength-2],this.tmpPoints[oldTmpLength-1]])) {
         return { type: EPostMessageType.None}
       }
       if (props.nodeMaps) {
-        this.tmpPoints = op;
-        this.createEraserRect(op)
-        const {rect, removeIds, newWorkDatas} = this.remove();
-        if (rect && removeIds.length) {
+        if (oldTmpLength === 4) {
+          this.tmpPoints.shift();
+          this.tmpPoints.shift();
+        }
+        this.tmpPoints.push(op[0], op[1]);
+        const points = this.computRectCenterPoints();
+        let totalRect:IRectType|undefined;
+        const totalRemoveIds:Set<string> = new Set();
+        const totalNewWorkDatas: Map<string,{
+          op: number[];
+          opt: BaseShapeOptions;
+          workId: IworkId;
+          toolsType: EToolsKey;
+      }> = new Map();
+        // console.log('points', this.tmpPoints, points)
+        for (let i = 0; i < points.length-1; i+=2) {
+          this.createEraserRect(points.slice(i,i+2));
+          const {rect, removeIds, newWorkDatas} = this.remove();
+          totalRect = computRect(totalRect, rect);
+          removeIds.forEach(id=> totalRemoveIds.add(id));
+          newWorkDatas?.forEach(w=>{
+            if(!totalRemoveIds.has(w.workId)){
+              totalNewWorkDatas.set(w.workId,w);
+            }
+          })
+        }
+        if (totalRect && totalRemoveIds.size) {
+          const newWorkDatas = [];
+          for (const v of totalNewWorkDatas.values()) {
+            if (!totalRemoveIds.has(v.workId as string)) {
+              newWorkDatas.push(v);
+            }
+          }
           return {
             type: EPostMessageType.RemoveNode,
             dataType: EDataType.Local,
-            rect,
-            removeIds,
+            rect: totalRect,
+            removeIds: [...totalRemoveIds],
             newWorkDatas
           }
         }
@@ -287,7 +345,7 @@ export class EraserShape extends BaseShapeTool{
               if (intersect.length) {
                 removeNodes.push(node);
                 removeIds.push(np.name);
-                this.removeIds.push(np.name);
+                // this.removeIds.push(np.name);
                 if (!isLine) {
                   const intersectArr = this.translateIntersect(intersect);
                   const newLines = this.cutPolyline(intersectArr, np.polyline);
@@ -309,7 +367,7 @@ export class EraserShape extends BaseShapeTool{
             } else {
               removeNodes.push(node);
               removeIds.push(np.name);
-              this.removeIds.push(np.name);
+              // this.removeIds.push(np.name);
             }
             rect = computRect(rect, np.rect);
           }

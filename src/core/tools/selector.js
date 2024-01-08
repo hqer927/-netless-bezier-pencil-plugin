@@ -544,7 +544,7 @@ export class SelectorShape extends BaseShapeTool {
         };
     }
     getRightServiceId(serviceWorkId) {
-        return serviceWorkId.replace("++++", '-');
+        return serviceWorkId.replace("++", '-');
     }
     drawSelector(data) {
         const { drawRect, subRects, subPos, selectorId, layer } = data;

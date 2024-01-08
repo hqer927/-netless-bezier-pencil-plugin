@@ -300,6 +300,9 @@ export class MainEngineForWorker extends MainEngine {
                 return;
             }
         }
+        if (msgType === EPostMessageType.Select && this.collector.isOwn(key)) {
+            return;
+        }
         if (msgType && workId) {
             const data: IWorkerMessage & Pick<IWorkerMessage, 'workId'> = msg as IWorkerMessage;
             data.workId = this.collector.isOwn(key) ? this.collector.getLocalId(key) : workId;
@@ -315,11 +318,8 @@ export class MainEngineForWorker extends MainEngine {
                     // console.log('onServiceDerive1', data)
                     this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
                     this.runAnimation();
-                }, 32);
+                }, 16);
             } else {
-                // if (subRelevantIds && subRelevantIds.includes(key)) {
-                //     data.noRender = true;
-                // }
                 // console.log('onServiceDerive', data)
                 this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
             }
@@ -360,7 +360,7 @@ export class MainEngineForWorker extends MainEngine {
             return ;
         }
         const workId = this.currentToolsData.toolsType === EToolsKey.Selector? "selector" : Date.now();
-        const opt:BaseShapeOptions = this.currentToolsData.toolsOpt;
+        const opt:BaseShapeOptions = cloneDeep(this.currentToolsData.toolsOpt);
         if(this.currentToolsData.toolsType === EToolsKey.Pencil){
             this.maxLayerIndex = this.maxLayerIndex + 10;
             opt.zIndex = this.maxLayerIndex;

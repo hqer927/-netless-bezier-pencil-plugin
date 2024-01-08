@@ -80,7 +80,7 @@ export class BezierPencilManager {
                     opt.strokeType = memberState?.strokeType || EStrokeType.Normal;
                 }
                 else if (toolsKey === EToolsKey.Eraser) {
-                    opt.thickness = Math.min(3, Math.max(1, Math.floor(memberState.pencilEraserSize || 3))) - 1;
+                    opt.thickness = Math.min(3, Math.max(1, Math.floor(memberState.pencilEraserSize || 1))) - 1;
                     opt.isLine = currentApplianceName === ApplianceNames.eraser && true;
                 }
                 else if (toolsKey === EToolsKey.LaserPen) {
@@ -171,7 +171,7 @@ export class BezierPencilManager {
         const floatCanvas = BezierPencilDisplayer.instance?.canvasFloatRef;
         const bgCanvas = BezierPencilDisplayer.instance?.canvasBgRef;
         if (floatCanvas && bgCanvas && div) {
-            this.collector = new Collector(this.plugin);
+            this.collector = new Collector(this.plugin, this.pluginOptions?.syncOpt?.interval);
             this.worker = new MainEngineForWorker(BezierPencilDisplayer.instance, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
             this.collector.addStorageStateListener((diff) => {
                 if (diff) {
