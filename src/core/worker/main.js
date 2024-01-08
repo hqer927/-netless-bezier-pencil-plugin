@@ -536,27 +536,30 @@ export class MainEngineForWorker extends MainEngine {
             this.animationId = requestAnimationFrame(this.consume.bind(this));
         }
     }
-    clearAll(justLocal = false) {
+    async clearAll(justLocal = false) {
         this.taskBatchData.set('ClearAll', {
             dataType: EDataType.Local,
             msgType: EPostMessageType.Clear,
         });
         this.runAnimation();
-        setTimeout(() => {
-            if (this.bgCanvas && this.floatCanvas) {
-                const ctx = this.bgCanvas.getContext('2d');
-                ctx?.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
-                const floatCtx = this.floatCanvas.getContext('2d');
-                floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
-                this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
-            }
-        }, 100);
         if (!justLocal) {
             this.collector?.dispatch({
                 type: EPostMessageType.Clear
             });
         }
         this.maxLayerIndex = 0;
+        await new Promise((resolve) => {
+            setTimeout(() => {
+                if (this.bgCanvas && this.floatCanvas) {
+                    const ctx = this.bgCanvas.getContext('2d');
+                    ctx?.clearRect(0, 0, this.bgCanvas.width, this.bgCanvas.height);
+                    const floatCtx = this.floatCanvas.getContext('2d');
+                    floatCtx?.clearRect(0, 0, this.floatCanvas.width, this.floatCanvas.height);
+                    this.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
+                }
+                resolve(true);
+            }, 100);
+        });
     }
     unabled() {
         this.setCurrentLocalWorkData({ workState: EvevtWorkState.Freeze, workId: undefined });

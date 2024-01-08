@@ -4,6 +4,7 @@ import { IworkId } from "../core";
 export declare const Storage_Splitter = "++";
 export declare abstract class BaseCollector {
     abstract uid: string;
+    abstract serviceStorage: ISerializableStorageData;
     abstract plugin: BezierPencilPlugin;
     abstract storage: ISerializableStorageData;
     protected abstract namespace: string;

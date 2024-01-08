@@ -50,8 +50,9 @@ export class BezierPencilManager {
     }
     onSceneChange = throttle((sceneState: SceneState) => {
         this.collector?.setNamespace(sceneState.sceneName);
-        this.worker?.clearAll(true);
-        this.worker?.initSyncData(()=>{});
+        this.worker?.clearAll(true).then(()=>{
+            this.worker?.initSyncData();
+        });
     }, 100, {'leading':false})
     onMemberChange = throttle((memberState: MemberState) => {
         if(!this.room){

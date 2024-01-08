@@ -54,8 +54,9 @@ export class BezierPencilManager {
             writable: true,
             value: throttle((sceneState) => {
                 this.collector?.setNamespace(sceneState.sceneName);
-                this.worker?.clearAll(true);
-                this.worker?.initSyncData(() => { });
+                this.worker?.clearAll(true).then(() => {
+                    this.worker?.initSyncData();
+                });
             }, 100, { 'leading': false })
         });
         Object.defineProperty(this, "onMemberChange", {

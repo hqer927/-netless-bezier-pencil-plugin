@@ -62,7 +62,7 @@ export declare class MainEngineForWorker extends MainEngine {
     private onLocalEventDoing;
     private onLocalEventStart;
     consume(): void;
-    clearAll(justLocal?: boolean): void;
+    clearAll(justLocal?: boolean): Promise<void>;
     unabled(): void;
     abled(): void;
     destroy(): void;
