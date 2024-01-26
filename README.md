@@ -12,7 +12,7 @@ A whiteboard pencil drawing plugin based on SpriteJS as a rendering engine.
  
 ## Principle 
  
-1. This plug-in is mainly implemented based on the Path class of SpriteJS, which realizes the function of drawing Bezier curve through the Path class, and realizes the transition animation of laser pointer through the transition. 
+1. This plug-in is mainly implemented based on the Path class of SpriteJS. The function of drawing Bezier curve is realized through the Path class, and the transition animation of laser pointer is realized through the transition. 
 2. The plugin uses the dual worker+offscreenCanvas mechanism to process the drawing calculation + rendering logic in an independent worker thread. Achieved high performance optimization. 
  
 ## Plugin usage 
@@ -23,62 +23,104 @@ A whiteboard pencil drawing plugin based on SpriteJS as a rendering engine.
 npm install @hqer/bezier-pencil-plugin 
 ```
  
-### Register 
+### Sign up for plugins 
  
 ```js 
 import { WhiteWebSdk, DeviceType} from "white-web-sdk"; 
 import { BezierPencilPlugin, BezierPencilDisplayer, ECanvasContextType } from "@hqer/bezier-pencil-plugin"; 
+import '@hqer/bezier-pencil-plugin/dist/style.css' 
  
 const whiteWebSdk = new WhiteWebSdk({ 
-    appIdentifier, 
+    ... 
     useMobXState: true, 
-    deviceType: DeviceType.Surface, 
+} 
+const room = await whiteWebSdk.joinRoom({ 
+    ... 
+    isWritable: true, 
     invisiblePlugins: [BezierPencilPlugin], 
     wrappedComponents: [BezierPencilDisplayer] 
-} 
-let room = await whiteWebSdk.joinRoom({ 
-    uuid, 
-    roomToken, 
-    uid, 
-    region: "cn-hz", 
-    invisiblePlugins: [BezierPencilPlugin], 
-    isWritable: true, 
 }) 
-room = await BezierPencilPlugin.getInstance(room, 
-{// Get plug-in instance, there should be only one plug-in instance globally, which must be called after joinRoom 
-    logger: {// Custom logs, optional. If not, use the console api 
-        info: console.log, 
-        error: console.error, 
-        warn: console.warn, 
-    }, 
-    options: { 
-        syncOpt: { 
-            /** Synchronization interval duration,ms, recommended for low performance terminals, not less than 500ms **/ 
-            interval: 1000, 
+const plugin = await BezierPencilPlugin.getInstance(room, 
+    {// Get plug-in instance, there should be only one plug-in instance globally, which must be called after joinRoom 
+        logger: {// Custom logs, optional. If not, use the console api 
+            info: console.log, 
+            error: console.error, 
+            warn: console.warn, 
         }, 
-        canvasOpt: { 
-            contextType: ECanvasContextType.Canvas2d 
+        options: { 
+            syncOpt: { 
+                /**Synchronization interval duration,ms, recommended for low performance terminals, not less than 500ms**/ 
+                interval: 500, 
+            }, 
+            canvasOpt: { 
+                /**Plugin supported rendering engine**/ 
+                contextType: ECanvasContextType.Canvas2d 
+            } 
         } 
     } 
-} 
 ); 
 ```
  
-### Activate 
-
-Activate the plugin by calling the room.setMemberState method, and modify the pen type by using the strokeType, strokeOpacity, strokeColor, useLaserPen and other attributes. 
-
-```js 
-room.setMemberState({currentApplianceName: ApplianceNames.pencil}); 
+### Use 
  
-// For example, turn on pen draw 
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, strokeType: EStrokeType.Stroke, strokeOpacity:1}); 
-// For example, turn on the laser pointer 
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal}); 
+#### 1. By extending the interface on room. 
+For example, ``room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true})`` will activate the new pencil drawing tool. It will also be possible to modify the opacity by using the ``strokeType, strokeOpacity, strokeColor, useLaserPen`` and other attributes. 
+ 
+The specific effects are as follows: 
+
+**Turn on Pen Tip effect**: 
+```js 
+room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true, strokeType: EStrokeType.Stroke, strokeOpacity:1} as any); 
+```
+**Turn on Laser pointer effect**: 
+```js 
+room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal} as any); 
+```
+#### 2. Invoke the interface on the plugin object of the plug-in instance. 
+```js 
+const plugin = await BezierPencilPlugin.getInstance(room,...) 
 ```
  
-If it cannot be activated, it is necessary to introduce style.css in app.tsx or index.js. The purpose of this css is to raise the canvas level in BezierPencilDisplayer so that the event event can bubble onto the canvas. 
-
+Specific effects are as follows 
+ 
+**Empty the canvas**: 
 ```js 
-import '@hqer/bezier-pencil-plugin/dist/style.css' 
+plugin.cleanCurrentScene(); 
+```
+ 
+**Save notes as pictures**: 
+```js 
+const canvas = document.createElement("canvas"); 
+const context = canvas.getContext("2d"); 
+const { width, height, ... camera } = room.state.cameraState; 
+canvas.width = width; 
+canvas.height = height; 
+f (context) { 
+await plugin.screenshotToCanvasAsync(context, 
+room.state.sceneState.scenePath, 
+width, height, camera, window.devicePixelRatio); 
+canvas.toBlob(this.blobCallback("download"), "image/png"); 
+} 
+```
+ 
+**Undo/Restore**
+```js 
+// Cancel 
+plugin.undo(); 
+ 
+ 
+// Restore 
+plugin.redo(); 
+ 
+ 
+// Listen for the onCanUndoStepsUpdate event 
+plugin.callbacks.on("onCanUndoStepsUpdate", (step: number): void => { 
+    console.log('onCanUndoStepsUpdate', step) 
+}); 
+ 
+ 
+// Listen for the onCanRedoStepsUpdate event 
+plugin.callbacks.on("onCanRedoStepsUpdate", (step: number): void => { 
+    console.log('onCanRedoStepsUpdate', step) 
+}); 
 ```

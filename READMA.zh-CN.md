@@ -26,23 +26,19 @@ npm install @hqer/bezier-pencil-plugin
 ```js
 import { WhiteWebSdk, DeviceType} from "white-web-sdk";
 import { BezierPencilPlugin, BezierPencilDisplayer, ECanvasContextType } from "@hqer/bezier-pencil-plugin";
+import '@hqer/bezier-pencil-plugin/dist/style.css'
 
 const whiteWebSdk = new WhiteWebSdk({
-    appIdentifier,
+    ...
     useMobXState: true,
-    deviceType: DeviceType.Surface,
+}
+const room = await whiteWebSdk.joinRoom({
+    ...
+    isWritable: true,
     invisiblePlugins: [BezierPencilPlugin],
     wrappedComponents: [BezierPencilDisplayer]
-}
-let room = await whiteWebSdk.joinRoom({
-    uuid,
-    roomToken,
-    uid,
-    region: "cn-hz",
-    invisiblePlugins: [BezierPencilPlugin],
-    isWritable: true,
 })
-room = await BezierPencilPlugin.getInstance(room,
+const plugin = await BezierPencilPlugin.getInstance(room,
     {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
         logger: {   // 自定义日志，可选，如果不传则使用 console api
             info: console.log,
@@ -52,9 +48,10 @@ room = await BezierPencilPlugin.getInstance(room,
         options: {
             syncOpt: {
                 /** 同步间隔时长,ms, 建议在低性能的终端上,不要低于500ms **/
-                interval: 1000,
+                interval: 500,
             },
             canvasOpt: {
+                /** 插件支持的渲染引擎 **/
                 contextType: ECanvasContextType.Canvas2d
             }
         }
@@ -62,19 +59,65 @@ room = await BezierPencilPlugin.getInstance(room,
 );
 ```
 
-### 激活
-通过调用 room.setMemberState 方法激活插件，同时通过strokeType、strokeOpacity、strokeColor、useLaserPen等属性指修改画笔类型。
-```js
-room.setMemberState({currentApplianceName: ApplianceNames.pencil});
+### 使用
 
-// 举个例子,开启笔锋绘制
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, strokeType: EStrokeType.Stroke, strokeOpacity:1});
-// 举个例子,开启激光笔
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal});
+#### 1、通过扩展room上的接口.
+比如:``room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true})``,就会激活新铅笔绘制工具.其中还可以通过``strokeType、strokeOpacity、strokeColor、useLaserPen``等属性指修改画笔类型.
+
+具体效果如下:
+**开启笔锋效果**: 
+```js
+room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true, strokeType: EStrokeType.Stroke, strokeOpacity:1} as any);
+```
+**开启激光笔效果**:
+```js
+room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal} as any);
+```
+#### 2、调用插件实例plugin对象上接口.
+```js
+const plugin = await BezierPencilPlugin.getInstance(room,...)
 ```
 
-如果无法激活,需要在app.tsx或index.js中引入style.css,这个css的作用就是把BezierPencilDisplayer中canvas层级提高,从而能让event事件冒泡到canvas上.
+具体效果如下
 
+**清空画布**:
 ```js
-import '@hqer/bezier-pencil-plugin/dist/style.css'
+plugin.cleanCurrentScene();
+```
+
+**保存笔记为图片**:
+```js
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("2d");
+const { width, height, ...camera } = room.state.cameraState;
+canvas.width = width;
+canvas.height = height;
+f (context) {
+   await plugin.screenshotToCanvasAsync(context,
+   room.state.sceneState.scenePath,
+   width, height, camera, window.devicePixelRatio);
+   canvas.toBlob(this.blobCallback("download"), "image/png");
+}
+```
+
+**撤销/恢复**
+```js
+// 撤销
+plugin.undo();
+
+
+//恢复
+plugin.redo();
+
+
+// 监听onCanUndoStepsUpdate事件
+plugin.callbacks.on("onCanUndoStepsUpdate", (step: number): void => {
+	console.log('onCanUndoStepsUpdate', step)
+});
+
+
+// 监听onCanRedoStepsUpdate事件
+plugin.callbacks.on("onCanRedoStepsUpdate", (step: number): void => {
+    console.log('onCanRedoStepsUpdate', step)
+});
 ```
