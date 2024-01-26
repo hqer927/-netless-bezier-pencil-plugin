@@ -39,10 +39,10 @@ export class MethodBuilderMain {
         }
         return undefined;
     }
-    registerForMainEngine(emt, emtType, main, serviceColloctor) {
+    registerForMainEngine(emtType, main, serviceColloctor) {
         this.builders.forEach(builder => {
             if (builder) {
-                builder.registerForMainEngine(emt, emtType, main, serviceColloctor);
+                builder.registerForMainEngine(emtType, main, serviceColloctor);
             }
         });
         return this;
@@ -54,8 +54,8 @@ export class MethodBuilderMain {
             }
         });
     }
-    static emitMethod(emt, emtType, type, data) {
-        BaseMsgMethod.dispatch(emt, emtType, type, data);
+    static emitMethod(emtType, type, data) {
+        BaseMsgMethod.dispatch(emtType, type, data);
         return undefined;
     }
 }

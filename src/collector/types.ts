@@ -40,7 +40,10 @@ export interface INormalPushMsg {
     removeIds?:Array<string>;
     updateNodeOpt?: IUpdateNodeOpt;
     selectIds?:Array<string>;
-    emitEventType?:EmitEventType
+    emitEventType?:EmitEventType;
+    /** 是否垂直同步 */
+    isSync?:boolean;
+    undoTickerId?:number;
 }
 
 export interface INormalStorageData {

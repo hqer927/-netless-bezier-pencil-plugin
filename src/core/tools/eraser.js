@@ -168,7 +168,6 @@ export class EraserShape extends BaseShapeTool {
             const { width, height } = EraserShape.eraserSizes[this.workOptions.thickness];
             const vd = Math.min(width, height);
             const count = Math.round(distance / vd);
-            // console.log('v3', count)
             if (count > 1) {
                 const points = [];
                 for (let i = 0; i < count; i++) {
@@ -189,14 +188,18 @@ export class EraserShape extends BaseShapeTool {
     consume(props) {
         const { op, workState } = props.data;
         if (!op || op.length === 0) {
-            return { type: EPostMessageType.None };
+            return {
+                type: EPostMessageType.None
+            };
         }
         if (workState === EvevtWorkState.Start) {
             props.nodeMaps && this.computNodeMap(props.nodeMaps);
         }
         const oldTmpLength = this.tmpPoints.length;
         if (oldTmpLength > 1 && this.isNear([op[0], op[1]], [this.tmpPoints[oldTmpLength - 2], this.tmpPoints[oldTmpLength - 1]])) {
-            return { type: EPostMessageType.None };
+            return {
+                type: EPostMessageType.None
+            };
         }
         if (props.nodeMaps) {
             if (oldTmpLength === 4) {

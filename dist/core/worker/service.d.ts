@@ -1,15 +1,15 @@
 import { SubServiceWork } from "../base";
 import { IServiceWorkItem, IWorkerMessage, IBatchMainMessage, BaseNodeMapItem } from "../types";
-import { Group } from "spritejs";
+import type { Group } from "spritejs";
 export declare class SubServiceWorkForWorker extends SubServiceWork {
     protected workShapes: Map<string, IServiceWorkItem>;
     protected animationId?: number | undefined;
     selectorWorkShapes: Map<string, IServiceWorkItem>;
-    _post: (msg: IBatchMainMessage) => void;
+    _post: (msg: IBatchMainMessage) => Promise<void>;
     private willRunEffectSelectorIds;
     private runEffectId?;
     private noAnimationRect;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => Promise<void>);
     private activeWorkShape;
     private activeSelectorShape;
     private setNodeKey;

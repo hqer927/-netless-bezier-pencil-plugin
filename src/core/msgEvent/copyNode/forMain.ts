@@ -6,6 +6,7 @@ import { BaseCollectorReducerAction } from "../../../collector/types";
 import { SelectorShape } from "../../tools";
 import cloneDeep from "lodash/cloneDeep";
 import { transformToNormalData, transformToSerializableData } from "../../../collector/utils";
+import { UndoRedoMethod } from "../../../undo";
 
 export type CopyNodeEmtData = {
     workIds: IworkId[]
@@ -23,6 +24,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         const random = Math.floor( Math.random() * 20 + 10 );
         let t:[number,number] | undefined;
+        const undoTickerId = Date.now();
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -72,6 +74,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                         updateNodeOpt,
                         type: EPostMessageType.FullWork,
                         workId: copyNodeKey,
+                        undoTickerId
                     })
                     localMsgs.push({
                         ...curStore,
@@ -84,10 +87,9 @@ export class CopyNodeMethod extends BaseMsgMethod {
                         willRefresh: true
                     })
                 }
-                
-
             }
         }
+        UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }

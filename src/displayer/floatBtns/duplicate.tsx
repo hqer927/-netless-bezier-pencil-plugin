@@ -10,12 +10,12 @@ export const Duplicate = () => {
         onClick={(e)=>{
             e.preventDefault();
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.CopyNode, {workIds:['selector']})
         }}
         onTouchEnd={(e)=>{
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.CopyNode, {workIds:['selector']})
         }}
     >

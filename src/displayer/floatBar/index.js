@@ -14,7 +14,7 @@ export const FloatBar = React.forwardRef((props, ref) => {
         e.preventDefault();
         e.stopPropagation();
         // console.log('onDragStartHandler', position)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position, workState: EvevtWorkState.Start });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position, workState: EvevtWorkState.Start });
     };
     const onDragEndHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -23,7 +23,7 @@ export const FloatBar = React.forwardRef((props, ref) => {
         const p = { x: pos.x, y: pos.y };
         setPosition(p);
         // console.log('onDragEndHandler', p)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position: p, workState: EvevtWorkState.Done });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position: p, workState: EvevtWorkState.Done });
     }, 100, { 'leading': false });
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -33,7 +33,7 @@ export const FloatBar = React.forwardRef((props, ref) => {
         if (pos.x !== position?.x || pos.y !== position?.y) {
             setPosition(p);
             // console.log('onDragHandler', p)
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position: p, workState: EvevtWorkState.Doing });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.TranslateNode, { workIds: ['selector'], position: p, workState: EvevtWorkState.Doing });
         }
     }, 100, { 'leading': false });
     const FloatBtnsUI = useMemo(() => {
@@ -50,10 +50,11 @@ export const FloatBar = React.forwardRef((props, ref) => {
                 pointerEvents: zIndex < 2 ? 'none' : 'auto',
             } : undefined },
             FloatBtnsUI,
-            React.createElement("canvas", { ref: ref, className: "bezier-pencil-plugin-floatCanvas", style: {
+            React.createElement("div", { className: "bezier-pencil-plugin-floatCanvas-box", style: {
                     width: '100%',
                     height: '100%',
                     transform: `rotate(${angle}deg)`,
-                } }),
+                } },
+                React.createElement("canvas", { ref: ref, className: "bezier-pencil-plugin-floatCanvas" })),
             !isRotating && React.createElement(HightLightBox, null))));
 });

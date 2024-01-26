@@ -1,13 +1,14 @@
-import { Group } from "spritejs";
+import type { Group } from "spritejs";
 import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey } from "../enum";
-import { BaseShapeTool } from "../tools";
+import { BaseShapeTool, SelectorShape } from "../tools";
 import { LaserPenOptions } from "../tools/laserPen";
 import { IWorkerMessage, IMainMessage, IworkId, IRectType, IBatchMainMessage, BaseNodeMapItem } from "../types";
 import { computRect } from "../utils";
+import { transformToNormalData } from "../../collector/utils";
 
 export class SubLocalDrawWorkForWorker extends SubLocalWork {
-    _post: (msg: IBatchMainMessage) => void;
+    _post: (msg: IBatchMainMessage) => Promise<void>;
     protected workShapes: Map<IworkId, BaseShapeTool> = new Map();
     protected combineDrawTimer?: number;
     private drawCount: number = 0;
@@ -19,7 +20,7 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
     private animationId?: number | undefined;
     private closeAnimationTime: number = 1100;
     private runLaserPenStep:number = 0;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>,layer: Group, postFun: (msg: IBatchMainMessage)=>void) {
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>,layer: Group, postFun: (msg: IBatchMainMessage)=> Promise<void>) {
         super(curNodeMap, layer);
         this._post = postFun;
     }
@@ -58,14 +59,14 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 }
                 if (rect) {
                     this._post({
-                        render: {
+                        render: [{
                             rect,
                             drawCanvas: ECanvasShowType.Float,
                             isClear: true,
                             clearCanvas: ECanvasShowType.Float,
                             isFullWork: false,
-                        },
-                        sp: sp.length ? sp : undefined
+                        }],
+                        sp
                     });
                 }
             });
@@ -74,12 +75,12 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
     private drawPencil(res:IMainMessage) {
         this._post({
             drawCount: this.drawCount,
-            render: {
+            render: [{
                 rect: res?.rect,
                 drawCanvas: ECanvasShowType.Float,
                 isClear: false,
                 isFullWork: false,
-            },
+            }],
             sp: res?.op && [res]
         });
     }
@@ -159,5 +160,47 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
             }
         }
         return ;
+    }
+    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt'| 'toolsType'>){
+        const {workId, opt, toolsType} = data;
+        if (workId && opt && toolsType) {
+            const curWorkShapes = (workId && this.workShapes.get(workId)) || this.createWorkShapeNode({
+                toolsOpt:opt,
+                toolsType
+            })
+            if (!curWorkShapes) {
+                return;
+            }
+            curWorkShapes.setWorkId(workId);
+            this.workShapes.set(workId, curWorkShapes);
+            return curWorkShapes
+        }
+    }
+    runFullWork(data: IWorkerMessage): undefined {
+        const workShape = this.setFullWork(data);
+        const op = data.ops && transformToNormalData(data.ops);
+        if (workShape) {
+            workShape.consumeService({
+                op, 
+                isFullWork: true,
+                replaceId: workShape.getWorkId()?.toString()
+            });
+            data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
+            if (data.workId) {
+                this.updataNodeMap({
+                    key: data.workId?.toString(),
+                    ops: data.ops, 
+                    opt: data.opt,
+                    toolsType: data.toolsType,
+                });
+            }
+            data.workId && this.workShapes.delete(data.workId)
+        }
+    }
+    runSelectWork(data: IWorkerMessage): undefined {
+        const workShape = this.setFullWork(data);
+        if(workShape && data.selectIds?.length && data.workId){
+            (workShape as SelectorShape).selectServiceNode(data.workId.toString(), {selectIds:data.selectIds}, this.curNodeMap);
+        }
     }
 }

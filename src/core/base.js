@@ -62,15 +62,28 @@ export class WorkThreadEngine {
         this.scene.container.height = height;
         this.scene.width = width;
         this.scene.height = height;
-        // this.scene.forceUpdate();
         this.updateLayer({ width, height });
     }
     updateLayer(layerOpt) {
         const { width, height } = layerOpt;
-        this.fullLayer?.setAttribute('size', [width, height]);
-        this.fullLayer?.setAttribute('pos', [width * 0.5, height * 0.5]);
-        this.drawLayer?.setAttribute('size', [width, height]);
-        this.drawLayer?.setAttribute('pos', [width * 0.5, height * 0.5]);
+        if (this.fullLayer) {
+            this.fullLayer.parent.setAttribute('width', width);
+            this.fullLayer.parent.setAttribute('height', height);
+            this.fullLayer.setAttribute('size', [width, height]);
+            this.fullLayer.setAttribute('pos', [width * 0.5, height * 0.5]);
+        }
+        if (this.drawLayer) {
+            this.drawLayer.parent.setAttribute('width', width);
+            this.drawLayer.parent.setAttribute('height', height);
+            this.drawLayer.setAttribute('size', [width, height]);
+            this.drawLayer.setAttribute('pos', [width * 0.5, height * 0.5]);
+        }
+        if (this.snapshotFullLayer) {
+            this.snapshotFullLayer.parent.setAttribute('width', width);
+            this.snapshotFullLayer.parent.setAttribute('height', height);
+            this.snapshotFullLayer.setAttribute('size', [width, height]);
+            this.snapshotFullLayer.setAttribute('pos', [width * 0.5, height * 0.5]);
+        }
     }
     createScene(opt) {
         const { width, height } = opt;
@@ -83,10 +96,10 @@ export class WorkThreadEngine {
             ...opt,
         });
     }
-    createLayer(opt) {
+    createLayer(scene, opt) {
         const { width, height } = opt;
         const sy = "offscreen" + Date.now();
-        const layer = this.scene.layer(sy, opt);
+        const layer = scene.layer(sy, opt);
         const group = new Group({
             anchor: [0.5, 0.5],
             pos: [width * 0.5, height * 0.5],
@@ -265,7 +278,7 @@ export class SubLocalWork {
                 this.curNodeMap.delete(key);
             }
         }
-        //console.log('computNodeMap', this.curNodeMap)
+        // console.log('computNodeMap', this.curNodeMap)
     }
     updataNodeMap(param) {
         const { key, ops, opt, toolsType } = param;
@@ -302,20 +315,22 @@ export class SubLocalWork {
     }
     rerRenderSelector() {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId);
-        // console.log('rerRenderSelector', workShapeNode)
         if (!workShapeNode?.selectIds?.length)
             return;
         if (this.drawLayer) {
             const newRect = workShapeNode.getSelector(this.curNodeMap);
             if (newRect) {
+                // console.log('rerRenderSelector', newRect)
                 this._post({
-                    render: {
-                        rect: newRect,
-                        isClear: true,
-                        isFullWork: false,
-                        clearCanvas: ECanvasShowType.Selector,
-                        drawCanvas: ECanvasShowType.Selector,
-                    },
+                    render: [
+                        {
+                            rect: newRect,
+                            isClear: true,
+                            isFullWork: false,
+                            clearCanvas: ECanvasShowType.Selector,
+                            drawCanvas: ECanvasShowType.Selector,
+                        }
+                    ],
                     sp: [{
                             type: EPostMessageType.Select,
                             selectIds: workShapeNode.selectIds,

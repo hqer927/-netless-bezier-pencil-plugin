@@ -8,10 +8,10 @@ export const Duplicate = () => {
     return (React.createElement("div", { className: "button normal-button", onClick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
         }, onTouchEnd: (e) => {
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: ['selector'] });
         } },
         React.createElement("img", { alt: "icon", src: IconURL('duplicate') })));
 };

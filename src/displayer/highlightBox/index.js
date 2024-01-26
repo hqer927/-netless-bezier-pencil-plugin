@@ -21,7 +21,7 @@ export const HightLightBox = () => {
         const size = { width, height, workState: EvevtWorkState.Start };
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Start });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Start });
     };
     const onResize = throttle((e, _dir, ele) => {
         e.preventDefault();
@@ -32,7 +32,7 @@ export const HightLightBox = () => {
         if (size.width !== curSize.width || size.height !== curSize.height) {
             setSize(size);
             setCurSize(size);
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Doing });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Doing });
         }
     }, 100, { 'leading': false });
     const onResizeStop = (e, _dir, ele) => {
@@ -43,7 +43,7 @@ export const HightLightBox = () => {
         const size = { width, height, workState: EvevtWorkState.Done };
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Done });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Done });
     };
     return (React.createElement(Resizable, { className: "bezier-pencil-plugin-hightlight-box", boundsByDirection: true, size: {
             width: curSize.width,

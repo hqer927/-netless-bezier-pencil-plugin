@@ -12,6 +12,7 @@ type CurNodeMapItem = {
     pos: [number, number];
     rotate: number;
     scale: [number, number];
+    opactiy: number;
 };
 export declare class SelectorShape extends BaseShapeTool {
     updataOptService(): IRectType | undefined;
@@ -26,9 +27,8 @@ export declare class SelectorShape extends BaseShapeTool {
     oldRect?: IRectType;
     static SelectBorderPadding: number;
     nodeColor?: string;
+    nodeOpactiy?: number;
     oldSelectRect?: IRectType;
-    worldPosition: [number, number];
-    worldScaling: [number, number];
     constructor(workOptions: SelectorOptions, fullLayer: Group, drawLayer?: Group);
     computNodeMap(nodeMaps: Map<string, BaseNodeMapItem>): void;
     private computSelector;
@@ -52,7 +52,7 @@ export declare class SelectorShape extends BaseShapeTool {
         updateSelectorOpt: IUpdateNodeOpt;
         selectIds?: string[];
     }): IMainMessage | undefined;
-    blurSelector(): {
+    blurSelector(nodeMaps: Map<string, BaseNodeMapItem>): {
         type: EPostMessageType;
         dataType: EDataType;
         rect: IRectType | undefined;
@@ -61,8 +61,12 @@ export declare class SelectorShape extends BaseShapeTool {
     };
     private getRightServiceId;
     private drawSelector;
-    selectServiceNode(workId: string, workItem: IServiceWorkItem, curNodeMap: Map<string, BaseNodeMapItem>): IRectType | undefined;
+    selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>, curNodeMap: Map<string, BaseNodeMapItem>): IRectType | undefined;
     removeService(): IRectType | undefined;
     getSelector(nodeMaps: Map<string, BaseNodeMapItem>): IRectType | undefined;
+    updateSelectIds(nextSelectIds: string[], nodeMaps: Map<string, BaseNodeMapItem>): {
+        bgRect: IRectType | undefined;
+        selectRect: IRectType | undefined;
+    };
 }
 export {};

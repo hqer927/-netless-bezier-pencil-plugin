@@ -31,7 +31,7 @@ export var EvevtWorkState;
 })(EvevtWorkState || (EvevtWorkState = {}));
 /**
  * 消息变化顺序: init => Scene事件 => work事件 => node事件
- * 本地数据: Init、Transform、UpdateTools、CombineDraw
+ * 本地数据: Init、Transform、UpdateTools
  * 服务端数据:
  */
 export var EPostMessageType;
@@ -42,30 +42,26 @@ export var EPostMessageType;
     EPostMessageType[EPostMessageType["UpdateCamera"] = 1] = "UpdateCamera";
     /** 更新tool配置数据,仅用于本地 */
     EPostMessageType[EPostMessageType["UpdateTools"] = 2] = "UpdateTools";
-    /** 更新offScene配置数据 */
-    EPostMessageType[EPostMessageType["UpdateScene"] = 3] = "UpdateScene";
     /** 创建一次work */
-    EPostMessageType[EPostMessageType["CreateWork"] = 4] = "CreateWork";
+    EPostMessageType[EPostMessageType["CreateWork"] = 3] = "CreateWork";
     /** 绘制当次work（高频） */
-    EPostMessageType[EPostMessageType["DrawWork"] = 5] = "DrawWork";
+    EPostMessageType[EPostMessageType["DrawWork"] = 4] = "DrawWork";
     /** 完成完整的一次work */
-    EPostMessageType[EPostMessageType["FullWork"] = 6] = "FullWork";
-    /** 更新work配置数据 */
-    EPostMessageType[EPostMessageType["UpdateWork"] = 7] = "UpdateWork";
+    EPostMessageType[EPostMessageType["FullWork"] = 5] = "FullWork";
     /** 更新已有node */
-    EPostMessageType[EPostMessageType["UpdateNode"] = 8] = "UpdateNode";
+    EPostMessageType[EPostMessageType["UpdateNode"] = 6] = "UpdateNode";
     /** 删除node */
-    EPostMessageType[EPostMessageType["RemoveNode"] = 9] = "RemoveNode";
+    EPostMessageType[EPostMessageType["RemoveNode"] = 7] = "RemoveNode";
     /** 清空 */
-    EPostMessageType[EPostMessageType["Clear"] = 10] = "Clear";
+    EPostMessageType[EPostMessageType["Clear"] = 8] = "Clear";
     /** 选中 */
-    EPostMessageType[EPostMessageType["Select"] = 11] = "Select";
+    EPostMessageType[EPostMessageType["Select"] = 9] = "Select";
     /** 销毁 */
-    EPostMessageType[EPostMessageType["Destroy"] = 12] = "Destroy";
+    EPostMessageType[EPostMessageType["Destroy"] = 10] = "Destroy";
     /** 什么也不需要做 */
-    EPostMessageType[EPostMessageType["None"] = 13] = "None";
-    /** 合并绘制 */
-    EPostMessageType[EPostMessageType["CombineDraw"] = 14] = "CombineDraw";
+    EPostMessageType[EPostMessageType["None"] = 11] = "None";
+    /** 获取指定场景快照 */
+    EPostMessageType[EPostMessageType["Snapshot"] = 12] = "Snapshot";
 })(EPostMessageType || (EPostMessageType = {}));
 export var EShapeDataTypeKey;
 (function (EShapeDataTypeKey) {
@@ -84,6 +80,7 @@ export var ECanvasShowType;
     ECanvasShowType[ECanvasShowType["Float"] = 1] = "Float";
     ECanvasShowType[ECanvasShowType["Bg"] = 2] = "Bg";
     ECanvasShowType[ECanvasShowType["Selector"] = 3] = "Selector";
+    ECanvasShowType[ECanvasShowType["None"] = 4] = "None";
 })(ECanvasShowType || (ECanvasShowType = {}));
 export var EScaleDirection;
 (function (EScaleDirection) {

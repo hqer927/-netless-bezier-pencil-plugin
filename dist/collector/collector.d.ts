@@ -9,10 +9,10 @@ export declare class Collector extends BaseCollector {
     serviceStorage: ISerializableStorageData;
     storage: ISerializableStorageData;
     uid: string;
-    plugin: BezierPencilPlugin;
+    plugin?: BezierPencilPlugin;
     protected namespace: string;
     private stateDisposer;
-    private syncClockId?;
+    private asyncClockState;
     constructor(plugin: BezierPencilPlugin, syncInterval?: number);
     addStorageStateListener(callBack: (diff: Diff<any>) => void): void;
     removeStorageStateListener(): void;
@@ -22,7 +22,10 @@ export declare class Collector extends BaseCollector {
     dispatch(action: BaseCollectorReducerAction): void;
     private checkOtherSelector;
     private setState;
-    private updateValue;
+    updateValue(key: string, value: any, options?: {
+        isSync?: boolean;
+        isAfterUpdate?: boolean;
+    }): void;
     private runSyncService;
     private syncSerivice;
     private syncUpdata;

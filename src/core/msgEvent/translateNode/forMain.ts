@@ -5,6 +5,7 @@ import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
 import { SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
 
 export type TranslateNodeEmtData = {
     workIds: IworkId[],
@@ -13,6 +14,7 @@ export type TranslateNodeEmtData = {
 }
 export class TranslateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.TranslateNode;
+    private undoTickerId?:number;
     private oldRect: {
         height: number;
         width: number;
@@ -32,6 +34,11 @@ export class TranslateNodeMethod extends BaseMsgMethod {
         const bgRect = this.mainEngine.displayer?.canvasBgRef?.getBoundingClientRect();
         const floatBarRect = this.mainEngine.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
         let willRefreshSelector = false;
+        const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        }
         if (bgRect && floatBarRect && this.oldRect) {
             if (this.oldRect.x < bgRect.x && floatBarRect.x > this.oldRect.x) {
                 willRefreshSelector = true;
@@ -98,6 +105,7 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             })
                             taskData.selectStore = subStore;
                             taskData.willSerializeData = true;
+                            taskData.undoTickerId = this.undoTickerId;
                         }
                         localMsgs.push(taskData)
                     }

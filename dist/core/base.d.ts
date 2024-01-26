@@ -67,6 +67,7 @@ export declare abstract class WorkThreadEngine {
     protected abstract scene: Scene;
     protected abstract drawLayer: Group;
     protected abstract fullLayer: Group;
+    protected abstract snapshotFullLayer: Group;
     protected abstract cameraOpt?: Pick<ICameraOpt, 'centerX' | 'centerY' | 'scale'>;
     curNodeMap: Map<string, BaseNodeMapItem>;
     abstract getOffscreen(isFullWork: boolean): OffscreenCanvas;
@@ -75,7 +76,7 @@ export declare abstract class WorkThreadEngine {
     protected updateScene(offscreenCanvasOpt: IOffscreenCanvasOptionType): void;
     protected updateLayer(layerOpt: Required<Pick<ILayerOptionType, 'width' | 'height'>>): void;
     protected createScene(opt: IOffscreenCanvasOptionType): Scene;
-    protected createLayer(opt: Required<Pick<ILayerOptionType, 'width' | 'height'>> & Omit<ILayerOptionType, 'width' | 'height'>): Group;
+    protected createLayer(scene: Scene, opt: Required<Pick<ILayerOptionType, 'width' | 'height'>> & Omit<ILayerOptionType, 'width' | 'height'>): Group;
     protected getNodes(workId: number | string): import("spritejs").Node[];
     /** 主线程和工作线程通信,推送 */
     abstract post(msg: IBatchMainMessage): void;
@@ -83,7 +84,6 @@ export declare abstract class WorkThreadEngine {
     protected abstract on(callBack: (e: IterableIterator<IWorkerMessage>, isFullRender?: boolean) => void): void;
     protected abstract consumeDraw(type: EDataType, data: IWorkerMessage): void;
     protected abstract consumeDrawAll(type: EDataType, data: IWorkerMessage): void;
-    protected abstract consumeFull(type: EDataType, data: IWorkerMessage): void;
 }
 export declare abstract class SubLocalWork {
     fullLayer: Group;
@@ -94,7 +94,7 @@ export declare abstract class SubLocalWork {
     protected abstract workShapes: Map<IworkId, BaseShapeTool>;
     protected effectWorkId?: number;
     constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer?: Group);
-    abstract _post: (msg: IBatchMainMessage) => void;
+    abstract _post: (msg: IBatchMainMessage) => Promise<void>;
     abstract consumeDraw(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
     abstract consumeDrawAll(data: IWorkerMessage, serviceWork: SubServiceWorkForWorker): IMainMessage | undefined;
     getWorkShape(workId: IworkId): BaseShapeTool | undefined;

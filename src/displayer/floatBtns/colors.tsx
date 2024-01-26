@@ -93,7 +93,7 @@ export const Colors = () => {
     const SubOpacityBtn = useMemo(()=>{
         return <OpacityBtn opacity={floatBarData?.opacity || 1} activeColor={activeColor} setCurOpacity={(curOpacity, workState)=>{
             setOpacity(curOpacity);
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.SetColorNode, {workIds: ['selector'], color: activeColor, opacity: curOpacity, workState})
         }} />
     },[InternalMsgEmitter, activeColor, floatBarData?.opacity])
@@ -119,14 +119,14 @@ export const Colors = () => {
                                     onTouchEndHandler={(e) => {
                                         e.stopPropagation();
                                         setColor(curColor);
-                                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                             EmitEventType.SetColorNode, {workIds: ['selector'], color: curColor})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
-                                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                             EmitEventType.SetColorNode, {workIds: ['selector'], color: curColor})
                                     }}
                                 />

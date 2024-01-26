@@ -11,7 +11,6 @@ import lineclip from "lineclip";
 import { EStrokeType } from "../../plugin/types";
 import type { Size } from "white-web-sdk";
 
-
 export interface EraserOptions extends BaseShapeOptions {
     thickness: number;
     isLine: boolean;
@@ -145,7 +144,6 @@ export class EraserShape extends BaseShapeTool{
         const {width, height} = EraserShape.eraserSizes[this.workOptions.thickness];
         const vd = Math.min(width,height);
         const count = Math.round(distance / vd);
-        // console.log('v3', count)
         if (count > 1) {
           const points:number[] = [];
           for (let i = 0; i < count; i++) {
@@ -166,14 +164,18 @@ export class EraserShape extends BaseShapeTool{
     public consume(props:{data: IWorkerMessage, nodeMaps: Map<string, BaseNodeMapItem>}): IMainMessage {
       const {op, workState} = props.data;
       if(!op || op.length === 0){
-        return { type: EPostMessageType.None}
+        return { 
+          type: EPostMessageType.None
+        }
       }
       if (workState === EvevtWorkState.Start) {
         props.nodeMaps && this.computNodeMap(props.nodeMaps);
       }
       const oldTmpLength = this.tmpPoints.length;
       if (oldTmpLength > 1 && this.isNear([op[0],op[1]], [this.tmpPoints[oldTmpLength-2],this.tmpPoints[oldTmpLength-1]])) {
-        return { type: EPostMessageType.None}
+        return { 
+          type: EPostMessageType.None
+        }
       }
       if (props.nodeMaps) {
         if (oldTmpLength === 4) {

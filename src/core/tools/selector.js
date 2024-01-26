@@ -59,19 +59,13 @@ export class SelectorShape extends BaseShapeTool {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "nodeOpactiy", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "oldSelectRect", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "worldPosition", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "worldScaling", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -79,13 +73,11 @@ export class SelectorShape extends BaseShapeTool {
         });
         this.workOptions = workOptions;
         this.syncTimestamp = 0;
-        this.worldPosition = this.fullLayer.worldPosition;
-        this.worldScaling = this.fullLayer.worldScaling;
     }
     computNodeMap(nodeMaps) {
         this.curNodeMap.clear();
         nodeMaps.forEach(v => {
-            const c = this.fullLayer.getElementsByName(v.name)[0];
+            const c = this.fullLayer.getElementsByName(v.name)[0] || this.drawLayer?.getElementsByName(v.name)[0];
             if (c) {
                 const gPos = c.worldPosition;
                 let color = c.getAttribute('strokeColor');
@@ -105,6 +97,7 @@ export class SelectorShape extends BaseShapeTool {
                     pos: gPos,
                     rotate: c.getAttribute('rotate') || 0,
                     scale: c.getAttribute('scale') || [1, 1],
+                    opactiy: c.getAttribute('opacity') || 1,
                 });
             }
         });
@@ -115,6 +108,7 @@ export class SelectorShape extends BaseShapeTool {
         const selectIds = [];
         const subRects = new Map();
         const nodeColors = new Set();
+        const opactiys = new Set();
         const subPos = new Map();
         if (this.tmpPoints.length && this.curNodeMap.size) {
             const interRect = getRectFromPoints(this.tmpPoints);
@@ -137,6 +131,7 @@ export class SelectorShape extends BaseShapeTool {
                     subRects.set(key, localR);
                     nodeColors.add(item.color);
                     subPos.set(key, [...item.pos, item.rotate]);
+                    opactiys.add(item.opactiy);
                 }
             });
         }
@@ -145,14 +140,15 @@ export class SelectorShape extends BaseShapeTool {
             intersectRect,
             subRects,
             nodeColors,
-            subPos
+            subPos,
+            opactiys
         };
     }
     updateTempPoints(globalPoints) {
         const length = this.tmpPoints.length;
         const gl = globalPoints.length;
         if (gl > 1) {
-            const nPoint = new Point2d(globalPoints[gl - 2] * this.worldScaling[0] + this.worldPosition[0], globalPoints[gl - 1] * this.worldScaling[0] + this.worldPosition[1]);
+            const nPoint = new Point2d(globalPoints[gl - 2] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0], globalPoints[gl - 1] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[1]);
             if (length === 2) {
                 this.tmpPoints.splice(1, 1, nPoint);
             }
@@ -177,9 +173,9 @@ export class SelectorShape extends BaseShapeTool {
     }
     consume(props) {
         const { op, workState } = props.data;
-        if (workState === EvevtWorkState.Start) {
-            this.oldRect = this.backToFullLayer();
-            props.nodeMaps && this.computNodeMap(props.nodeMaps);
+        if (workState === EvevtWorkState.Start && props.nodeMaps) {
+            this.computNodeMap(props.nodeMaps);
+            this.oldRect = this.backToFullLayer(props.nodeMaps);
         }
         if (!op?.length || !this.curNodeMap.size) {
             return { type: EPostMessageType.None };
@@ -200,6 +196,7 @@ export class SelectorShape extends BaseShapeTool {
         this.oldRect = computRect(oldRect, rect);
         this.draw(result);
         this.nodeColor = result.nodeColors.size === 1 ? result.nodeColors.values().next().value : undefined;
+        this.nodeOpactiy = result.opactiys.size === 1 ? result.opactiys.values().next().value : 1;
         this.oldSelectRect = rect;
         return {
             type: EPostMessageType.Select,
@@ -210,12 +207,13 @@ export class SelectorShape extends BaseShapeTool {
             padding: SelectorShape.SelectBorderPadding,
             selectRect: rect,
             nodeColor: this.nodeColor,
+            nodeOpactiy: this.nodeOpactiy,
             willSyncService: true,
         };
     }
     consumeAll() {
         if (this.selectIds?.length) {
-            this.sealToDrawLayer();
+            this.sealToDrawLayer(this.selectIds);
         }
         // console.log('consume0-0', (this.drawLayer?.parent as Layer).getElementsByName(SelectorShape.selectorId).length, this.selectIds?.length, this.workOptions, this.oldRect, this.oldSelectRect)
         if (this.oldSelectRect) {
@@ -228,6 +226,7 @@ export class SelectorShape extends BaseShapeTool {
                 padding: SelectorShape.SelectBorderPadding,
                 selectRect: this.oldSelectRect,
                 nodeColor: this.nodeColor,
+                nodeOpactiy: this.nodeOpactiy,
                 willSyncService: false,
             };
         }
@@ -247,11 +246,14 @@ export class SelectorShape extends BaseShapeTool {
         this.oldRect = undefined;
         this.oldSelectRect = undefined;
     }
-    backToFullLayer() {
+    backToFullLayer(nodeMaps = new Map(), backToFullIds) {
         let rect;
         const cloneNodes = [];
         const removeNodes = [];
-        this.drawLayer?.children.forEach(c => {
+        for (const c of this.drawLayer?.children || []) {
+            if (backToFullIds?.length && !backToFullIds.includes(c.id)) {
+                continue;
+            }
             if (c.id !== SelectorShape.selectorId) {
                 const cloneP = c.cloneNode(true);
                 if (cloneP.tagName === 'GROUP') {
@@ -262,12 +264,12 @@ export class SelectorShape extends BaseShapeTool {
                 }
                 cloneNodes.push(cloneP);
                 removeNodes.push(c);
-                const r = getNodeRect(c.name, this.drawLayer);
+                const r = nodeMaps.get(c.name)?.rect || getNodeRect(c.name, this.drawLayer);
                 if (r) {
                     rect = computRect(rect, r);
                 }
             }
-        });
+        }
         removeNodes.forEach(r => r.remove());
         cloneNodes.length && this.fullLayer.append(...cloneNodes);
         if (rect) {
@@ -276,13 +278,12 @@ export class SelectorShape extends BaseShapeTool {
             rect.w += SelectorShape.SelectBorderPadding * 2;
             rect.h += SelectorShape.SelectBorderPadding * 2;
         }
-        //console.log('backToFullLayer', rect, this.drawLayer?.children.map(c=>c.name), this.fullLayer.children.map(c=>c.name))
         return rect;
     }
-    sealToDrawLayer() {
+    sealToDrawLayer(sealToDrawIds) {
         const cloneNodes = [];
         const removeNodes = [];
-        this.selectIds?.forEach(name => {
+        sealToDrawIds.forEach(name => {
             this.fullLayer.getElementsByName(name.toString()).forEach(c => {
                 const cloneP = c.cloneNode(true);
                 if (cloneP.tagName === 'GROUP') {
@@ -297,7 +298,6 @@ export class SelectorShape extends BaseShapeTool {
         });
         removeNodes.forEach(r => r.remove());
         cloneNodes && this.drawLayer?.append(...cloneNodes);
-        //console.log('sealToDrawLayer1', this.oldRect, this.fullLayer.children.map(c=>c.name), this.drawLayer?.children.map(c=>c.name))
     }
     updateSelectorSize(g, w, h) {
         const selectGlobalPos = new Map();
@@ -402,8 +402,8 @@ export class SelectorShape extends BaseShapeTool {
             let translate;
             if (updateSelectorOpt.pos) {
                 const globalPoints = [
-                    updateSelectorOpt.pos[0] * this.worldScaling[0] + this.worldPosition[0],
-                    updateSelectorOpt.pos[1] * this.worldScaling[1] + this.worldPosition[1]
+                    updateSelectorOpt.pos[0] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
+                    updateSelectorOpt.pos[1] * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1]
                 ];
                 const gPos = g.getAttribute('pos');
                 translate = [globalPoints[0] - gPos[0], globalPoints[1] - gPos[1]];
@@ -443,7 +443,7 @@ export class SelectorShape extends BaseShapeTool {
                             };
                             if (updateSelectorOpt.pos && translate) {
                                 const cPos = c.getAttribute('pos');
-                                itemOpt.pos = [translate[0] / this.worldScaling[0] + cPos[0], translate[1] / this.worldScaling[0] + cPos[1]];
+                                itemOpt.pos = [translate[0] / this.fullLayer.worldScaling[0] + cPos[0], translate[1] / this.fullLayer.worldScaling[0] + cPos[1]];
                                 itemOpt.originPos = c.className.split(',').map(c => Number(c));
                                 // console.log('translate', translate, cPos, itemOpt.pos, itemOpt.originPos )
                                 c.setAttribute('pos', itemOpt.pos);
@@ -491,7 +491,7 @@ export class SelectorShape extends BaseShapeTool {
                                     select[3] * oldScale[1]
                                 ];
                                 itemOpt.originPos = c.className.split(',').map(c => Number(c));
-                                itemOpt.pos = [(select[0] - this.worldPosition[0]) / this.worldScaling[0], (select[1] - this.worldPosition[1]) / this.worldScaling[1]];
+                                itemOpt.pos = [(select[0] - this.fullLayer.worldPosition[0]) / this.fullLayer.worldScaling[0], (select[1] - this.fullLayer.worldPosition[1]) / this.fullLayer.worldScaling[1]];
                                 // console.log('select', select, itemOpt.pos)
                                 itemOpt.scale = scale;
                                 c.setAttribute('pos', itemOpt.pos);
@@ -533,8 +533,8 @@ export class SelectorShape extends BaseShapeTool {
         }
         return;
     }
-    blurSelector() {
-        const rect = this.backToFullLayer();
+    blurSelector(nodeMaps) {
+        const rect = this.backToFullLayer(nodeMaps);
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
@@ -661,8 +661,43 @@ export class SelectorShape extends BaseShapeTool {
             subRects,
             subPos
         });
+        if (rect) {
+            rect.x -= SelectorShape.SelectBorderPadding;
+            rect.y -= SelectorShape.SelectBorderPadding;
+            rect.w += SelectorShape.SelectBorderPadding * 2;
+            rect.h += SelectorShape.SelectBorderPadding * 2;
+        }
         this.oldSelectRect = rect;
         return rect;
+    }
+    updateSelectIds(nextSelectIds, nodeMaps) {
+        let bgRect;
+        const backToFullIds = this.selectIds?.filter(id => !nextSelectIds.includes(id));
+        const sealToDrawIds = nextSelectIds.filter(id => !this.selectIds?.includes(id));
+        if (backToFullIds?.length) {
+            bgRect = this.backToFullLayer(nodeMaps, backToFullIds);
+        }
+        if (sealToDrawIds.length) {
+            this.sealToDrawLayer(sealToDrawIds);
+            for (const id of sealToDrawIds) {
+                const r = nodeMaps.get(id)?.rect;
+                if (r) {
+                    bgRect = computRect(bgRect, r);
+                }
+            }
+            if (bgRect) {
+                bgRect.x -= SelectorShape.SelectBorderPadding;
+                bgRect.y -= SelectorShape.SelectBorderPadding;
+                bgRect.w += SelectorShape.SelectBorderPadding * 2;
+                bgRect.h += SelectorShape.SelectBorderPadding * 2;
+            }
+        }
+        this.selectIds = nextSelectIds;
+        const selectRect = this.getSelector(nodeMaps);
+        return {
+            bgRect,
+            selectRect
+        };
     }
 }
 Object.defineProperty(SelectorShape, "selectorId", {

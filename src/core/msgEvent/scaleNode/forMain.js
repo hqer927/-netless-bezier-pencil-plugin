@@ -3,6 +3,7 @@ import { BaseMsgMethod } from "../base";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
 export class ScaleNodeMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -11,6 +12,12 @@ export class ScaleNodeMethod extends BaseMsgMethod {
             configurable: true,
             writable: true,
             value: EmitEventType.ScaleNode
+        });
+        Object.defineProperty(this, "undoTickerId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
     }
     collect(data) {
@@ -23,6 +30,12 @@ export class ScaleNodeMethod extends BaseMsgMethod {
         const localMsgs = [];
         const serviceMsgs = [];
         const selectIds = [];
+        const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
+        // console.log('ScaleNode', undoTickerId)
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        }
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -40,42 +53,43 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                 if (curStore.selectIds) {
                     selectIds.push(...curStore.selectIds);
                     // keys.push(...selector.selectIds);
-                    if (workState !== EvevtWorkState.Start) {
-                        const updateNodeOpt = curStore.updateNodeOpt || {};
-                        updateNodeOpt.size = size;
-                        updateNodeOpt.workState = workState;
-                        const taskData = {
-                            workId: curKey,
-                            msgType: EPostMessageType.UpdateNode,
-                            dataType: EDataType.Local,
-                            updateNodeOpt,
-                            emitEventType: this.emitEventType,
-                            willRefreshSelector: true,
-                            willSyncService: true
-                        };
-                        if (workState === EvevtWorkState.Done) {
-                            const subStore = new Map();
-                            selectIds.forEach((name) => {
-                                const isLocalId = this.serviceColloctor?.isLocalId(name);
-                                let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
-                                const curStore = store[key];
-                                if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
-                                    key = this.serviceColloctor.getLocalId(key);
-                                }
-                                curStore?.ops && subStore.set(key, {
-                                    ops: curStore.ops,
-                                    updateNodeOpt: curStore.updateNodeOpt,
-                                    opt: curStore.opt,
-                                    toolsType: curStore.toolsType,
-                                });
+                    // if (workState !== EvevtWorkState.Start) {
+                    const updateNodeOpt = curStore.updateNodeOpt || {};
+                    updateNodeOpt.size = size;
+                    updateNodeOpt.workState = workState;
+                    const taskData = {
+                        workId: curKey,
+                        msgType: EPostMessageType.UpdateNode,
+                        dataType: EDataType.Local,
+                        updateNodeOpt,
+                        emitEventType: this.emitEventType,
+                        willRefreshSelector: true,
+                        willSyncService: true
+                    };
+                    if (workState === EvevtWorkState.Done) {
+                        const subStore = new Map();
+                        selectIds.forEach((name) => {
+                            const isLocalId = this.serviceColloctor?.isLocalId(name);
+                            let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
+                            const curStore = store[key];
+                            if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
+                                key = this.serviceColloctor.getLocalId(key);
+                            }
+                            curStore?.ops && subStore.set(key, {
+                                ops: curStore.ops,
+                                updateNodeOpt: curStore.updateNodeOpt,
+                                opt: curStore.opt,
+                                toolsType: curStore.toolsType,
                             });
-                            taskData.selectStore = subStore;
-                            taskData.willSerializeData = true;
-                        }
-                        localMsgs.push(taskData);
+                        });
+                        taskData.selectStore = subStore;
+                        taskData.willSerializeData = true;
+                        taskData.undoTickerId = this.undoTickerId;
                     }
+                    localMsgs.push(taskData);
+                    continue;
+                    // /}
                 }
-                continue;
             }
             if (curStore) {
                 const opt = curStore.opt;
@@ -107,11 +121,11 @@ export class ScaleNodeMethod extends BaseMsgMethod {
             }
         }
         if (localMsgs.length) {
-            //console.log('localMsgs', localMsgs)
+            // console.log('ScaleNode1', localMsgs[0].updateNodeOpt?.workState)
             this.collectForLocalWorker(localMsgs);
         }
         if (serviceMsgs.length) {
-            //console.log('serviceMsgs', serviceMsgs)
+            // console.log('ScaleNode2', serviceMsgs.length)
             this.collectForServiceWorker(serviceMsgs);
         }
     }

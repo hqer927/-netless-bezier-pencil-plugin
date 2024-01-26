@@ -12,6 +12,7 @@ export type TranslateNodeEmtData = {
 };
 export declare class TranslateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;
+    private undoTickerId?;
     private oldRect;
     collect(data: TranslateNodeEmtData): void;
 }

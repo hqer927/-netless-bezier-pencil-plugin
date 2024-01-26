@@ -3,6 +3,7 @@ import { BaseMsgMethod } from "../base";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
 export class RotateNodeMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -11,6 +12,12 @@ export class RotateNodeMethod extends BaseMsgMethod {
             configurable: true,
             writable: true,
             value: EmitEventType.RotateNode
+        });
+        Object.defineProperty(this, "undoTickerId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
     }
     collect(data) {
@@ -23,6 +30,11 @@ export class RotateNodeMethod extends BaseMsgMethod {
         const localMsgs = [];
         const serviceMsgs = [];
         const selectIds = [];
+        const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        }
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -72,6 +84,7 @@ export class RotateNodeMethod extends BaseMsgMethod {
                             taskData.willRefreshSelector = true;
                             taskData.selectStore = subStore;
                             taskData.willSerializeData = true;
+                            taskData.undoTickerId = this.undoTickerId;
                         }
                         localMsgs.push(taskData);
                     }
@@ -108,11 +121,11 @@ export class RotateNodeMethod extends BaseMsgMethod {
             }
         }
         if (localMsgs.length) {
-            //console.log('localMsgs', localMsgs)
+            // console.log('localMsgs', localMsgs)
             this.collectForLocalWorker(localMsgs);
         }
         if (serviceMsgs.length) {
-            //console.log('serviceMsgs', serviceMsgs)
+            // console.log('serviceMsgs', serviceMsgs)
             this.collectForServiceWorker(serviceMsgs);
         }
     }

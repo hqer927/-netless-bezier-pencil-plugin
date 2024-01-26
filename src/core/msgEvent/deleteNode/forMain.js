@@ -2,6 +2,8 @@ import { EmitEventType, InternalMsgEmitterType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
+import { BezierPencilDisplayer } from "../../../plugin";
 export class DeleteNodeMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -22,6 +24,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
         const localMsgs = [];
         const serviceMsgs = [];
         const removeIds = [];
+        const undoTickerId = Date.now();
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -37,7 +40,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
             }
             if (curStore && localWorkId === SelectorShape.selectorId) {
                 removeIds.push(key);
-                this.emitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
+                BezierPencilDisplayer.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
                 if (curStore.selectIds) {
                     removeIds.push(...curStore.selectIds);
                     localMsgs.push({
@@ -61,6 +64,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
                 willRefresh: true
             });
         }
+        UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }
@@ -68,6 +72,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
             serviceMsgs.push({
                 type: EPostMessageType.RemoveNode,
                 removeIds,
+                undoTickerId
             });
             this.collectForServiceWorker(serviceMsgs);
         }

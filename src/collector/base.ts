@@ -4,18 +4,17 @@ import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageD
 import { BezierPencilPlugin } from "../plugin";
 import { IworkId } from "../core";
 import cloneDeep from "lodash/cloneDeep";
-
-export const Storage_Splitter = '++';
+import { Storage_Splitter } from "./const";
 
 export abstract class BaseCollector {
     public abstract uid:string;
     public abstract serviceStorage: ISerializableStorageData;
-    public abstract plugin: BezierPencilPlugin;
+    public abstract plugin?: BezierPencilPlugin;
     public abstract storage: ISerializableStorageData;
     protected abstract namespace: string;
     public setNamespace(namespace: string){
         this.namespace = namespace;
-        this.serviceStorage = toJS(this.plugin.attributes[namespace]) || {};
+        this.serviceStorage = toJS(this.plugin?.attributes[namespace]) || {};
         this.storage = cloneDeep(this.serviceStorage);
     }
     public isLocalId(key:string): boolean {

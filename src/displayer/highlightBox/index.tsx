@@ -23,7 +23,7 @@ export const HightLightBox = () => {
         const size = {width, height, workState: EvevtWorkState.Start};
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Start})
     }
     const onResize = throttle((e: MouseEvent | TouchEvent, _dir: Direction, ele: HTMLElement) => {
@@ -35,7 +35,7 @@ export const HightLightBox = () => {
         if (size.width !== curSize.width || size.height!== curSize.height) {
             setSize(size);
             setCurSize(size);
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Doing})
         }
     }, 100, {'leading':false})
@@ -47,7 +47,7 @@ export const HightLightBox = () => {
         const size = {width, height, workState: EvevtWorkState.Done};
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Done})
     }
     return (

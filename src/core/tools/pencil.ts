@@ -139,7 +139,8 @@ export class PencilShape extends BaseShapeTool {
           updateNodeOpt:{
             pos: this.centerPos,
             useAnimation: true
-          }
+          },
+          undoTickerId: props.data?.undoTickerId
         }
     }
     clearTmpPoints(): void {
@@ -199,7 +200,6 @@ export class PencilShape extends BaseShapeTool {
         const {attrs, tasks, replaceId, effects, isFullWork, normalize, isClearAll} = data;
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const {color, strokeType, thickness, opacity, zIndex, scale, rotate} = this.workOptions;
-        //console.log('draw', color)
         if (isClearAll) {
           layer.removeAllChildren();
         } else {
@@ -231,15 +231,13 @@ export class PencilShape extends BaseShapeTool {
             } else {
               d = getSvgPathFromPoints(ps, false);
             }
-
             const attr:any = {
-              // ...attrs,
               pos,
               d,
               fillColor: strokeType === EStrokeType.Stroke || isDot ? color : undefined, 
-              opacity: opacity || 1,
               lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
               strokeColor: color,
+              opacity,
               lineCap: strokeType === EStrokeType.Stroke || isDot ? undefined : 'round',
               lineWidth: strokeType === EStrokeType.Stroke || isDot ? 0 : thickness,
               className: `${pos[0]},${pos[1]},${strokeType}`,
@@ -313,13 +311,13 @@ export class PencilShape extends BaseShapeTool {
           });
           pathAttrs.forEach(attr=>{
             attr.pos = [attr.pos[0] - this.centerPos[0], attr.pos[1] - this.centerPos[1]];
+            attr.opacity = 1;
             const node = new Path(attr);
             group.appendChild(node);
           })
           if (strokeType === EStrokeType.Stroke) {
             group.seal();
           }
-          // console.log('group', group, this.centerPos)
           layer.append(group);
         } else {
           const nodes = pathAttrs.map(p=>{
@@ -416,8 +414,13 @@ export class PencilShape extends BaseShapeTool {
         }
         return { tasks, consumeIndex }
     }
+    /** 压力渐变公式 */
     private computRadius(z:number, thickness:number){
-        return z *  0.3 + thickness * 0.5;
+        return z * 0.03 * thickness + thickness * 0.5;
+    }
+    private getMinZ(thickness:number, minRadius?:number) {
+      const minR = minRadius || Math.max(1, Math.floor(thickness * 0.3))
+      return (minR - thickness * 0.5) * 100 / thickness / 3;  
     }
     private getTaskPoints(newPoints: Point2d[], thickness?:number) {
         const tasks:Array<{
@@ -445,15 +448,13 @@ export class PencilShape extends BaseShapeTool {
           const x = cur.x - sx;
           const y = cur.y - sy;
           const z = cur.z;
-          // const radius = this.computRadius(z,thickness);
-          const radius = thickness ? this.computRadius(z,thickness) : cur.z;
+          const radius = thickness ? this.computRadius(z,thickness) : z;
           points.push({
             point: new Point2d(x, y, z, newPoints[i].v),
             radius
           });
           if (i > 0 && i < newPoints.length -1) {
             const angle = newPoints[i].getAngleByPoints(newPoints[i-1],newPoints[i+1]);
-            //console.log('angle', angle, newPoints[i].XY, newPoints[i-1].XY, newPoints[i+1])
             if (angle < 90 || angle > 270) {
               const lastPoint = points.pop()?.point.clone();
               if (lastPoint) {
@@ -641,8 +642,9 @@ export class PencilShape extends BaseShapeTool {
     }
     private updateTempPointsWithPressureWhenDone(globalPoints:number[]) {
       const {thickness} = this.workOptions;
-      //console.log('tmpPoints', globalPoints, this.tmpPoints.map(p=>p.toArray()))
-      for (let index = 0; index < globalPoints.length; index += 2) {
+      const gl = globalPoints.length;
+      const minZ = this.getMinZ(thickness);
+      for (let index = 0; index < gl; index += 2) {
         const length = this.tmpPoints.length
         const nextPoint = new Point2d(globalPoints[index], globalPoints[index+1]);
         if (length === 0) {
@@ -652,9 +654,12 @@ export class PencilShape extends BaseShapeTool {
         const lastIndex = length-1;
         const lastTemPoint = this.tmpPoints[lastIndex];
         const vector = Vec2d.Sub(nextPoint, lastTemPoint).uni();
-        // 合并附近点,不需要nextPoint
-        if (nextPoint.isNear(lastTemPoint, thickness / 4)) {
-          if (lastTemPoint.z < this.MAX_REPEAR) {
+        const distance = nextPoint.distance(lastTemPoint);
+        if (length > 1 && lastTemPoint.z === minZ) {
+          break;
+        }
+        if (nextPoint.isNear(lastTemPoint, thickness / 2)) {
+          if (gl < 3 && lastTemPoint.z < this.MAX_REPEAR) {
             lastTemPoint.setz(Math.min(lastTemPoint.z + 1, this.MAX_REPEAR));
             if (length > 1) {
               let i = length - 1
@@ -673,8 +678,7 @@ export class PencilShape extends BaseShapeTool {
           continue;
         }
         nextPoint.setv(vector);
-        const distance = nextPoint.distance(lastTemPoint);
-        const z = Math.max(lastTemPoint. z - this.uniThickness * 5 * distance,  - thickness / 2);
+        const z = Math.max(lastTemPoint.z - this.uniThickness * distance, minZ);
         // 向量一致的点，在z可线性变化下移除
         if (length > 1  && Vec2d.Equals(vector, lastTemPoint.v, 0.02) && lastTemPoint.z <=0 ) {
           this.tmpPoints.pop();
@@ -682,7 +686,6 @@ export class PencilShape extends BaseShapeTool {
         nextPoint.setz(z);
         this.tmpPoints.push(nextPoint);
       }
-      //console.log('tmpPoints1', globalPoints, this.tmpPoints.map(p=>p.toArray()))
     }
     updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined {
       let rect:IRectType|undefined;

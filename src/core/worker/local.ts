@@ -1,5 +1,4 @@
-// import isEqual from "lodash/isEqual";
-import { Path, Node, Group } from "spritejs";
+import type  { Path, Node, Group, Layer } from "spritejs";
 import { transformToNormalData, transformToSerializableData } from "../../collector/utils";
 import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
@@ -10,12 +9,13 @@ import { EStrokeType, EmitEventType } from "../../plugin/types";
 import { SubServiceWorkForWorker } from "./service";
 
 export class SubLocalWorkForWorker extends SubLocalWork {
-    _post: (msg: IBatchMainMessage) => void;
+    _post: (msg: IBatchMainMessage) => Promise<void>;
     workShapes: Map<IworkId, BaseShapeTool> = new Map();
     private combineUnitTime: number = 600
     private combineTimerId?: number;
     private drawCount:number = 0;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage)=>void) {
+    private effectSelectNodeData:Set<IWorkerMessage> = new Set();
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage)=>Promise<void>) {
         super(curNodeMap, layer, drawLayer);
         this._post = postFun;
     }
@@ -23,125 +23,115 @@ export class SubLocalWorkForWorker extends SubLocalWork {
         const result = this.workShapes.get(workId)?.combineConsume();
         if (result) {
             const combineDrawResult: IBatchMainMessage = {
-                render: {
-                    rect:result?.rect,
-                    isClear: true,
-                    drawCanvas: ECanvasShowType.Float,
-                    clearCanvas: ECanvasShowType.Float,
-                    isFullWork: false,
-                }
+                render: [],
+                drawCount: this.drawCount
             };
-            Promise.resolve(combineDrawResult).then((msg) => {
-                msg.drawCount = this.drawCount;
-                this._post(msg)
-            });
+            combineDrawResult.render?.push({
+                rect: result?.rect,
+                isClear: true,
+                drawCanvas: ECanvasShowType.Float,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork: false,
+            })
+            this._post(combineDrawResult)
         }
     }
     private drawSelector(res:IMainMessage, isDrawing?:boolean) {
-        //console.log('drawSelector', res, isDrawing)
+        const _postData:IBatchMainMessage = {
+            render:[],
+            sp:[res]
+        };
         if (res.selectIds?.length && !isDrawing) {
-            this._post({
-                render: res.rect && {
+            _postData.render?.push(
+                {
                     rect: res.selectRect,
                     drawCanvas: ECanvasShowType.Selector,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Selector,
                     isFullWork: false,
                 },
-                sp: [ res ]
-            });
-            this._post({
-                render: res.rect && {
+                {
                     rect: res.selectRect || res.rect,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Float,
                     isFullWork: false,
                 },
-                sp: [ res ]
-            });
-            this._post({
-                render: res.rect && {
+                {
                     rect: res.rect,
                     drawCanvas: ECanvasShowType.Bg,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Bg,
                     isFullWork: true,
                 }
-            });
+            )
         }
         if (isDrawing) {
-            this._post({
-                render: res.rect && {
-                    rect: res.rect,
-                    drawCanvas: ECanvasShowType.Float,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Float,
-                    isFullWork: false,
-                },
-                sp: [ res ]
-            });
-            this._post({
-                render: res.rect && {
-                    rect: res.rect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true,
-                }
+            _postData.render?.push({
+                rect: res.rect,
+                drawCanvas: ECanvasShowType.Float,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork: false,
+            },
+            {
+                rect: res.rect,
+                drawCanvas: ECanvasShowType.Bg,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Bg,
+                isFullWork: true,
             });
         }
+        this._post(_postData);
     }
-    private drawEraser(res:IMainMessage, workShapeNode: EraserShape) {
-        Promise.resolve(res).then((result) => {
-            const sp:IMainMessage[] = [];
-            if (result.newWorkDatas?.length) {
-                sp.push(...result.newWorkDatas.map(d=>({
-                    type: EPostMessageType.FullWork,
-                    workId: d.workId,
-                    ops: transformToSerializableData(d.op),
-                    opt: d.opt,
-                    toolsType: d.toolsType,
-                    updateNodeOpt: {
-                        useAnimation:false
-                    }
-                })))
-                delete result.newWorkDatas;
-            }
-            sp.push(result)
-            this._post({
-                render: {
-                    rect: result.rect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true,
-                },
-                sp
-            });
-            for (let i = 0; i < sp.length; i++) {
-                if (sp[i].removeIds?.length) { 
-                    sp[i].removeIds?.forEach(id=>{
-                        this.curNodeMap.delete(id);
-                        workShapeNode.curNodeMap.delete(id);
-                    })
-                } else if (sp[i].type === EPostMessageType.FullWork) {
-                    const key = sp[i].workId?.toString();
-                    if (key) {
-                        const ops = sp[i].ops;
-                        const opt = sp[i].opt;
-                        const toolsType = sp[i].toolsType;
-                        this.updataNodeMap({
-                            key,
-                            ops, 
-                            opt,
-                            toolsType,
-                        });
-                        // console.log('updataNodeMap111')
-                    }
+    private async drawEraser(result:IMainMessage, workShapeNode: EraserShape) {
+        const sp:IMainMessage[] = [];
+        if (result.newWorkDatas?.length) {
+            sp.push(...result.newWorkDatas.map(d=>({
+                type: EPostMessageType.FullWork,
+                workId: d.workId,
+                ops: transformToSerializableData(d.op),
+                opt: d.opt,
+                toolsType: d.toolsType,
+                updateNodeOpt: {
+                    useAnimation:false
                 }
-                
-            }
+            })))
+            delete result.newWorkDatas;
+        }
+        sp.push(result)
+        await this._post({
+            render: [{
+                rect: result.rect,
+                drawCanvas: ECanvasShowType.Bg,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Bg,
+                isFullWork: true,
+            }],
+            sp
         });
+        for (let i = 0; i < sp.length; i++) {
+            if (sp[i].removeIds?.length) { 
+                sp[i].removeIds?.forEach(id=>{
+                    this.curNodeMap.delete(id);
+                    workShapeNode.curNodeMap.delete(id);
+                })
+            } else if (sp[i].type === EPostMessageType.FullWork) {
+                const key = sp[i].workId?.toString();
+                if (key) {
+                    const ops = sp[i].ops;
+                    const opt = sp[i].opt;
+                    const toolsType = sp[i].toolsType;
+                    this.updataNodeMap({
+                        key,
+                        ops, 
+                        opt,
+                        toolsType,
+                    });
+                    // console.log('updataNodeMap111')
+                }
+            }
+            
+        }
     }
     private drawPencil(res:IMainMessage) {
         this._post({
@@ -150,34 +140,32 @@ export class SubLocalWorkForWorker extends SubLocalWork {
         });
     }
     private drawPencilFull(res:IMainMessage, opt:BaseShapeOptions) {
-        if ((opt.opacity || 1) < 1) {
-            this._post({
-                render: res.rect && {
-                    rect: res.rect,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true,
-                }
-            });
-        }
-        this._post({
-            render: res.rect && {
+        const _postData:IBatchMainMessage = {
+            drawCount: Infinity,
+            render: [{
                 rect: res.rect,
                 drawCanvas: ECanvasShowType.Bg,
-                isClear: true,
-                clearCanvas: ECanvasShowType.Float,
+                isClear: (opt.opacity || 1) < 1,
+                clearCanvas: ECanvasShowType.Bg,
                 isFullWork: true,
-            },
+            }],
             sp: [ res ]
-        });
-        if (res.workId) {
-            this.updataNodeMap({
-                key: res.workId.toString(),
-                ops: res.ops,
-                toolsType: EToolsKey.Pencil,
-                opt
-            })
         }
+        _postData.render?.push({
+            isClearAll: true,
+            clearCanvas: ECanvasShowType.Float,
+            isFullWork: false
+        })
+        this._post(_postData).then(()=>{
+            if (res.workId) {
+                this.updataNodeMap({
+                    key: res.workId.toString(),
+                    ops: res.ops,
+                    toolsType: EToolsKey.Pencil,
+                    opt
+                })
+            }
+        })
     }
     consumeDraw(data: IWorkerMessage, serviceWork:SubServiceWorkForWorker): IMainMessage | undefined {
         const {op, workId} = data;
@@ -251,18 +239,27 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             clearTimeout(this.combineTimerId);
             this.combineTimerId = undefined;
         }
-        const {workId} = data;
+        const {workId, undoTickerId} = data;
+        // console.log('consumeDrawAll0', data)
         if (workId) {
+            if (undoTickerId) {
+                setTimeout(()=>{
+                    this._post({
+                        sp:[{
+                            type: EPostMessageType.None,
+                            undoTickerId,
+                        }]
+                    })
+                },0)
+            }
             const workShapeNode = this.workShapes.get(workId);
             if (!workShapeNode) {
                 return
             }
-            this.drawCount = 0;
             const toolsType = workShapeNode.toolsType;
             if (toolsType === EToolsKey.LaserPen) {
                 return;
             }
-            //console.log('consumeDrawAll', data)
             const r = workShapeNode.consumeAll({
                 data, 
                 nodeMaps: this.curNodeMap
@@ -286,15 +283,15 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             }
             if (toolsType === EToolsKey.Pencil) {
                 if (r?.rect) {
-                    // const opacity = workShapeNode.getWorkOptions().opacity || 1 ;
                     this.drawPencilFull(r, workShapeNode.getWorkOptions());
+                    this.drawCount = 0;
                 }
                 this.clearWorkShapeNodeCache(workId);
             }
         }
         
     }
-    updateSelector(param:{
+    async updateSelector(param:{
         updateSelectorOpt: IUpdateNodeOpt;
         willRefreshSelector?: boolean;
         willSyncService?: boolean;
@@ -306,32 +303,43 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             toolsType?: EToolsKey;
         }>;
         emitEventType?: EmitEventType;
-    }): IMainMessage | undefined {
+        isSync?:boolean;
+    }): Promise<IMainMessage | undefined> {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
         if (!workShapeNode.selectIds?.length) return;
-        const {updateSelectorOpt, willRefreshSelector, willSyncService, willSerializeData, emitEventType, selectStore} = param;
+        const {updateSelectorOpt, willRefreshSelector, willSyncService, willSerializeData, emitEventType, selectStore, isSync} = param;
         const workState = updateSelectorOpt.workState;
-        let rect: IRectType|undefined;
         const isDelay = (emitEventType === EmitEventType.RotateNode || emitEventType === EmitEventType.ScaleNode) && workState === EvevtWorkState.Done && willSerializeData;
-        if (willRefreshSelector && workShapeNode) {
-            rect = workShapeNode.oldRect;
-        }
         const res = workShapeNode?.updateSelector({
             updateSelectorOpt, 
             selectIds: workShapeNode.selectIds,
         });
-        let render = res && willRefreshSelector && {
-            rect: emitEventType === EmitEventType.ScaleNode  && workState !== EvevtWorkState.Done ? computRect(rect, res.rect) : res.rect,
-            isClear: true,
-            isFullWork: false,
-            clearCanvas: emitEventType === EmitEventType.ScaleNode ? ECanvasShowType.Float : ECanvasShowType.Selector,
-            drawCanvas: emitEventType === EmitEventType.ScaleNode && workState !== EvevtWorkState.Done ? ECanvasShowType.Float : ECanvasShowType.Selector,
-        } || undefined;
-        // console.log('updateSelector', render, res?.rect)
+        let render: {
+            rect?: IRectType;
+            isClear?: boolean;
+            isClearAll?: boolean;
+            isFullWork?: boolean;
+            clearCanvas?: ECanvasShowType;
+            drawCanvas?: ECanvasShowType;
+        }[] | undefined = [];
+        if (emitEventType === EmitEventType.ScaleNode) {
+            render.push({
+                isClearAll: true,
+                isFullWork: false,
+                clearCanvas: ECanvasShowType.Selector,
+            })
+        }
+        if(res && willRefreshSelector){
+            render.push({
+                rect: res.rect, 
+                isClear: emitEventType !== EmitEventType.ScaleNode,
+                isFullWork: false,
+                clearCanvas: ECanvasShowType.Selector,
+                drawCanvas: ECanvasShowType.Selector,
+            })
+        }
         if (res && willRefreshSelector && willSerializeData && render && !isDelay) {
-            // console.log('updateSelector1', render, res?.rect)
-            this._post({ render });
-            // this.computNodeMap();
+            await this._post({ render });
             render = undefined
         }
         const newServiceStore:Map<string,{
@@ -361,7 +369,6 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         delete newUpdateNodeOpt.opacity;
                     }
                     if (ops && newUpdateNodeOpt?.pos && newUpdateNodeOpt?.originPos) {
-                        // const op = (transformToNormalData(ops) as number[]);
                         const translate = [newUpdateNodeOpt.pos[0] - newUpdateNodeOpt.originPos[0], newUpdateNodeOpt.pos[1] - newUpdateNodeOpt.originPos[1]];
                         const op = (transformToNormalData(ops) as number[]).map((n,index)=>{
                             const i = index % 3
@@ -394,7 +401,6 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                         newPos = transformToSerializableData(op);
                         delete newUpdateNodeOpt.angle;
                         delete newUpdateNodeOpt.originPos;
-                        // this.drawLayer?.getElementsByName(key).forEach(c=>c.remove());
                     }
                     if (toolsType && ops && opt && nop.length) {
                         const workShape = this.createWorkShapeNode({
@@ -428,6 +434,15 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                             type: EPostMessageType.Select,
                             selectIds: workShapeNode.selectIds,
                             selectRect: res.rect,
+                            isSync
+                        })
+                    }
+                    if (emitEventType === EmitEventType.ScaleNode && workState === EvevtWorkState.Done) {
+                        sp.push({
+                            type: EPostMessageType.Select,
+                            selectIds: workShapeNode.selectIds,
+                            selectRect: res.rect,
+                            willSyncService: false
                         })
                     }
                     for (const [workId, info] of newServiceStore.entries()) {
@@ -436,43 +451,36 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                                 ...info,
                                 workId,
                                 type: EPostMessageType.UpdateNode,
+                                isSync
                             }
                         )
                     }
                 } else {
+                    if (emitEventType === EmitEventType.ScaleNode && workState === EvevtWorkState.Start) {
+                        sp.push({
+                            type: EPostMessageType.Select,
+                            selectIds: workShapeNode.selectIds,
+                            selectRect: res.rect,
+                            canvasWidth: (this.fullLayer.parent as Layer).width,
+                            canvasHeight: (this.fullLayer.parent as Layer).height,
+                            willSyncService: false
+                        })
+                    }
                     for (const [workId, updateNodeOpt] of res.updateNodeOpts.entries()) {
                         sp.push(
                             {
                                 workId,
                                 type: EPostMessageType.UpdateNode,
-                                updateNodeOpt
+                                updateNodeOpt,
+                                isSync
                             }
                         )
                     }
                 }
-            }
-            if (willSyncService) {
-                this._post({
+                await this._post({
                     render: !isDelay && render || undefined,
-                    sp: (willSyncService && sp) || undefined
+                    sp
                 })
-            }
-            if (isDelay && render) {
-                setTimeout(()=>{
-                    this._post({
-                        render,
-                    })
-                    if (workState === EvevtWorkState.Done) {
-                        workShapeNode.selectIds?.forEach(key=>{
-                            const info = sp?.find(s=> s?.workId && s.workId === key);
-                            this.updataNodeMap({
-                                key, 
-                                ops: info?.ops, 
-                                opt: info?.opt
-                            });
-                        })
-                    }
-                }, 20)
             }
             if (!isDelay && workState === EvevtWorkState.Done) {
                 workShapeNode.selectIds?.forEach(key=>{
@@ -484,27 +492,45 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                     });
                 })
             }
+            if (isDelay && render?.length) {
+                setTimeout(()=>{
+                    this._post({
+                        render,
+                    }).then(()=>{
+                        if (workState === EvevtWorkState.Done) {
+                            workShapeNode.selectIds?.forEach(key=>{
+                                const info = sp?.find(s=> s?.workId && s.workId === key);
+                                this.updataNodeMap({
+                                    key, 
+                                    ops: info?.ops, 
+                                    opt: info?.opt
+                                });
+                            })
+                        }
+                    })
+                }, 20)
+            }
         }
 
     }
     blurSelector(): void {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
         if (workShapeNode) {
-            const res = workShapeNode?.blurSelector();
+            const res = workShapeNode?.blurSelector(this.curNodeMap);
             this.clearWorkShapeNodeCache(SelectorShape.selectorId);
             this._post({
-                render: res?.rect && {
+                render: res?.rect && [{
                     rect: res.rect,
                     drawCanvas: ECanvasShowType.Bg,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Bg,
                     isFullWork: true,
-                },
+                }],
                 sp: [ res ]
             });
         }
     }
-    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt'| 'toolsType' | 'updateNodeOpt'>){
+    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt'| 'toolsType'>){
         const {workId, opt, toolsType} = data;
         if (workId && opt && toolsType) {
             const curWorkShapes = (workId && this.workShapes.get(workId)) || this.createWorkShapeNode({
@@ -531,28 +557,30 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             rect = computRect(rect, data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt));
             if (rect && data.willRefresh) {
                 this._post({
-                    render: {
+                    render: [{
                         rect,
                         drawCanvas: ECanvasShowType.Bg,
                         isFullWork: true,
-                    },
+                    }],
                     sp: ( data.willSyncService && [{
                         opt:data.opt,
                         toolsType: data.toolsType,
                         type: EPostMessageType.FullWork,
                         workId: data.workId,
                         ops: data.ops,
-                        updateNodeOpt: data.updateNodeOpt
+                        updateNodeOpt: data.updateNodeOpt,
+                        undoTickerId: data.undoTickerId
                     }]) || undefined
-                });
-                if (data.workId) {
-                    this.updataNodeMap({
-                        key: data.workId?.toString(),
-                        ops: data.ops, 
-                        opt: data.opt,
-                        toolsType: data.toolsType,
-                    });
-                }
+                }).then(()=>{
+                    if (data.workId) {
+                        this.updataNodeMap({
+                            key: data.workId?.toString(),
+                            ops: data.ops, 
+                            opt: data.opt,
+                            toolsType: data.toolsType,
+                        });
+                    }
+                })
             }
             data.workId && this.workShapes.delete(data.workId)
         }
@@ -610,13 +638,13 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             })
             if (rect || willSyncService) {
                 this._post({
-                    render: rect && {
+                    render: [{
                         rect,
                         drawCanvas: ECanvasShowType.Bg,
                         isClear: true,
                         clearCanvas: ECanvasShowType.Bg,
                         isFullWork: true,
-                    },
+                    }],
                     sp: ( willSyncService && [{
                             type: EPostMessageType.UpdateNode,
                             workId,
@@ -656,13 +684,13 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             }
             if (rect) {
                 this._post({
-                    render:{
+                    render:[{
                         rect,
                         isClear: true,
                         isFullWork: true,
                         clearCanvas: ECanvasShowType.Bg,
                         drawCanvas: ECanvasShowType.Bg
-                    }
+                    }]
                 })
             }
             this.curNodeMap.delete(key);
@@ -708,13 +736,13 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                 cloneNodes.length && this.fullLayer.append(...cloneNodes);
                 if (rect) {
                     this._post({
-                        render: {
-                            rect: rect,
+                        render: [{
+                            rect,
                             isClear:true,
                             isFullWork:true,
                             clearCanvas:ECanvasShowType.Bg,
                             drawCanvas:ECanvasShowType.Bg,
-                        },
+                        }],
                         sp: workShapeNode.selectIds.length === 0 && [{
                             type: EPostMessageType.Select,
                             selectIds: [],
@@ -724,5 +752,87 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                 }
             }
         }
+    }
+    updateFullSelectWork(data:IWorkerMessage):void{
+        const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
+        const {selectIds} = data;
+        if (!selectIds?.length) {
+            this.blurSelector();
+        }
+        if (!workShapeNode) {
+            this.setFullWork(data);
+            this.updateFullSelectWork(data);
+            return;
+        }
+        if (workShapeNode && selectIds?.length) {
+            const {bgRect, selectRect} = workShapeNode.updateSelectIds(selectIds, this.curNodeMap);
+            const _postData:IBatchMainMessage = {
+                render:[],
+                sp:[]
+            }
+            // console.log('bgRect', bgRect)
+            if (bgRect) {
+                _postData.render?.push({
+                    rect: bgRect,
+                    isClear: true,
+                    isFullWork: true,
+                    clearCanvas: ECanvasShowType.Bg,
+                    drawCanvas: ECanvasShowType.Bg,
+                })
+            }
+            _postData.render?.push({
+                rect: bgRect || selectRect,
+                isClear:true,
+                isFullWork:false,
+                clearCanvas:ECanvasShowType.Selector,
+                drawCanvas:ECanvasShowType.Selector,
+            })
+            _postData.sp?.push({
+                ...data,
+                nodeOpactiy: data.opt?.opacity,
+                nodeColor: data.opt?.color,
+                type: EPostMessageType.Select,
+                selectRect: bgRect || selectRect,
+                willSyncService: false
+            })
+            this._post(_postData);
+        }
+    }
+    colloctEffectSelectWork(data:IWorkerMessage):IWorkerMessage | undefined{
+        const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
+        const {workId} = data;
+        if (workShapeNode && workId && workShapeNode.selectIds && workShapeNode.selectIds.includes(workId.toString())) {
+            this.effectSelectNodeData.add(data)
+            setTimeout(()=>{
+                this.runEffectSelectWork();
+                this.effectSelectNodeData?.clear();
+            },0)
+            return undefined;
+        }
+        return data;
+    }
+    private runEffectSelectWork(){
+        for (const data of this.effectSelectNodeData.values()) {
+            const workShape = this.setFullWork(data);
+            const op = data.ops && transformToNormalData(data.ops);
+            if (workShape) {
+                let rect = workShape.consumeService({
+                    op, 
+                    isFullWork: false,
+                    replaceId: workShape.getWorkId()?.toString()
+                });
+                rect = computRect(rect, data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt));
+                if (rect && data.workId) {
+                    this.updataNodeMap({
+                        key: data.workId?.toString(),
+                        ops: data.ops, 
+                        opt: data.opt,
+                        toolsType: data.toolsType,
+                    });
+                }
+                data.workId && this.workShapes.delete(data.workId)
+            }
+        }
+        this.rerRenderSelector();
     }
 }

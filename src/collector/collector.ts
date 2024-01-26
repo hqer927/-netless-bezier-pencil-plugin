@@ -4,37 +4,38 @@ import { EPostMessageType, EToolsKey } from "../core/enum";
 import type { Room } from "white-web-sdk";
 import { autorun, toJS } from "white-web-sdk";
 import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
-import { BaseCollector, Storage_Splitter } from "./base";
+import { BaseCollector } from "./base";
 import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
 import { BezierPencilPluginAttributes } from "../plugin/types";
 import { BezierPencilPlugin } from "../plugin";
 import isEqual from "lodash/isEqual";
 import { SelectorShape } from "../core/tools";
-import { cloneDeep } from "lodash";
-// import cloneDeep from "lodash/cloneDeep";
+import cloneDeep from "lodash/cloneDeep";
+import { requestAsyncCallBack } from "../core/utils";
+import { Storage_Splitter } from "./const";
 /**
  * 服务端事件/状态同步收集器
  */ 
 export class Collector extends BaseCollector {
-    static syncInterval: number = 1000;
+    static syncInterval: number = 500;
     public serviceStorage: ISerializableStorageData = {};
     public storage: ISerializableStorageData = {};
     public uid: string;
-    public plugin: BezierPencilPlugin;
+    public plugin?: BezierPencilPlugin;
     protected namespace: string = '';
     private stateDisposer: (() => void) | undefined;
-    private syncClockId?:number;
+    private asyncClockState:boolean=false;
     constructor(plugin: BezierPencilPlugin, syncInterval?: number ){
         super();
-        Collector.syncInterval = syncInterval || Collector.syncInterval;
+        Collector.syncInterval = (syncInterval || Collector.syncInterval) * 0.5;
         this.plugin = plugin;
         this.uid = (plugin.displayer as Room).uid;
-        const namespace = (plugin.displayer as Room).state.sceneState.sceneName;
+        const namespace = (plugin.displayer as Room).state.sceneState.scenePath;
         this.setNamespace(namespace)
     }
     public addStorageStateListener(callBack:(diff:Diff<any>)=>void){
         this.stateDisposer = autorun(async () => {
-            const storage = toJS(this.plugin.attributes[this.namespace]) || {};
+            const storage = toJS(this.plugin?.attributes[this.namespace]) || {};
             const diff = this.diffFun(this.serviceStorage, storage);
             this.serviceStorage = storage;
             for (const [key,value] of Object.entries(diff)) {
@@ -44,8 +45,6 @@ export class Collector extends BaseCollector {
                     this.storage[key] = cloneDeep(value?.newValue);
                 }
             }
-            // const diff = this.diffFun(this.storage, storage);
-            // this.storage = storage;
             callBack(diff);
         })
     }
@@ -75,16 +74,12 @@ export class Collector extends BaseCollector {
             }
         }
         for (const key of newKeys) {
-            if (oldKeys.includes(key)) {
-                if (isEqual(_old[key],_new[key])) {
-                    continue;
+            if (!oldKeys.includes(key)) {
+                diff[key] = {
+                    oldValue: undefined,
+                    newValue: _new[key]
                 }
-                continue;
-            }
-            diff[key] = {
-                oldValue: undefined,
-                newValue: _new[key]
-            }
+            }  
         }
         return diff;
     }
@@ -96,14 +91,14 @@ export class Collector extends BaseCollector {
     }
     dispatch(action: BaseCollectorReducerAction): void {
         //console.log('dispatch', action)
-        const {type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds} = action
+        const {type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds, isSync} = action
         switch (type) {
             case EPostMessageType.Clear:
                     const state: ISerializableStorageData = {};
                     Object.keys(this.storage).map(key=>{
                         state[key] = undefined;
                     })
-                    this.setState(state);
+                    this.setState(state, {isSync});
                 break;
             case EPostMessageType.CreateWork:
                 if (workId && toolsType && opt) {
@@ -113,22 +108,7 @@ export class Collector extends BaseCollector {
                         workId,
                         toolsType,
                         opt
-                    });                 
-                }
-                break;    
-            case EPostMessageType.UpdateWork:
-                if (workId && toolsType && opt) {
-                    const key =  this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[key];
-                    const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
-                    this.updateValue(key.toString(),{
-                        ...old,
-                        type: EPostMessageType.UpdateWork,
-                        workId,
-                        toolsType,
-                        opt,
-                        updateNodeOpt: _updateNodeOpt
-                    });               
+                    }, { isSync });                 
                 }
                 break;
             case EPostMessageType.DrawWork:
@@ -142,7 +122,7 @@ export class Collector extends BaseCollector {
                             type: EPostMessageType.DrawWork,
                             op: _op,
                             index
-                        });                         
+                        }, { isSync });                         
                     }
                 }
                 break;
@@ -162,7 +142,7 @@ export class Collector extends BaseCollector {
                             toolsType: _toolsType,
                             opt: _opt,
                             ops: _ops
-                        });                       
+                        }, { isSync });                       
                     }
                 }
                 break;
@@ -178,7 +158,7 @@ export class Collector extends BaseCollector {
                     Object.keys(this.storage).map(key => {
                         if (_removeIds?.includes(key)) {
                             // state1[key] = undefined;
-                            this.updateValue(key,undefined);
+                            this.updateValue(key,undefined, { isSync });
                         }
                     })                    
                 }
@@ -200,7 +180,7 @@ export class Collector extends BaseCollector {
                             old.opt = opt;
                         }
                         //console.log('dispatch---111',key, old)
-                        this.updateValue(key.toString(),old);
+                        this.updateValue(key.toString(),old, { isSync });
                     }
                 }
                 break;
@@ -217,19 +197,22 @@ export class Collector extends BaseCollector {
                 const key = this.transformKey(SelectorShape.selectorId);
                 const old = this.storage[key];
                 const _opt = opt || old?.opt;
-                _selectIds && this.checkOtherSelector(key, _selectIds);
+                _selectIds && this.checkOtherSelector(key, _selectIds, { isSync });
                 this.updateValue(key, _selectIds && {
                     type: EPostMessageType.Select,
                     toolsType: EToolsKey.Selector,
                     opt: _opt,
                     selectIds: _selectIds
-                }); 
+                }, { isSync }); 
                 break;
             default:
                 break;
         } 
     }
-    private checkOtherSelector(key:string, selectIds:string[]){
+    private checkOtherSelector(key:string, selectIds:string[], options?:{
+        isSync?: boolean;
+        isAfterUpdate?:boolean;
+    }){
         for (const k of Object.keys(this.storage)) {
             if (k !== key && this.getLocalId(k) === 'selector') {
                 const value = this.storage[k];
@@ -238,13 +221,16 @@ export class Collector extends BaseCollector {
                     if (ids.length > 0) {
                         value.selectIds = ids;
                     }
-                    console.log('checkOtherSelector', k, key,  ids, this.serviceStorage[k]?.selectIds)
-                    this.updateValue(k, ids.length && value || undefined); 
+                    // console.log('checkOtherSelector', k, key,  ids, this.serviceStorage[k]?.selectIds)
+                    this.updateValue(k, ids.length && value || undefined, options); 
                 }
             }
         }
     }
-    private setState(state: ISerializableStorageData): void {    
+    private setState(state: ISerializableStorageData, options?:{
+        isSync?: boolean;
+        isAfterUpdate?:boolean;
+    }): void {    
         const keys = plainObjectKeys(state);
         for (let i = 0; i < keys.length; i++) {
           const key = keys[i];
@@ -255,27 +241,41 @@ export class Collector extends BaseCollector {
             delete this.storage[key];
           }
         }
-        // const attr:BezierPencilPluginAttributes = {};
-        // attr[this.namespace] = this.storage;
-        this.runSyncService();
+        this.runSyncService(options);
     }
-    private updateValue(key:string, value: any){
+    updateValue(key:string, value: any, options?:{
+        isSync?: boolean;
+        isAfterUpdate?:boolean;
+    }){
         if (value === undefined) {
             delete this.storage[key];
         } else {
             this.storage[key] = value;
         }
-        this.runSyncService();
+        this.runSyncService(options);
     }
-    private runSyncService() {
-        if (!this.syncClockId) {
-            this.syncClockId = setTimeout(()=>{
-                this.syncClockId = undefined;
-                this.syncSerivice();
-            }, Collector.syncInterval) as unknown as number;
+
+    private runSyncService(options?:{
+        isSync?: boolean;
+        isAfterUpdate?:boolean;
+    } ) {
+        // console.log('this.storage', this.storage)
+        if (!this.asyncClockState) {
+            this.asyncClockState = true;
+            setTimeout(()=>{
+                if (options?.isSync) {
+                    this.asyncClockState = false;
+                    this.syncSerivice(options?.isAfterUpdate);
+                } else {
+                    requestAsyncCallBack(()=>{
+                        this.asyncClockState = false;
+                        this.syncSerivice(options?.isAfterUpdate);
+                    }, Collector.syncInterval);
+                }
+            }, options?.isSync ? 0 : Collector.syncInterval)
         }
     }
-    private syncSerivice() {
+    private syncSerivice(isAfterUpdate:boolean = false) {
         const oldKeys = plainObjectKeys(this.serviceStorage);
         const newKeys = plainObjectKeys(this.storage);
         const willSyncMap:Map<string, BaseCollectorReducerAction | undefined> = new Map();
@@ -300,32 +300,37 @@ export class Collector extends BaseCollector {
                 willSyncCount++;
             }
         }
+        // willSyncCount > 5 只是一个预估值
         if (willSyncCount > 5 ) {
-            this.syncStorage(this.storage);
+            this.syncStorage(this.storage, isAfterUpdate);
         } else if (willSyncMap.size > 0 ) {
             for (const [key,value] of willSyncMap.entries()) {
-                this.syncUpdata(key, value);
+                this.syncUpdata(key, value, isAfterUpdate);
             }
         }
     }
-    private syncUpdata(key:string, value: any){
+    private syncUpdata(key:string, value: any, isAfterUpdate:boolean = false){
         const length = Object.keys(this.serviceStorage).length;
         if (!length) {
-            this.syncStorage(this.storage);
+            this.syncStorage(this.storage, isAfterUpdate);
         } else {
-            if (value === undefined) {
-                delete this.serviceStorage[key];
-            } else {
-                this.serviceStorage[key] = value;
+            if(!isAfterUpdate){
+                if (value === undefined) {
+                    delete this.serviceStorage[key];
+                } else {
+                    this.serviceStorage[key] = value;
+                }
             }
-            this.plugin.updateAttributes([this.namespace,key],value);
+            this.plugin?.updateAttributes([this.namespace,key],value);
         }
     }
-    private syncStorage(state: ISerializableStorageData){
-        this.serviceStorage = cloneDeep(state);
+    private syncStorage(state: ISerializableStorageData, isAfterUpdate:boolean = false){
+        if (!isAfterUpdate) {
+            this.serviceStorage = cloneDeep(state);
+        }
         const attr:BezierPencilPluginAttributes = {};
         attr[this.namespace] = state;
-        this.plugin.setAttributes(attr);
+        this.plugin?.setAttributes(attr);
     }
     transformToSerializableData(data: IStorageValueItem): string {
         return transformToSerializableData(data);
@@ -338,6 +343,10 @@ export class Collector extends BaseCollector {
         return list.length === 2 ? list[1] : key
     }
     destroy(){
-        // TODO
+        this.removeStorageStateListener();
+        this.plugin = undefined;
+        this.serviceStorage = {};
+        this.storage = {};
+        this.namespace = '';
     }
 }

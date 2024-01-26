@@ -1,4 +1,4 @@
-import { BaseCollectorReducerAction, INormalPushMsg } from '../collector/types';
+import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool } from './tools';
 export type IworkId = string | number;
@@ -85,6 +85,9 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>, 'op'> & {
     willSerializeData?: boolean;
     isRunSubWork?: boolean;
     noRender?: boolean;
+    undoTickerId?: number;
+    scenePath?: string;
+    scenes?: ISerializableStorageData;
 };
 export interface IRectType {
     x: number;
@@ -110,6 +113,7 @@ export interface IMainMessage extends INormalPushMsg {
     selectRect?: IRectType;
     updateNodeOpts?: Map<string, IUpdateNodeOpt>;
     nodeColor?: string;
+    nodeOpactiy?: number;
     willSyncService?: boolean;
     newWorkDatas?: Array<{
         op: number[];
@@ -117,21 +121,29 @@ export interface IMainMessage extends INormalPushMsg {
         workId: IworkId;
         toolsType: EToolsKey;
     }>;
+    undoTickerId?: number;
+    scenePath?: string;
+    canvasWidth?: number;
+    canvasHeight?: number;
 }
 export interface IMainMessageRenderData {
     rect?: IRectType;
     imageBitmap?: ImageBitmap;
     drawCanvas?: ECanvasShowType;
     isClear?: boolean;
+    isClearAll?: boolean;
     clearCanvas?: ECanvasShowType;
     /** 是否需要销毁imageBitmap */
     isUnClose?: boolean;
     isFullWork?: boolean;
+    offset?: {
+        x: number;
+        y: number;
+    };
 }
 export interface IBatchMainMessage {
-    lockId?: number;
     /** 绘制数据 */
-    render?: IMainMessageRenderData;
+    render?: Array<IMainMessageRenderData>;
     /** 同步服务端数据 */
     sp?: Array<IMainMessage>;
     drawCount?: number;

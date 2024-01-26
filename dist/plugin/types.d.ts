@@ -63,15 +63,14 @@ export declare enum EmitEventType {
     /** 原始事件 */
     OriginalEvent = "OriginalEvent",
     /** 创建canvas */
-    CreateScene = "createScene",
-    /** 更新canvas */
-    UpdateScene = "UpdateScene"
+    CreateScene = "createScene"
 }
 export declare enum InternalMsgEmitterType {
     DisplayState = "DisplayState",
     FloatBar = "FloatBar",
     CanvasSelector = "CanvasSelector",
-    MainEngine = "MainEngine"
+    MainEngine = "MainEngine",
+    DisplayContainer = "DisplayContainer"
 }
 export type InternalEventValue = {
     id: string;

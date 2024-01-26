@@ -5,6 +5,7 @@ import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
 import { BaseShapeOptions, SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
 
 export type SetColorNodeEmtData = {
     workIds: IworkId[],
@@ -24,6 +25,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         const selectIds: string[] = [];
+        const undoTickerId = Date.now();
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -74,6 +76,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     })
                     taskData.selectStore = subStore;
                     taskData.willSerializeData = true;
+                    taskData.undoTickerId = undoTickerId;
                     localMsgs.push(taskData)
                 }
                 continue;
@@ -107,6 +110,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                 }
             }
         }
+        UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }

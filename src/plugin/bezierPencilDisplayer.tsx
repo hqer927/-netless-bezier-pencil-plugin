@@ -25,8 +25,8 @@ interface DisplayerState {
 }
 export const DisplayerContext = React.createContext<Pick<DisplayerState, 'zIndex' | 'floatBarData' | 'dpr' | 'angle' | 'position' | 'isRotating' | 'showFloatBarBtn'> & {
     floatBarColors:[number, number, number][];
-    InternalMsgEmitter: EventEmitter2 | undefined,
-    setPosition: (point:{x:number, y:number}) => void,
+    InternalMsgEmitter: EventEmitter2|undefined;
+    setPosition: (point:{x:number, y:number}) => void;
     setSize: (size:{ width:number, height:number, workState:EvevtWorkState}) => void;
     setAngle: (angle:number) => void;
     setRotateState: (isRotation:boolean)=>void;
@@ -51,7 +51,7 @@ export const DisplayerContext = React.createContext<Pick<DisplayerState, 'zIndex
 });
 export class BezierPencilDisplayer extends React.Component<DisplayerProps, DisplayerState> {
     static instance: BezierPencilDisplayer;
-    static InternalMsgEmitter: EventEmitter2  = new EventEmitter2();
+    static InternalMsgEmitter: EventEmitter2 = new EventEmitter2();
     static floatBarColors: [number, number, number][] = [];
     public containerRef: HTMLDivElement | null = null;
     public canvasFloatRef: HTMLCanvasElement | null = null;
@@ -84,15 +84,24 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
             showFloatBarBtn: true,
         })
         if (value && this.floatBarCanvasRef.current) {
-            this.floatBarCanvasRef.current.width = value.w * this.state.dpr;
-            this.floatBarCanvasRef.current.height = value.h * this.state.dpr;
+            if (value.canvasHeight && value.canvasWidth) {
+                this.floatBarCanvasRef.current.width = value.canvasWidth * this.state.dpr;
+                this.floatBarCanvasRef.current.height = value.canvasHeight * this.state.dpr;
+                this.floatBarCanvasRef.current.style.width = value.canvasWidth+'px';
+                this.floatBarCanvasRef.current.style.height = value.canvasHeight+'px';
+            } else {
+                this.floatBarCanvasRef.current.width = value.w * this.state.dpr;
+                this.floatBarCanvasRef.current.height = value.h * this.state.dpr;
+                this.floatBarCanvasRef.current.style.width = '100%';
+                this.floatBarCanvasRef.current.style.height = '100%';
+            }
         }
     }
     private setSize(scale:{ width:number, height:number, workState:EvevtWorkState}) {
-        if (this.floatBarCanvasRef?.current) {
-            this.floatBarCanvasRef.current.width = scale.width * this.state.dpr;
-            this.floatBarCanvasRef.current.height = scale.height * this.state.dpr;
-        }
+        // if (this.floatBarCanvasRef?.current) {
+        //     this.floatBarCanvasRef.current.width = scale.width * this.state.dpr;
+        //     this.floatBarCanvasRef.current.height = scale.height * this.state.dpr;
+        // }
         this.state.floatBarData && this.setState({floatBarData:{...this.state.floatBarData, w: scale.width, h: scale.height}})
     }
     private setFloatZIndex(zIndex: number) {
@@ -100,20 +109,19 @@ export class BezierPencilDisplayer extends React.Component<DisplayerProps, Displ
     }
     componentDidMount(): void {
         BezierPencilDisplayer.instance = this;
-        BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.mounted);
+        BezierPencilDisplayer.InternalMsgEmitter.on(InternalMsgEmitterType.DisplayContainer,this.init.bind(this));
         BezierPencilDisplayer.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
-        BezierPencilDisplayer.InternalMsgEmitter?.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
-        this.init();
+        BezierPencilDisplayer.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
+        BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.mounted);
     }
     componentWillUnmount(): void {
         BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.unmounted);
-        BezierPencilDisplayer.InternalMsgEmitter.off([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
-        BezierPencilDisplayer.InternalMsgEmitter?.off([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
         const div = BezierPencilDisplayer.instance?.containerRef;
         if (div) {
             const eventTraget = div.parentNode?.children[0] as HTMLDivElement;
             this.removeDisplayerEvent(eventTraget);
         }
+        BezierPencilDisplayer.InternalMsgEmitter.removeAllListeners();
     }
     private getRatioWithContext(context: CanvasRenderingContext2D): number {
         const backingStoreRatio = (context as any).webkitBackingStorePixelRatio ||

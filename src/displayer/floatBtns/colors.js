@@ -61,7 +61,7 @@ export const Colors = () => {
     const SubOpacityBtn = useMemo(() => {
         return React.createElement(OpacityBtn, { opacity: floatBarData?.opacity || 1, activeColor: activeColor, setCurOpacity: (curOpacity, workState) => {
                 setOpacity(curOpacity);
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: activeColor, opacity: curOpacity, workState });
+                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: activeColor, opacity: curOpacity, workState });
             } });
     }, [InternalMsgEmitter, activeColor, floatBarData?.opacity]);
     const SubBtns = useMemo(() => {
@@ -79,12 +79,12 @@ export const Colors = () => {
                     return (React.createElement(ColorBtn, { key: index, color: curColor, opacity: opacity, activeColor: activeColor, onTouchEndHandler: (e) => {
                             e.stopPropagation();
                             setColor(curColor);
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
                         }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
                         } }));
                 }),
                 SubOpacityBtn));

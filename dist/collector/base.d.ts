@@ -1,11 +1,10 @@
 import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData } from "./types";
 import { BezierPencilPlugin } from "../plugin";
 import { IworkId } from "../core";
-export declare const Storage_Splitter = "++";
 export declare abstract class BaseCollector {
     abstract uid: string;
     abstract serviceStorage: ISerializableStorageData;
-    abstract plugin: BezierPencilPlugin;
+    abstract plugin?: BezierPencilPlugin;
     abstract storage: ISerializableStorageData;
     protected abstract namespace: string;
     setNamespace(namespace: string): void;

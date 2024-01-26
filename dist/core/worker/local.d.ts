@@ -1,4 +1,4 @@
-import { Group } from "spritejs";
+import type { Group } from "spritejs";
 import { SubLocalWork } from "../base";
 import { EToolsKey } from "../enum";
 import { BaseShapeOptions, BaseShapeTool } from "../tools";
@@ -6,12 +6,13 @@ import { IWorkerMessage, IMainMessage, IBatchMainMessage, IworkId, IUpdateNodeOp
 import { EmitEventType } from "../../plugin/types";
 import { SubServiceWorkForWorker } from "./service";
 export declare class SubLocalWorkForWorker extends SubLocalWork {
-    _post: (msg: IBatchMainMessage) => void;
+    _post: (msg: IBatchMainMessage) => Promise<void>;
     workShapes: Map<IworkId, BaseShapeTool>;
     private combineUnitTime;
     private combineTimerId?;
     private drawCount;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => void);
+    private effectSelectNodeData;
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group, drawLayer: Group, postFun: (msg: IBatchMainMessage) => Promise<void>);
     private drawPencilCombine;
     private drawSelector;
     private drawEraser;
@@ -31,9 +32,10 @@ export declare class SubLocalWorkForWorker extends SubLocalWork {
             toolsType?: EToolsKey;
         }>;
         emitEventType?: EmitEventType;
-    }): IMainMessage | undefined;
+        isSync?: boolean;
+    }): Promise<IMainMessage | undefined>;
     blurSelector(): void;
-    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt' | 'toolsType' | 'updateNodeOpt'>): BaseShapeTool | undefined;
+    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt' | 'toolsType'>): BaseShapeTool | undefined;
     consumeFull(data: IWorkerMessage): void;
     updateNode(param: {
         workId: IworkId;
@@ -43,4 +45,7 @@ export declare class SubLocalWorkForWorker extends SubLocalWork {
     }): void;
     removeWork(data: IWorkerMessage): void;
     runReverseSelectWork(data: IWorkerMessage): void;
+    updateFullSelectWork(data: IWorkerMessage): void;
+    colloctEffectSelectWork(data: IWorkerMessage): IWorkerMessage | undefined;
+    private runEffectSelectWork;
 }

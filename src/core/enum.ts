@@ -27,7 +27,7 @@ export enum EvevtWorkState{
 }
 /**
  * 消息变化顺序: init => Scene事件 => work事件 => node事件
- * 本地数据: Init、Transform、UpdateTools、CombineDraw
+ * 本地数据: Init、Transform、UpdateTools
  * 服务端数据:
  */
 export enum EPostMessageType {
@@ -37,16 +37,12 @@ export enum EPostMessageType {
     UpdateCamera,
     /** 更新tool配置数据,仅用于本地 */
     UpdateTools,
-    /** 更新offScene配置数据 */
-    UpdateScene,
     /** 创建一次work */
     CreateWork,
     /** 绘制当次work（高频） */
     DrawWork,
     /** 完成完整的一次work */
     FullWork,
-    /** 更新work配置数据 */
-    UpdateWork,
     /** 更新已有node */
     UpdateNode,
     /** 删除node */
@@ -59,8 +55,8 @@ export enum EPostMessageType {
     Destroy,
     /** 什么也不需要做 */
     None,
-    /** 合并绘制 */
-    CombineDraw
+    /** 获取指定场景快照 */
+    Snapshot
 }
 export enum EShapeDataTypeKey{
     Path,
@@ -75,7 +71,8 @@ export enum ECanvasContextType {
 export enum ECanvasShowType {
     Float = 1,
     Bg,
-    Selector
+    Selector,
+    None
 }
 export enum EScaleDirection {
     LT = 'topLeft',

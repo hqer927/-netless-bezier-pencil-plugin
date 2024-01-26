@@ -12,5 +12,6 @@ export type ScaleNodeEmtData = {
 };
 export declare class ScaleNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;
+    private undoTickerId?;
     collect(data: ScaleNodeEmtData): void;
 }

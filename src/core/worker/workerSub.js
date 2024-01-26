@@ -1,16 +1,11 @@
 import { WorkThreadEngine } from "../base";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../enum";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
+import cloneDeep from "lodash/cloneDeep";
 export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     constructor() {
         super();
         Object.defineProperty(this, "cameraOpt", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "lockId", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -40,6 +35,12 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "snapshotFullLayer", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "localWork", {
             enumerable: true,
             configurable: true,
@@ -51,18 +52,21 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     init(dpr, offscreenCanvasOpt, layerOpt) {
         this.dpr = dpr;
         this.scene = this.createScene(offscreenCanvasOpt);
-        this.scene = this.createScene(offscreenCanvasOpt);
-        this.drawLayer = this.createLayer({ ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height });
+        this.drawLayer = this.createLayer(this.scene, { ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height });
+        this.snapshotFullLayer = this.createLayer(this.scene, { ...layerOpt, width: offscreenCanvasOpt.width, height: offscreenCanvasOpt.height, bufferSize: 5000 });
         this.localWork = new SubLocalDrawWorkForWorker(this.curNodeMap, this.drawLayer, this.post.bind(this));
     }
-    getOffscreen() {
-        return this.drawLayer.parent?.canvas;
+    getOffscreen(isSnapshot) {
+        return (isSnapshot && this.snapshotFullLayer || this.drawLayer).parent?.canvas;
     }
     register() {
-        this.on((msg) => {
+        this.on(async (msg) => {
             for (const data of msg) {
                 const { workState, dataType, msgType, workId, toolsType, opt } = data;
                 switch (msgType) {
+                    case EPostMessageType.Snapshot:
+                        await this.getSnapshot(data);
+                        break;
                     case EPostMessageType.UpdateTools:
                         if (toolsType && opt) {
                             this.setToolsOpt({
@@ -97,9 +101,6 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             }
         });
     }
-    // protected updateScene(offscreenCanvasOpt:IOffscreenCanvasOptionType) {
-    //     super.updateScene(offscreenCanvasOpt);
-    // }
     setToolsOpt(opt) {
         this.localWork.setToolsOpt(opt);
     }
@@ -113,49 +114,81 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         this.drawLayer.removeAllChildren();
         this.localWork.clearAllWorkShapesCache();
     }
-    setCameraOpt(cameraOpt) {
+    setCameraOpt(cameraOpt, layer) {
         this.cameraOpt = cameraOpt;
         const { scale, centerX, centerY, width, height } = cameraOpt;
         if (width !== this.scene.width || height !== this.scene.height) {
             this.updateScene({ width, height });
         }
-        this.drawLayer.setAttribute('scale', [scale, scale]);
-        this.drawLayer.setAttribute('translate', [-centerX, -centerY]);
+        layer.setAttribute('scale', [scale, scale]);
+        layer.setAttribute('translate', [-centerX, -centerY]);
     }
-    getRectImageBitmap(rect) {
+    getRectImageBitmap(rect, isSnapshot = false, options) {
         const x = rect.x * this.dpr;
         const y = rect.y * this.dpr;
         const w = rect.w * this.dpr;
         const h = rect.h * this.dpr;
-        return createImageBitmap(this.getOffscreen(), x, y, w, h, {
-            resizeQuality: 'low'
-        });
+        return createImageBitmap(this.getOffscreen(isSnapshot), x, y, w, h, options);
     }
-    post(msg) {
-        if (this.lockId) {
-            msg.lockId = this.lockId;
-            this.lockId = undefined;
+    safariFixRect(rect) {
+        if (rect.w + rect.x <= 0 || rect.h + rect.y <= 0) {
+            return undefined;
         }
-        const renderData = msg.render;
-        if (renderData) {
-            // console.log('post2', renderData.rect);
-            this.drawLayer.parent.render();
-            if (renderData.rect) {
-                this.getRectImageBitmap(renderData.rect).then(imageBitmap => {
-                    renderData.imageBitmap = imageBitmap;
-                    msg.render = renderData;
-                    SubWorkThreadEngineByWorker._self.postMessage(msg, [imageBitmap]);
-                    imageBitmap.close();
-                });
-                return;
+        if (rect.w + rect.x > this.scene.width) {
+            rect.w = this.scene.width - Math.max(rect.x, 0);
+        }
+        if (rect.h + rect.y > this.scene.width) {
+            rect.h = this.scene.height - Math.max(rect.y, 0);
+        }
+        if (rect.w <= 0 || rect.h <= 0) {
+            return undefined;
+        }
+        if (rect.x < 0) {
+            rect.x = 0;
+        }
+        if (rect.y < 0) {
+            rect.y = 0;
+        }
+        return rect;
+    }
+    async post(msg) {
+        const render = msg.render;
+        const newRender = [];
+        if (render?.length) {
+            for (const renderData of render) {
+                if (renderData.drawCanvas) {
+                    this.drawLayer.parent.render();
+                }
+                if (renderData.rect) {
+                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
+                    if (!renderData.rect) {
+                        continue;
+                    }
+                    if (renderData.drawCanvas) {
+                        const imageBitmap = await this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork);
+                        renderData.imageBitmap = imageBitmap;
+                    }
+                    newRender.push(renderData);
+                }
+            }
+            msg.render = newRender;
+        }
+        if (msg.sp?.length || msg.drawCount || newRender?.length) {
+            // console.log('post1', msg);
+            SubWorkThreadEngineByWorker._self.postMessage(msg);
+            if (newRender.length) {
+                for (const renderData of newRender) {
+                    if (renderData.imageBitmap) {
+                        renderData.imageBitmap.close();
+                    }
+                }
             }
         }
-        SubWorkThreadEngineByWorker._self.postMessage(msg);
     }
     on(callBack) {
         onmessage = (e) => {
             if (e.data) {
-                // 优先级 init=》draw=》fullWork=》serviceWork=》updateScene=》updateCamera=》clearAll
+                // 优先级 init=》draw=》fullWork=》serviceWork=》updateCamera=》clearAll
                 const initJob = e.data.get('Init');
                 if (initJob) {
                     const { dpr, offscreenCanvasOpt, layerOpt } = initJob;
@@ -165,15 +198,10 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 }
                 callBack(e.data.values());
                 const hasClearAll = e.data.has('ClearAll');
-                // const updateSceneJob = e.data.get('UpdateScene');
                 const updateCameraJob = e.data.get('UpdateCamera');
-                // if (updateSceneJob) {
-                //     const {offscreenCanvasOpt} = updateSceneJob;
-                //     offscreenCanvasOpt && this.updateScene(offscreenCanvasOpt);
-                // }
                 if (updateCameraJob) {
                     const { cameraOpt } = updateCameraJob;
-                    cameraOpt && this.setCameraOpt(cameraOpt);
+                    cameraOpt && this.setCameraOpt(cameraOpt, this.drawLayer);
                 }
                 if (hasClearAll) {
                     this.clearAll();
@@ -190,8 +218,61 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         this.localWork.consumeDrawAll(data);
         return;
     }
-    consumeFull() {
-        return;
+    async getSnapshot(data) {
+        const { scenePath, scenes, cameraOpt, w, h } = data;
+        if (scenePath && scenes && cameraOpt) {
+            const curCameraOpt = cloneDeep(this.cameraOpt);
+            this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
+            this.localWork.fullLayer = this.snapshotFullLayer;
+            this.localWork.drawLayer = this.drawLayer;
+            for (const [key, value] of Object.entries(scenes)) {
+                if (value?.type) {
+                    switch (value?.type) {
+                        case EPostMessageType.FullWork:
+                            this.localWork.runFullWork({
+                                ...value,
+                                workId: key,
+                                msgType: EPostMessageType.FullWork,
+                                dataType: EDataType.Service
+                            });
+                            break;
+                        case EPostMessageType.Select:
+                            this.localWork.runSelectWork({
+                                ...value,
+                                workId: key,
+                                msgType: EPostMessageType.FullWork,
+                                dataType: EDataType.Service
+                            });
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            this.localWork.fullLayer = this.drawLayer;
+            this.localWork.drawLayer = undefined;
+            let options;
+            if (w && h) {
+                options = {
+                    resizeWidth: w,
+                    resizeHeight: h,
+                };
+            }
+            this.snapshotFullLayer.parent.render();
+            const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options);
+            if (imageBitmap) {
+                SubWorkThreadEngineByWorker._self.postMessage({
+                    sp: [{
+                            type: EPostMessageType.Snapshot,
+                            scenePath,
+                            imageBitmap,
+                        }]
+                }, [imageBitmap]);
+                imageBitmap.close();
+                this.snapshotFullLayer.removeAllChildren();
+                this.setCameraOpt(curCameraOpt, this.drawLayer);
+            }
+        }
     }
 }
 Object.defineProperty(SubWorkThreadEngineByWorker, "_self", {

@@ -359,3 +359,4 @@ export declare function toFixed(v: number): number;
  * @public
  */
 export declare const isSafeFloat: (n: number) => boolean;
+export declare const requestAsyncCallBack: (callBack: () => void, timeout: number) => Promise<void>;

@@ -1,29 +1,29 @@
-import type {EventEmitter2} from "eventemitter2";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MainEngineForWorker } from "../worker/main";
 import { BaseCollector } from "../../collector";
 import { IWorkerMessage } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
+import { requestAsyncCallBack } from "../utils";
+import { UndoRedoMethod } from "../../undo";
+import { BezierPencilDisplayer } from "../../plugin";
 
 export abstract class BaseMsgMethod {
-    static dispatch(emt: EventEmitter2, emtType: InternalMsgEmitterType, emitEventType:EmitEventType, value: unknown) {
-        emt?.emit([emtType, emitEventType], value);
+    static dispatch(emtType: InternalMsgEmitterType, emitEventType:EmitEventType, value: unknown) {
+        BezierPencilDisplayer.InternalMsgEmitter?.emit([emtType, emitEventType], value);
     }
     abstract readonly emitEventType: EmitEventType;
     emtType: InternalMsgEmitterType | undefined;
-    emitter: EventEmitter2 | undefined;
     mainEngine: MainEngineForWorker | undefined;
     serviceColloctor: BaseCollector | undefined;
-    registerForMainEngine(emt: EventEmitter2, emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector) {
-        this.emitter = emt;
+    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector) {
         this.emtType = emtType;
         this.mainEngine = main;
         this.serviceColloctor = serviceColloctor;
-        this.emtType && this.emitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
+        BezierPencilDisplayer.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }
     destroy() {
-        this.emtType && this.emitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
+        this.emtType && BezierPencilDisplayer.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
     }
     collectForLocalWorker(data: IWorkerMessage[] ): void {
         data.forEach(d=>{
@@ -32,11 +32,14 @@ export abstract class BaseMsgMethod {
         this.mainEngine?.runAnimation();
     }
     collectForServiceWorker(actions: BaseCollectorReducerAction[]): void {
-        requestIdleCallback(()=>{
+        requestAsyncCallBack(()=>{
             actions.forEach(action=>{
-                this.serviceColloctor?.dispatch(action)
+                this.serviceColloctor?.dispatch(action);
+                if (action.undoTickerId) {
+                    UndoRedoMethod.emitter.emit("undoTickerEnd", action.undoTickerId);
+                }
             })
-        }, {timeout: MainEngineForWorker.maxLastSyncTime});
+        }, MainEngineForWorker.maxLastSyncTime);
     }
     abstract collect(data: unknown): void;
 }

@@ -34,7 +34,7 @@ export const RotateBtn = (props:{
         setAngle(a);
         setRotateState(true);
         // console.log('onDragStartHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Start})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
@@ -47,7 +47,7 @@ export const RotateBtn = (props:{
         setRotateState(false);
         setShowRotateBtn(false);
         // console.log('onDragEndHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Done})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
@@ -58,7 +58,7 @@ export const RotateBtn = (props:{
         setAngle(a);
         setRotateState(true);
         // console.log('onDragHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Doing})
     }, 100, {'leading':false})
     return (

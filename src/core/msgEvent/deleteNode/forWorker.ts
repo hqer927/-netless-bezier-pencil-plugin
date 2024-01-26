@@ -16,7 +16,6 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         if (msgType !== EPostMessageType.RemoveNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
             this.consumeForLocalWorker(data);
-            // this.localWork?.computNodeMap();
             return true;
         }
         if (dataType === EDataType.Service && emitEventType === this.emitEventType) {
@@ -63,13 +62,15 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         }
         if(rect && willRefresh) {
             this.localWork._post({
-                render: {
-                    rect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    isFullWork: true,
-                }
+                render: [
+                    {
+                        rect,
+                        drawCanvas: ECanvasShowType.Bg,
+                        clearCanvas: ECanvasShowType.Bg,
+                        isClear: true,
+                        isFullWork: true,
+                    }
+                ]
             })
         }
     }

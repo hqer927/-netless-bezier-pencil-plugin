@@ -1,4 +1,3 @@
-import EventEmitter2 from 'eventemitter2';
 import { EmitEventType, InternalMsgEmitterType } from '../../plugin/types';
 import { ZIndexActiveMethod } from './activeZIndex/forMain';
 import { BaseMsgMethod } from './base';
@@ -39,10 +38,10 @@ export class MethodBuilderMain {
        }
        return undefined
     }
-    registerForMainEngine(emt: EventEmitter2, emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector){
+    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector){
         this.builders.forEach(builder=>{
             if (builder) {
-                builder.registerForMainEngine(emt, emtType, main, serviceColloctor)
+                builder.registerForMainEngine(emtType, main, serviceColloctor)
             }
         })
         return this;
@@ -54,8 +53,8 @@ export class MethodBuilderMain {
             }
         })
     }
-    static emitMethod(emt: EventEmitter2, emtType: InternalMsgEmitterType, type: EmitEventType, data: unknown) {
-        BaseMsgMethod.dispatch(emt, emtType, type, data)
+    static emitMethod(emtType: InternalMsgEmitterType, type: EmitEventType, data: unknown) {
+        BaseMsgMethod.dispatch(emtType, type, data)
         return undefined
     }
 }

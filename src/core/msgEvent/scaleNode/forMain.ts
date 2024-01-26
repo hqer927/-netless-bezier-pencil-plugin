@@ -5,6 +5,7 @@ import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
 import { BaseShapeOptions, SelectorShape } from "../../tools";
+import { UndoRedoMethod } from "../../../undo";
 
 export type ScaleNodeEmtData = {
     workIds: IworkId[],
@@ -16,6 +17,7 @@ export type ScaleNodeEmtData = {
 }
 export class ScaleNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.ScaleNode;
+    private undoTickerId?:number;
     collect(data: ScaleNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
@@ -26,6 +28,12 @@ export class ScaleNodeMethod extends BaseMsgMethod {
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         const selectIds: string[] = [];
+        const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
+        // console.log('ScaleNode', undoTickerId)
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        }
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -43,7 +51,7 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                 if (curStore.selectIds) {
                     selectIds.push(...curStore.selectIds);
                     // keys.push(...selector.selectIds);
-                    if (workState !== EvevtWorkState.Start) {
+                    // if (workState !== EvevtWorkState.Start) {
                         const updateNodeOpt = curStore.updateNodeOpt || {}
                         updateNodeOpt.size = size;
                         updateNodeOpt.workState = workState;
@@ -79,11 +87,13 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                             })
                             taskData.selectStore = subStore;
                             taskData.willSerializeData = true;
+                            taskData.undoTickerId = this.undoTickerId;
                         }
                         localMsgs.push(taskData)
-                    }
+                        continue;
+                    // /}
+
                 }
-                continue;
             }
             if (curStore) {
                 const opt = curStore.opt;
@@ -115,11 +125,11 @@ export class ScaleNodeMethod extends BaseMsgMethod {
             }
         }
         if (localMsgs.length) {
-            //console.log('localMsgs', localMsgs)
+            // console.log('ScaleNode1', localMsgs[0].updateNodeOpt?.workState)
             this.collectForLocalWorker(localMsgs);
         }
         if (serviceMsgs.length) {
-            //console.log('serviceMsgs', serviceMsgs)
+            // console.log('ScaleNode2', serviceMsgs.length)
             this.collectForServiceWorker(serviceMsgs);
         }
     }

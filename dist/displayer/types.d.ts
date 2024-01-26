@@ -10,4 +10,6 @@ export type ShowFloatBarMsgValue = {
     opacity?: number;
     nodeColor?: string;
     selectIds?: string[];
+    canvasWidth?: number;
+    canvasHeight?: number;
 };

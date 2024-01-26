@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box2d } from './primitives/Box2d';
 import { Vec2d } from './primitives/Vec2d';
 export * from "./math";
@@ -655,4 +656,22 @@ export function toFixed(v) {
  */
 export const isSafeFloat = (n) => {
     return Math.abs(n) < Number.MAX_SAFE_INTEGER;
+};
+export const requestAsyncCallBack = (callBack, timeout) => {
+    return new Promise(function (resolve) {
+        if (window.requestIdleCallback) {
+            requestIdleCallback(() => {
+                resolve(1);
+            }, { timeout });
+        }
+        else {
+            setTimeout(() => {
+                resolve(2);
+            }, timeout);
+        }
+    }).then(function () {
+        callBack();
+    }, () => {
+        callBack();
+    });
 };

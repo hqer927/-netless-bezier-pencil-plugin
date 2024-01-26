@@ -18,18 +18,18 @@ export const Layer = () => {
                 React.createElement(SubBtn, { icon: 'to-top', onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
                     }, onTouchEndHandler: (e) => {
                         e.stopPropagation();
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: +11 });
                     } }),
                 React.createElement(SubBtn, { icon: 'to-bottom', onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
                     }, onTouchEndHandler: (e) => {
                         e.stopPropagation();
-                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
+                        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexNode, { workIds: ['selector'], num: -11 });
                     } })));
         }
         return null;
@@ -40,20 +40,20 @@ export const Layer = () => {
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(!showSubBtn);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive });
     };
     const onTouchEndHandler = (e) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(!showSubBtn);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive });
     };
     useEffect(() => {
         return () => {
             if (showSubBtn) {
                 //console.log('isActive111', showSubBtn)
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive: false });
+                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: 'selector', isActive: false });
             }
         };
     }, [InternalMsgEmitter, showSubBtn, floatBarData?.x, floatBarData?.y]);

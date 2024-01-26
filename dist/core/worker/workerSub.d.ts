@@ -1,30 +1,31 @@
 import { WorkThreadEngine } from "../base";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IWorkerMessage } from "../types";
 import { EDataType } from "../enum";
-import { Scene, Group } from "spritejs";
+import type { Scene, Group } from "spritejs";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
 export declare class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     protected cameraOpt?: Pick<ICameraOpt, "scale" | "centerX" | "centerY"> | undefined;
     static _self: Worker;
-    private lockId?;
     protected dpr: number;
     protected scene: Scene;
     protected drawLayer: Group;
     protected fullLayer: Group;
+    protected snapshotFullLayer: Group;
     protected localWork: SubLocalDrawWorkForWorker;
     constructor();
     private init;
-    getOffscreen(): OffscreenCanvas;
+    getOffscreen(isSnapshot: boolean): OffscreenCanvas;
     private register;
     setToolsOpt(opt: IActiveToolsDataType): void;
     setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
     private clearAll;
     private setCameraOpt;
     private getRectImageBitmap;
-    post(msg: IBatchMainMessage): void;
+    private safariFixRect;
+    post(msg: IBatchMainMessage): Promise<void>;
     on(callBack: (msg: IterableIterator<IWorkerMessage>) => void): void;
     consumeDraw(type: EDataType, data: IWorkerMessage): undefined;
     consumeDrawAll(_type: EDataType, data: IWorkerMessage): undefined;
-    consumeFull(): void;
+    private getSnapshot;
 }
 export declare const worker: SubWorkThreadEngineByWorker;

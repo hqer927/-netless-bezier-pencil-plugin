@@ -3,7 +3,7 @@ import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOp
 import { EDataType } from "../enum";
 import { SubLocalWorkForWorker } from "./local";
 import { SubServiceWorkForWorker } from "./service";
-import { Scene, Group } from "spritejs";
+import type { Scene, Group } from "spritejs";
 export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     protected cameraOpt?: Required<Pick<ICameraOpt, "scale" | "centerX" | "centerY">> | undefined;
     static _self: Worker;
@@ -11,6 +11,7 @@ export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     protected scene: Scene;
     protected drawLayer: Group;
     protected fullLayer: Group;
+    protected snapshotFullLayer: Group;
     protected localWork: SubLocalWorkForWorker;
     protected serviceWork: SubServiceWorkForWorker;
     private methodBuilder?;
@@ -24,7 +25,8 @@ export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     private clearAll;
     private setCameraOpt;
     private getRectImageBitmap;
-    post(msg: IBatchMainMessage): void;
+    private safariFixRect;
+    post(msg: IBatchMainMessage): Promise<void>;
     on(callBack: (msg: IterableIterator<IWorkerMessage>) => void): void;
     consumeDraw(type: EDataType, data: IWorkerMessage): undefined;
     consumeDrawAll(type: EDataType, data: IWorkerMessage): void;

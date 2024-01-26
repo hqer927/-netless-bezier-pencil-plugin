@@ -67,13 +67,15 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
         if (willRefreshSelector) {
             //console.log('render', this.localWork?.fullLayer.children, this.localWork?.drawLayer?.children)
             this.localWork?._post({
-                render: {
-                    rect,
-                    drawCanvas: ECanvasShowType.Selector,
-                    clearCanvas: ECanvasShowType.Selector,
-                    isClear: true,
-                    isFullWork: false,
-                },
+                render: [
+                    {
+                        rect,
+                        drawCanvas: ECanvasShowType.Selector,
+                        clearCanvas: ECanvasShowType.Selector,
+                        isClear: true,
+                        isFullWork: false,
+                    }
+                ],
                 sp: [{
                         type: EPostMessageType.Select,
                         selectIds: workShapeNode.selectIds,
@@ -81,7 +83,8 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                         padding: SelectorShape.SelectBorderPadding,
                         selectRect: workShapeNode.oldSelectRect,
                         nodeColor: workShapeNode.nodeColor,
-                        willSyncService: false
+                        willSyncService: false,
+                        isSync: true
                     }]
             });
         }

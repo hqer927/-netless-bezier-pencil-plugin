@@ -8,17 +8,17 @@ export const Del = () => {
     const {InternalMsgEmitter} = useContext(DisplayerContext);
     return (
         <div className="button normal-button"
-            onClick={(e)=>{
-                e.preventDefault();
-                e.stopPropagation();
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.DeleteNode, {workIds: ['selector']})
-            }}
-	    onTouchEnd={(e)=>{
-                e.stopPropagation();
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.DeleteNode, {workIds: ['selector']})
-            }}
+        onClick={(e)=>{
+            e.preventDefault();
+            e.stopPropagation();
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+                EmitEventType.DeleteNode, {workIds: ['selector']})
+        }}
+        onTouchEnd={(e)=>{
+            e.stopPropagation();
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+                EmitEventType.DeleteNode, {workIds: ['selector']})
+        }}
         >
             <img alt="icon" src={IconURL('delete')}/>
         </div>

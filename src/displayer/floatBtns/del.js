@@ -8,10 +8,10 @@ export const Del = () => {
     return (React.createElement("div", { className: "button normal-button", onClick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode, { workIds: ['selector'] });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode, { workIds: ['selector'] });
         }, onTouchEnd: (e) => {
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode, { workIds: ['selector'] });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.DeleteNode, { workIds: ['selector'] });
         } },
         React.createElement("img", { alt: "icon", src: IconURL('delete') })));
 };

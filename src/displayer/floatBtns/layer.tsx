@@ -27,12 +27,12 @@ export const Layer = () => {
                         onClickHandler={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
                         }}
                         onTouchEndHandler={(e) => {
                             e.stopPropagation();
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
                         }}
                     />
@@ -40,12 +40,12 @@ export const Layer = () => {
                         onClickHandler={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
                         }}
                         onTouchEndHandler={(e) => {
                             e.stopPropagation();
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
                         }}
                     />
@@ -60,7 +60,7 @@ export const Layer = () => {
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(!showSubBtn)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.ZIndexActive, {workId:'selector', isActive})
     }
     const onTouchEndHandler = (e:any) => {
@@ -68,14 +68,14 @@ export const Layer = () => {
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(!showSubBtn)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.ZIndexActive, {workId:'selector', isActive})
     }
     useEffect(()=>{
         return ()=> {
             if (showSubBtn) {
                 //console.log('isActive111', showSubBtn)
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                     EmitEventType.ZIndexActive, {workId:'selector', isActive:false})
             }
         }

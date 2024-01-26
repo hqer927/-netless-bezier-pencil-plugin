@@ -9,5 +9,6 @@ export type RotateNodeEmtData = {
 };
 export declare class RotateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;
+    private undoTickerId?;
     collect(data: RotateNodeEmtData): void;
 }

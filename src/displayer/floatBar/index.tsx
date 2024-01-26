@@ -18,7 +18,7 @@ export const FloatBar = React.forwardRef((props:{
         e.preventDefault();
         e.stopPropagation();
         // console.log('onDragStartHandler', position)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.TranslateNode, {workIds: ['selector'], position, workState: EvevtWorkState.Start})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
@@ -29,7 +29,7 @@ export const FloatBar = React.forwardRef((props:{
         const p = {x:pos.x, y:pos.y};
         setPosition(p)
         // console.log('onDragEndHandler', p)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Done})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
@@ -40,7 +40,7 @@ export const FloatBar = React.forwardRef((props:{
         if (pos.x !== position?.x || pos.y!== position?.y) {
             setPosition(p)
             // console.log('onDragHandler', p)
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, 
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Doing})
         }
     }, 100, {'leading':false})
@@ -68,14 +68,15 @@ export const FloatBar = React.forwardRef((props:{
                     }
                 >
                     { FloatBtnsUI }
-                    <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"
+                    <div className="bezier-pencil-plugin-floatCanvas-box" 
                         style={{
-                                width: '100%',
-                                height: '100%',
-                                transform: `rotate(${angle}deg)`,
-                            }
-                        }
-                    />
+                            width: '100%',
+                            height: '100%',
+                            transform: `rotate(${angle}deg)`,
+                        }}
+                    >
+                        <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"/>
+                    </div>
                     {!isRotating && <HightLightBox />}
                 </div>
         </Draggable>

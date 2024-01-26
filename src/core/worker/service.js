@@ -261,42 +261,43 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             }
         });
         if (isNext) {
-            // this.animationId = requestAnimationFrame(this.animationDraw.bind(this))
             this.runAnimation();
         }
+        const _postData = {
+            render: [],
+        };
         if (rect) {
             // console.log('animationDraw1', rect)
-            this._post({ render: {
-                    rect,
-                    drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                    isClear: isFullWork,
-                    clearCanvas: ECanvasShowType.Float,
-                    isFullWork
-                } });
+            _postData.render?.push({
+                rect,
+                drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                isClear: isFullWork,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork
+            });
         }
         if (clearRect) {
-            Promise.resolve().then(() => {
-                // console.log('animationDraw2', clearRect)
-                this._post({ render: {
-                        rect: clearRect,
-                        drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                        isClear: true,
-                        clearCanvas: ECanvasShowType.Float,
-                        isFullWork
-                    } });
+            // console.log('animationDraw2', clearRect)
+            _postData.render?.push({
+                rect: clearRect,
+                drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork
             });
         }
         if (noAnimationRect) {
-            Promise.resolve().then(() => {
-                // console.log('animationDraw3', noAnimationRect)
-                this._post({ render: {
-                        rect: noAnimationRect,
-                        drawCanvas: ECanvasShowType.Bg,
-                        isClear: true,
-                        clearCanvas: ECanvasShowType.Bg,
-                        isFullWork: true
-                    } });
+            // console.log('animationDraw3', noAnimationRect)
+            _postData.render?.push({
+                rect: noAnimationRect,
+                drawCanvas: ECanvasShowType.Bg,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Bg,
+                isFullWork: true
             });
+        }
+        if (_postData.render?.length) {
+            this._post(_postData);
         }
     }
     runEffect() {
@@ -359,13 +360,15 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             }
         });
         if (rect) {
-            this._post({ render: {
-                    rect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true
-                } });
+            this._post({ render: [
+                    {
+                        rect,
+                        drawCanvas: ECanvasShowType.Bg,
+                        isClear: true,
+                        clearCanvas: ECanvasShowType.Bg,
+                        isFullWork: true
+                    }
+                ] });
         }
         this.willRunEffectSelectorIds.clear();
         this.noAnimationRect = undefined;
@@ -406,13 +409,15 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (rect) {
             this._post({
-                render: {
-                    rect,
-                    isClear: true,
-                    isFullWork,
-                    clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                    drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float
-                }
+                render: [
+                    {
+                        rect,
+                        isClear: true,
+                        isFullWork,
+                        clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                        drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float
+                    }
+                ]
             });
             this.curNodeMap.delete(key);
         }

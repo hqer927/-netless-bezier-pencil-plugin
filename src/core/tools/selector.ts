@@ -17,6 +17,7 @@ type CurNodeMapItem = {
     pos: [number,number];
     rotate: number;
     scale: [number,number];
+    opactiy: number;
 }
 type ComputSelectorResult = {
     intersectRect?: IRectType;
@@ -40,20 +41,17 @@ export class SelectorShape extends BaseShapeTool{
     public oldRect?: IRectType;
     static SelectBorderPadding = 2;
     public nodeColor?: string;
+    public nodeOpactiy?: number;
     public oldSelectRect?: IRectType;
-    public worldPosition:[number, number];
-    public worldScaling:[number, number];
     constructor(workOptions: SelectorOptions, fullLayer: Group, drawLayer?: Group) {
         super(fullLayer, drawLayer);
         this.workOptions = workOptions as SelectorOptions;
         this.syncTimestamp = 0;
-        this.worldPosition = this.fullLayer.worldPosition as [number, number];
-        this.worldScaling = this.fullLayer.worldScaling as [number, number];
     }
     computNodeMap(nodeMaps: Map<string, BaseNodeMapItem>) {
         this.curNodeMap.clear();
         nodeMaps.forEach(v => {
-            const c = this.fullLayer.getElementsByName(v.name)[0];
+            const c = this.fullLayer.getElementsByName(v.name)[0] || this.drawLayer?.getElementsByName(v.name)[0];
             if (c) {
                 const gPos = c.worldPosition as [number, number];
                 let color:string = c.getAttribute('strokeColor');
@@ -71,7 +69,8 @@ export class SelectorShape extends BaseShapeTool{
                     color: colorRGBA2Hex(color)[0],
                     pos: gPos,
                     rotate: c.getAttribute('rotate') || 0,
-                    scale:c.getAttribute('scale') || [1,1],
+                    scale: c.getAttribute('scale') || [1,1],
+                    opactiy: c.getAttribute('opacity') || 1,
                 })
             }
         })
@@ -82,6 +81,7 @@ export class SelectorShape extends BaseShapeTool{
         const selectIds:string[] = [];
         const subRects: Map<string,IRectType> = new Map();
         const nodeColors:Set<string> = new Set();
+        const opactiys:Set<number> = new Set();
         const subPos: Map<string,[number,number,number]> = new Map();
         if (this.tmpPoints.length && this.curNodeMap.size) {
             const interRect = getRectFromPoints(this.tmpPoints);
@@ -104,6 +104,7 @@ export class SelectorShape extends BaseShapeTool{
                     subRects.set(key,localR);
                     nodeColors.add(item.color);
                     subPos.set(key,[...item.pos, item.rotate]);
+                    opactiys.add(item.opactiy);
                 }
             })
         }
@@ -112,14 +113,15 @@ export class SelectorShape extends BaseShapeTool{
             intersectRect,
             subRects,
             nodeColors,
-            subPos
+            subPos,
+            opactiys
         }
     }
     private updateTempPoints(globalPoints:number[]) {
         const length = this.tmpPoints.length;
         const gl = globalPoints.length;
         if (gl > 1) {
-            const nPoint = new Point2d(globalPoints[gl-2] * this.worldScaling[0]  + this.worldPosition[0], globalPoints[gl-1] * this.worldScaling[0] + this.worldPosition[1]);
+            const nPoint = new Point2d(globalPoints[gl-2] * this.fullLayer.worldScaling[0]  + this.fullLayer.worldPosition[0], globalPoints[gl-1] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[1]);
             if (length === 2 ) {
                 this.tmpPoints.splice(1, 1, nPoint);
             } else {
@@ -143,9 +145,9 @@ export class SelectorShape extends BaseShapeTool{
     }
     consume(props:{data: IWorkerMessage, nodeMaps?: Map<string, BaseNodeMapItem>}): IMainMessage {
         const { op, workState }= props.data;
-        if (workState === EvevtWorkState.Start) {
-            this.oldRect = this.backToFullLayer();
-            props.nodeMaps && this.computNodeMap(props.nodeMaps);
+        if (workState === EvevtWorkState.Start && props.nodeMaps) {
+            this.computNodeMap(props.nodeMaps);
+            this.oldRect = this.backToFullLayer(props.nodeMaps);
         }
         if (!op?.length || !this.curNodeMap.size) {
             return { type: EPostMessageType.None}
@@ -166,6 +168,7 @@ export class SelectorShape extends BaseShapeTool{
         this.oldRect = computRect(oldRect, rect);
         this.draw(result);
         this.nodeColor = result.nodeColors.size === 1 ? result.nodeColors.values().next().value : undefined;
+        this.nodeOpactiy = result.opactiys.size === 1 ? result.opactiys.values().next().value : 1;
         this.oldSelectRect = rect;
         return {
             type: EPostMessageType.Select,
@@ -176,12 +179,13 @@ export class SelectorShape extends BaseShapeTool{
             padding: SelectorShape.SelectBorderPadding,
             selectRect: rect,
             nodeColor: this.nodeColor,
+            nodeOpactiy: this.nodeOpactiy,
             willSyncService: true,
         }
     }
     consumeAll(): IMainMessage {
         if (this.selectIds?.length) {
-            this.sealToDrawLayer();
+            this.sealToDrawLayer(this.selectIds);
         }
         // console.log('consume0-0', (this.drawLayer?.parent as Layer).getElementsByName(SelectorShape.selectorId).length, this.selectIds?.length, this.workOptions, this.oldRect, this.oldSelectRect)
         if (this.oldSelectRect) {
@@ -194,6 +198,7 @@ export class SelectorShape extends BaseShapeTool{
                 padding: SelectorShape.SelectBorderPadding,
                 selectRect:  this.oldSelectRect,
                 nodeColor: this.nodeColor,
+                nodeOpactiy: this.nodeOpactiy,
                 willSyncService: false,
             }
         }
@@ -213,11 +218,14 @@ export class SelectorShape extends BaseShapeTool{
         this.oldRect = undefined;
         this.oldSelectRect = undefined;
     }
-    private backToFullLayer(): IRectType | undefined {
+    private backToFullLayer(nodeMaps: Map<string, BaseNodeMapItem> = new Map(), backToFullIds?:string[]): IRectType | undefined {
         let rect:IRectType | undefined;
         const cloneNodes:Array<Group | Path> = [];
         const removeNodes:Array<Group | Path> = [];
-        this.drawLayer?.children.forEach(c=>{
+        for (const c of this.drawLayer?.children || []) {
+            if (backToFullIds?.length && !backToFullIds.includes(c.id) ) {
+                continue;
+            }
             if (c.id !== SelectorShape.selectorId) {
                 const cloneP = c.cloneNode(true) as (Path | Group);
                 if (cloneP.tagName === 'GROUP') {
@@ -228,12 +236,12 @@ export class SelectorShape extends BaseShapeTool{
                 }
                 cloneNodes.push(cloneP);
                 removeNodes.push(c);
-                const r = getNodeRect(c.name, this.drawLayer)
+                const r = nodeMaps.get(c.name)?.rect || getNodeRect(c.name, this.drawLayer)
                 if (r) {
                     rect = computRect(rect, r);
                 }
             }
-        })
+        }
         removeNodes.forEach(r=>r.remove());
         cloneNodes.length && this.fullLayer.append(...cloneNodes);
         if (rect) {
@@ -242,13 +250,12 @@ export class SelectorShape extends BaseShapeTool{
             rect.w += SelectorShape.SelectBorderPadding * 2;
             rect.h += SelectorShape.SelectBorderPadding * 2;
         }
-        //console.log('backToFullLayer', rect, this.drawLayer?.children.map(c=>c.name), this.fullLayer.children.map(c=>c.name))
         return rect;
     }
-    private sealToDrawLayer() {
+    private sealToDrawLayer(sealToDrawIds:string[]) {
         const cloneNodes:Array<Path | Group> = [];
         const removeNodes:Array<Path | Group> = [];
-        this.selectIds?.forEach(name => {
+        sealToDrawIds.forEach(name => {
             this.fullLayer.getElementsByName(name.toString()).forEach(c=>{
                 const cloneP = c.cloneNode(true) as (Path | Group);
                 if (cloneP.tagName === 'GROUP') {
@@ -263,7 +270,6 @@ export class SelectorShape extends BaseShapeTool{
         });
         removeNodes.forEach(r=>r.remove());
         cloneNodes && this.drawLayer?.append(...cloneNodes);
-        //console.log('sealToDrawLayer1', this.oldRect, this.fullLayer.children.map(c=>c.name), this.drawLayer?.children.map(c=>c.name))
     }
     private updateSelectorSize(g:Group, w:number, h:number){
         const selectGlobalPos: Map<string, [number, number, number, number]> = new Map();
@@ -368,8 +374,8 @@ export class SelectorShape extends BaseShapeTool{
             let translate: [number,number] | undefined;
             if (updateSelectorOpt.pos) {
                 const globalPoints = [
-                    updateSelectorOpt.pos[0] * this.worldScaling[0] + this.worldPosition[0], 
-                    updateSelectorOpt.pos[1] * this.worldScaling[1] + this.worldPosition[1]
+                    updateSelectorOpt.pos[0] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0], 
+                    updateSelectorOpt.pos[1] * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1]
                 ];
                 const gPos = g.getAttribute('pos');
                 translate = [globalPoints[0] - gPos[0], globalPoints[1] - gPos[1]];
@@ -408,7 +414,7 @@ export class SelectorShape extends BaseShapeTool{
                             };
                             if (updateSelectorOpt.pos && translate) {
                                 const cPos = c.getAttribute('pos');
-                                itemOpt.pos = [translate[0] / this.worldScaling[0] + cPos[0] , translate[1] / this.worldScaling[0] + cPos[1]];
+                                itemOpt.pos = [translate[0] / this.fullLayer.worldScaling[0] + cPos[0] , translate[1] / this.fullLayer.worldScaling[0] + cPos[1]];
                                 itemOpt.originPos = c.className.split(',').map(c=>Number(c)) as [number,number];
                                 // console.log('translate', translate, cPos, itemOpt.pos, itemOpt.originPos )
                                 c.setAttribute('pos',itemOpt.pos)
@@ -454,7 +460,7 @@ export class SelectorShape extends BaseShapeTool{
                                     select[3] * oldScale[1]
                                 ];
                                 itemOpt.originPos = c.className.split(',').map(c=>Number(c)) as [number,number];
-                                itemOpt.pos = [(select[0] - this.worldPosition[0]) / this.worldScaling[0], (select[1] - this.worldPosition[1]) / this.worldScaling[1]];
+                                itemOpt.pos = [(select[0] - this.fullLayer.worldPosition[0]) / this.fullLayer.worldScaling[0], (select[1] - this.fullLayer.worldPosition[1]) / this.fullLayer.worldScaling[1]];
                                 // console.log('select', select, itemOpt.pos)
                                 itemOpt.scale = scale;
                                 c.setAttribute('pos', itemOpt.pos);
@@ -496,8 +502,8 @@ export class SelectorShape extends BaseShapeTool{
         }
         return;
     }
-    blurSelector(){
-        const rect = this.backToFullLayer();
+    blurSelector(nodeMaps: Map<string, BaseNodeMapItem>){
+        const rect = this.backToFullLayer(nodeMaps);
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
@@ -564,7 +570,7 @@ export class SelectorShape extends BaseShapeTool{
         (layer?.parent as Layer).appendChild(group);
         // console.log('layer?.parent', layer?.parent)
     }
-    selectServiceNode(workId:string, workItem: IServiceWorkItem, curNodeMap: Map<string, BaseNodeMapItem>) {
+    selectServiceNode(workId:string, workItem: Pick<IServiceWorkItem, 'selectIds'>, curNodeMap: Map<string, BaseNodeMapItem>) {
         const {selectIds} = workItem;
         const rightWorkId = this.getRightServiceId(workId);
         const oldRect:IRectType | undefined = this.getSelectorRect(this.fullLayer, rightWorkId, true);
@@ -630,7 +636,42 @@ export class SelectorShape extends BaseShapeTool{
             subRects,
             subPos
         });
+        if (rect) {
+            rect.x -= SelectorShape.SelectBorderPadding;
+            rect.y -= SelectorShape.SelectBorderPadding;
+            rect.w += SelectorShape.SelectBorderPadding * 2;
+            rect.h += SelectorShape.SelectBorderPadding * 2;
+        }
         this.oldSelectRect = rect;
         return rect;
+    }
+    updateSelectIds(nextSelectIds:string[], nodeMaps: Map<string, BaseNodeMapItem> ){
+        let bgRect:IRectType|undefined;
+        const backToFullIds = this.selectIds?.filter(id=>!nextSelectIds.includes(id));
+        const sealToDrawIds = nextSelectIds.filter(id=>!this.selectIds?.includes(id));
+        if (backToFullIds?.length) {
+            bgRect = this.backToFullLayer(nodeMaps, backToFullIds);
+        }
+        if (sealToDrawIds.length) {
+            this.sealToDrawLayer(sealToDrawIds);
+            for (const id of sealToDrawIds) {
+                const r = nodeMaps.get(id)?.rect;
+                if (r) {
+                    bgRect = computRect(bgRect, r);
+                }
+            }
+            if (bgRect) {
+                bgRect.x -= SelectorShape.SelectBorderPadding;
+                bgRect.y -= SelectorShape.SelectBorderPadding;
+                bgRect.w += SelectorShape.SelectBorderPadding * 2;
+                bgRect.h += SelectorShape.SelectBorderPadding * 2;
+            }
+        }
+        this.selectIds = nextSelectIds;
+        const selectRect = this.getSelector(nodeMaps);
+        return {
+            bgRect,
+            selectRect
+        } 
     }
 }

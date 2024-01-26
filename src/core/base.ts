@@ -4,7 +4,7 @@ import { BaseCollectorReducerAction, DiffOne } from "../collector/types";
 import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "./enum";
 import { BaseShapeOptions, BaseShapeTool, EraserOptions, EraserShape, PencilOptions, PencilShape, SelectorOptions, SelectorShape } from "./tools";
 import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
-import { Group, Scene } from "spritejs";
+import { Group, Layer, Scene } from "spritejs";
 import { LaserPenOptions, LaserPenShape } from "./tools/laserPen";
 import { BezierPencilDisplayer } from "../plugin";
 import { getNodeRect } from "./utils";
@@ -40,7 +40,7 @@ export abstract class MainEngine {
     public dustbin: Set<unknown> = new Set();
 
     protected constructor(displayer: BezierPencilDisplayer, collector:BaseCollector) {
-        this.displayer= displayer;
+        this.displayer = displayer;
         this.collector = collector;
     }
     /** 设置当前选中的工具配置数据 */
@@ -84,6 +84,7 @@ export abstract class WorkThreadEngine {
     protected abstract scene: Scene;
     protected abstract drawLayer: Group;
     protected abstract fullLayer: Group;
+    protected abstract snapshotFullLayer: Group;
     protected abstract cameraOpt?: Pick<ICameraOpt, 'centerX'|'centerY'|'scale'>;
     curNodeMap: Map<string, BaseNodeMapItem> = new Map();
     abstract getOffscreen(isFullWork:boolean):OffscreenCanvas;
@@ -96,15 +97,28 @@ export abstract class WorkThreadEngine {
         (this.scene.container as unknown as OffscreenCanvas).height = height;
         this.scene.width = width;
         this.scene.height = height;
-        // this.scene.forceUpdate();
         this.updateLayer({width, height});
     }
     protected updateLayer(layerOpt:Required<Pick<ILayerOptionType, 'width' | 'height'>>) {
         const { width, height } = layerOpt;
-        this.fullLayer?.setAttribute('size',[width, height]);
-        this.fullLayer?.setAttribute('pos',[width * 0.5, height * 0.5]);
-        this.drawLayer?.setAttribute('size',[width, height]);
-        this.drawLayer?.setAttribute('pos',[width * 0.5, height * 0.5]);
+        if (this.fullLayer) {
+            (this.fullLayer.parent as Layer).setAttribute('width', width);
+            (this.fullLayer.parent as Layer).setAttribute('height', height);
+            this.fullLayer.setAttribute('size',[width, height]);
+            this.fullLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
+        if (this.drawLayer) {
+            (this.drawLayer.parent as Layer).setAttribute('width', width);
+            (this.drawLayer.parent as Layer).setAttribute('height', height);
+            this.drawLayer.setAttribute('size',[width, height]);
+            this.drawLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
+        if (this.snapshotFullLayer) {
+            (this.snapshotFullLayer.parent as Layer).setAttribute('width', width);
+            (this.snapshotFullLayer.parent as Layer).setAttribute('height', height);
+            this.snapshotFullLayer.setAttribute('size',[width, height]);
+            this.snapshotFullLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
     }
     protected createScene(opt:IOffscreenCanvasOptionType) {
         const { width, height } = opt;
@@ -117,10 +131,10 @@ export abstract class WorkThreadEngine {
             ...opt,
         });
     }
-    protected createLayer(opt:Required<Pick<ILayerOptionType, 'width' | 'height'>> & Omit<ILayerOptionType, 'width' | 'height'>) {
+    protected createLayer(scene:Scene, opt:Required<Pick<ILayerOptionType, 'width' | 'height'>> & Omit<ILayerOptionType, 'width' | 'height'>) {
         const {width, height} = opt;
         const sy = "offscreen"+ Date.now();
-        const layer = this.scene.layer(sy, opt);
+        const layer = scene.layer(sy, opt);
         const group = new Group({
             anchor:[0.5, 0.5],
             pos:[width * 0.5, height * 0.5],
@@ -139,7 +153,6 @@ export abstract class WorkThreadEngine {
     protected abstract on(callBack:(e:IterableIterator<IWorkerMessage>, isFullRender?:boolean)=>void):void;
     protected abstract consumeDraw(type: EDataType, data:IWorkerMessage):void;
     protected abstract consumeDrawAll(type: EDataType, data:IWorkerMessage):void;
-    protected abstract consumeFull(type: EDataType, data:IWorkerMessage):void;
 }
 export abstract class SubLocalWork {
     fullLayer: Group;
@@ -154,7 +167,7 @@ export abstract class SubLocalWork {
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
     }
-    abstract _post:(msg: IBatchMainMessage) => void;
+    abstract _post:(msg: IBatchMainMessage) => Promise<void>;
     abstract consumeDraw(data:IWorkerMessage, serviceWork:SubServiceWorkForWorker): IMainMessage | undefined;
     abstract consumeDrawAll(data:IWorkerMessage, serviceWork:SubServiceWorkForWorker): IMainMessage | undefined;
     getWorkShape(workId:IworkId){
@@ -279,7 +292,7 @@ export abstract class SubLocalWork {
                 this.curNodeMap.delete(key);
            }
         }
-        //console.log('computNodeMap', this.curNodeMap)
+        // console.log('computNodeMap', this.curNodeMap)
     }
     updataNodeMap(param:{key:string, ops?:string, opt?:BaseShapeOptions, toolsType?:EToolsKey}){
         const {key,ops,opt, toolsType} = param;
@@ -315,19 +328,21 @@ export abstract class SubLocalWork {
     }
     rerRenderSelector(){
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
-        // console.log('rerRenderSelector', workShapeNode)
         if (!workShapeNode?.selectIds?.length) return;
         if (this.drawLayer) {
             const newRect = workShapeNode.getSelector(this.curNodeMap);
             if (newRect) {
+                // console.log('rerRenderSelector', newRect)
                 this._post({
-                    render: {
-                        rect: newRect,
-                        isClear:true,
-                        isFullWork:false,
-                        clearCanvas:ECanvasShowType.Selector,
-                        drawCanvas:ECanvasShowType.Selector,
-                    },
+                    render: [
+                        {
+                            rect: newRect,
+                            isClear:true,
+                            isFullWork:false,
+                            clearCanvas:ECanvasShowType.Selector,
+                            drawCanvas:ECanvasShowType.Selector,
+                        }
+                    ],
                     sp:[{
                         type: EPostMessageType.Select,
                         selectIds: workShapeNode.selectIds,

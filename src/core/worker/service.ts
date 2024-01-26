@@ -5,18 +5,18 @@ import { IServiceWorkItem, IWorkerMessage, IRectType, IBatchMainMessage, BaseNod
 import { computRect } from "../utils";
 import { transformToNormalData } from "../../collector/utils";
 import { LaserPenOptions, LaserPenShape } from "../tools/laserPen";
-import { Group, Path, Node } from "spritejs";
+import type { Group, Path, Node } from "spritejs";
 
 export class SubServiceWorkForWorker extends SubServiceWork {
     protected workShapes: Map<string, IServiceWorkItem> = new Map();
     protected animationId?: number | undefined;
     // private showRunSelectorEffect:boolean = false;
     selectorWorkShapes: Map<string, IServiceWorkItem> = new Map();
-    _post:(msg: IBatchMainMessage) => void;
+    _post:(msg: IBatchMainMessage) => Promise<void>;
     private willRunEffectSelectorIds: Set<string> = new Set;
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>void) {
+    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>Promise<void>) {
         super(curNodeMap, layer, drawLayer);
         this._post = postFun;
     }
@@ -226,42 +226,43 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             }
         })
         if (isNext) {
-            // this.animationId = requestAnimationFrame(this.animationDraw.bind(this))
             this.runAnimation();
+        }
+        const _postData:IBatchMainMessage = {
+            render:[],
         }
         if (rect) {
             // console.log('animationDraw1', rect)
-            this._post({render: {
+            _postData.render?.push({
                 rect,
                 drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
                 isClear: isFullWork,
                 clearCanvas: ECanvasShowType.Float,
                 isFullWork
-            }}) 
+            });
         }
         if (clearRect) {
-            Promise.resolve().then(()=>{
-                // console.log('animationDraw2', clearRect)
-                this._post({render: {
-                    rect: clearRect,
-                    drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Float,
-                    isFullWork
-                }})
-            }) 
+            // console.log('animationDraw2', clearRect)
+            _postData.render?.push({
+                rect: clearRect,
+                drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork
+            });
         }
         if (noAnimationRect) {
-            Promise.resolve().then(()=>{
-                // console.log('animationDraw3', noAnimationRect)
-                this._post({render: {
-                    rect: noAnimationRect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true
-                }}) 
-            }) 
+            // console.log('animationDraw3', noAnimationRect)
+            _postData.render?.push({
+                rect: noAnimationRect,
+                drawCanvas: ECanvasShowType.Bg,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Bg,
+                isFullWork: true
+            });
+        }
+        if (_postData.render?.length) {
+            this._post(_postData);
         }
     }
     private runEffect(){
@@ -323,13 +324,15 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             }
         })
         if (rect) {
-            this._post({render: {
-                rect,
-                drawCanvas: ECanvasShowType.Bg,
-                isClear: true,
-                clearCanvas: ECanvasShowType.Bg,
-                isFullWork: true
-            }})
+            this._post({render: [
+                {
+                    rect,
+                    drawCanvas: ECanvasShowType.Bg,
+                    isClear: true,
+                    clearCanvas: ECanvasShowType.Bg,
+                    isFullWork: true
+                }
+            ]})
         }
         this.willRunEffectSelectorIds.clear();
         this.noAnimationRect = undefined;
@@ -370,13 +373,15 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (rect) {
             this._post({
-                render:{
-                    rect,
-                    isClear:true,
-                    isFullWork,
-                    clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                    drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float
-                }
+                render:[
+                    {
+                        rect,
+                        isClear:true,
+                        isFullWork,
+                        clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                        drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float
+                    }
+                ]
             })
             this.curNodeMap.delete(key);
         }

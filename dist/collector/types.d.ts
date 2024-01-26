@@ -34,6 +34,9 @@ export interface INormalPushMsg {
     updateNodeOpt?: IUpdateNodeOpt;
     selectIds?: Array<string>;
     emitEventType?: EmitEventType;
+    /** 是否垂直同步 */
+    isSync?: boolean;
+    undoTickerId?: number;
 }
 export interface INormalStorageData {
     [key: string]: IStorageValueItem | undefined;

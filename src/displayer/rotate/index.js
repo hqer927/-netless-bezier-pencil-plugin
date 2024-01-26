@@ -30,7 +30,7 @@ export const RotateBtn = (props) => {
         setAngle(a);
         setRotateState(true);
         // console.log('onDragStartHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Start });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Start });
     };
     const onDragEndHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -41,7 +41,7 @@ export const RotateBtn = (props) => {
         setRotateState(false);
         setShowRotateBtn(false);
         // console.log('onDragEndHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Done });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Done });
     }, 100, { 'leading': false });
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -51,7 +51,7 @@ export const RotateBtn = (props) => {
         setAngle(a);
         setRotateState(true);
         // console.log('onDragHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitter, InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Doing });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Doing });
     }, 100, { 'leading': false });
     return (React.createElement(Draggable, { handle: ".bezier-pencil-plugin-rotate-mouse-pointer", onStart: onDragStartHandler, onDrag: onDragHandler, onStop: onDragEndHandler },
         React.createElement("div", { className: `${className}`, style: position && floatBarData ? {

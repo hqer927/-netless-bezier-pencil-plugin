@@ -1,6 +1,7 @@
 import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey } from "../enum";
 import { computRect } from "../utils";
+import { transformToNormalData } from "../../collector/utils";
 export class SubLocalDrawWorkForWorker extends SubLocalWork {
     constructor(curNodeMap, layer, postFun) {
         super(curNodeMap, layer);
@@ -90,14 +91,14 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 }
                 if (rect) {
                     this._post({
-                        render: {
-                            rect,
-                            drawCanvas: ECanvasShowType.Float,
-                            isClear: true,
-                            clearCanvas: ECanvasShowType.Float,
-                            isFullWork: false,
-                        },
-                        sp: sp.length ? sp : undefined
+                        render: [{
+                                rect,
+                                drawCanvas: ECanvasShowType.Float,
+                                isClear: true,
+                                clearCanvas: ECanvasShowType.Float,
+                                isFullWork: false,
+                            }],
+                        sp
                     });
                 }
             });
@@ -106,12 +107,12 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
     drawPencil(res) {
         this._post({
             drawCount: this.drawCount,
-            render: {
-                rect: res?.rect,
-                drawCanvas: ECanvasShowType.Float,
-                isClear: false,
-                isFullWork: false,
-            },
+            render: [{
+                    rect: res?.rect,
+                    drawCanvas: ECanvasShowType.Float,
+                    isClear: false,
+                    isFullWork: false,
+                }],
             sp: res?.op && [res]
         });
     }
@@ -191,5 +192,47 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
             }
         }
         return;
+    }
+    setFullWork(data) {
+        const { workId, opt, toolsType } = data;
+        if (workId && opt && toolsType) {
+            const curWorkShapes = (workId && this.workShapes.get(workId)) || this.createWorkShapeNode({
+                toolsOpt: opt,
+                toolsType
+            });
+            if (!curWorkShapes) {
+                return;
+            }
+            curWorkShapes.setWorkId(workId);
+            this.workShapes.set(workId, curWorkShapes);
+            return curWorkShapes;
+        }
+    }
+    runFullWork(data) {
+        const workShape = this.setFullWork(data);
+        const op = data.ops && transformToNormalData(data.ops);
+        if (workShape) {
+            workShape.consumeService({
+                op,
+                isFullWork: true,
+                replaceId: workShape.getWorkId()?.toString()
+            });
+            data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt);
+            if (data.workId) {
+                this.updataNodeMap({
+                    key: data.workId?.toString(),
+                    ops: data.ops,
+                    opt: data.opt,
+                    toolsType: data.toolsType,
+                });
+            }
+            data.workId && this.workShapes.delete(data.workId);
+        }
+    }
+    runSelectWork(data) {
+        const workShape = this.setFullWork(data);
+        if (workShape && data.selectIds?.length && data.workId) {
+            workShape.selectServiceNode(data.workId.toString(), { selectIds: data.selectIds }, this.curNodeMap);
+        }
     }
 }

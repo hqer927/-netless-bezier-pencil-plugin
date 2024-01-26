@@ -46,7 +46,9 @@ export declare class PencilShape extends BaseShapeTool {
     private computLineStroke;
     private computDotStroke;
     private transformData;
+    /** 压力渐变公式 */
     private computRadius;
+    private getMinZ;
     private getTaskPoints;
     private updateTempPointsWithPressure;
     private updateTempPoints;

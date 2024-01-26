@@ -1,13 +1,12 @@
 import { BezierPencilDisplayer } from "./bezierPencilDisplayer";
 import { Collector } from "../collector";
 import { DisplayStateEnum, EmitEventType, EStrokeType, InternalMsgEmitterType } from "./types";
-import { isRoom, toJS, ApplianceNames } from "white-web-sdk";
+import { isRoom, toJS, ApplianceNames, isPlayer } from "white-web-sdk";
 import { EToolsKey, EvevtWorkState } from "../core/enum";
-// import throttle from "lodash/throttle";
 import { rgbToHex } from "../collector/utils/color";
 import { MainEngineForWorker } from "../core";
 import throttle from "lodash/throttle";
-// import debounce from "lodash/debounce";
+import { UndoRedoMethod } from "../undo";
 export class BezierPencilManager {
     constructor(plugin, options) {
         Object.defineProperty(this, "plugin", {
@@ -40,20 +39,32 @@ export class BezierPencilManager {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "player", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "commiter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "onCameraChange", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: (cameraState) => {
+            value: throttle((cameraState) => {
                 this.worker?.setCameraOpt(toJS(cameraState));
-            }
+            }, 20, { 'leading': false })
         });
         Object.defineProperty(this, "onSceneChange", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: throttle((sceneState) => {
-                this.collector?.setNamespace(sceneState.sceneName);
+                this.collector?.setNamespace(sceneState.scenePath);
                 this.worker?.clearAll(true).then(() => {
                     this.worker?.initSyncData();
                 });
@@ -64,7 +75,7 @@ export class BezierPencilManager {
             configurable: true,
             writable: true,
             value: throttle((memberState) => {
-                if (!this.room) {
+                if (!this.room || !this.worker) {
                     return;
                 }
                 const currentApplianceName = memberState.currentApplianceName;
@@ -116,6 +127,15 @@ export class BezierPencilManager {
                             }
                         }, 0);
                     }
+                    // else if (toolsKey === EToolsKey.Eraser && currentApplianceName  === ApplianceNames.pencilEraser  ) {
+                    //     this.room.disableDeviceInputs = true;
+                    //     setTimeout(() => {
+                    //         const eventTraget = BezierPencilDisplayer.instance.containerRef?.parentNode?.children[0] as HTMLDivElement;
+                    //         if (eventTraget) {
+                    //             eventTraget.className = eventTraget.className + ' cursor-pencil-eraser-3';
+                    //         }
+                    //     }, 0);
+                    // } 
                     else {
                         this.room.disableDeviceInputs = false;
                     }
@@ -128,6 +148,7 @@ export class BezierPencilManager {
         });
         this.plugin = plugin;
         this.room = isRoom(plugin.displayer) ? plugin.displayer : undefined;
+        this.player = isPlayer(plugin.displayer) ? plugin.displayer : undefined;
         this.pluginOptions = options;
         window.onbeforeunload = () => {
             this.onUnMountDisplayer();
@@ -136,16 +157,50 @@ export class BezierPencilManager {
     init() {
         BezierPencilDisplayer.floatBarColors = this.room?.floatBarOptions?.colors || [];
         BezierPencilDisplayer.InternalMsgEmitter.on(InternalMsgEmitterType.DisplayState, this.displayStateListener.bind(this));
+        if (this.player) {
+            this.onMountDisplayer();
+            BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayContainer, true);
+        }
+    }
+    async screenshotToCanvas(context, scenePath, width, height, camera) {
+        const imageBitmap = await this.worker?.getSnapshot(scenePath, width, height, camera);
+        if (imageBitmap) {
+            context.drawImage(imageBitmap, 0, 0);
+            imageBitmap.close();
+        }
+    }
+    async scenePreview(scenePath, img) {
+        const imageBitmap = await this.worker?.getSnapshot(scenePath);
+        if (imageBitmap && this.worker) {
+            const canvas = document.createElement("canvas");
+            const limitContext = canvas.getContext("2d");
+            const { width, height } = this.worker.getCameraOpt();
+            canvas.width = width;
+            canvas.height = height;
+            if (limitContext) {
+                limitContext.drawImage(imageBitmap, 0, 0);
+                img.src = canvas.toDataURL();
+                img.onload = () => {
+                    canvas.remove();
+                };
+                img.onerror = () => {
+                    canvas.remove();
+                    img.remove();
+                };
+            }
+            imageBitmap.close();
+        }
     }
     cleanCurrentScene() {
         this.worker?.clearAll();
     }
     destroy() {
-        BezierPencilDisplayer.InternalMsgEmitter.off(InternalMsgEmitterType.DisplayState, this.displayStateListener.bind(this));
+        this.onUnMountDisplayer();
     }
     displayStateListener(value) {
         if (value === DisplayStateEnum.mounted) {
             this.onMountDisplayer();
+            BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayContainer, true);
         }
         if (value === DisplayStateEnum.unmounted) {
             this.onUnMountDisplayer();
@@ -173,7 +228,8 @@ export class BezierPencilManager {
         const bgCanvas = BezierPencilDisplayer.instance?.canvasBgRef;
         if (floatCanvas && bgCanvas && div) {
             this.collector = new Collector(this.plugin, this.pluginOptions?.syncOpt?.interval);
-            this.worker = new MainEngineForWorker(BezierPencilDisplayer.instance, this.collector, this.pluginOptions, BezierPencilDisplayer.InternalMsgEmitter);
+            this.worker = new MainEngineForWorker(BezierPencilDisplayer.instance, this.collector, this.pluginOptions);
+            this.commiter = this.room && new UndoRedoMethod(this.room, this.worker, this.collector);
             this.collector.addStorageStateListener((diff) => {
                 if (diff) {
                     if (this.collector?.storage) {
@@ -201,6 +257,7 @@ export class BezierPencilManager {
                                 this.worker?.onServiceDerive(key, item, relevantId);
                             }
                         });
+                        UndoRedoMethod.emitter.emit("excludeIds", Object.keys(diff));
                     }
                 }
             });
@@ -212,7 +269,9 @@ export class BezierPencilManager {
     onUnMountDisplayer() {
         this.collector?.destroy();
         this.worker?.destroy();
+        this.commiter?.destroy();
         this.collector = undefined;
         this.worker = undefined;
+        this.commiter = undefined;
     }
 }
