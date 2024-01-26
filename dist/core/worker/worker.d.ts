@@ -19,7 +19,6 @@ export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     private init;
     getOffscreen(isFullWork: boolean): OffscreenCanvas;
     private register;
-    private updateNode;
     setToolsOpt(opt: IActiveToolsDataType): void;
     setWorkOpt(opt: Partial<IActiveWorkDataType>): void;
     private clearAll;

@@ -702,8 +702,8 @@ export class MainEngineForWorker extends MainEngine {
     getSnapshot(scenePath: string, width?: number, height?: number, camera?:Pick<ICameraOpt,"centerX" | "centerY" | "scale">):Promise<ImageBitmap> | undefined{
         const cur = this.snapshotMap?.get(scenePath);
         if (!cur) {
-            const scenes = this.collector.plugin?.attributes[scenePath];
-            if (scenes) {
+            const scenes = this.collector.getNamespaceData(scenePath);
+            if (Object.keys(scenes).length) {
                 const data:IWorkerMessage = {
                     msgType: EPostMessageType.Snapshot,
                     dataType: EDataType.Local,

@@ -2,7 +2,7 @@
 /* eslint-disable no-case-declarations */
 import { EPostMessageType, EToolsKey } from "../core/enum";
 import type { Room } from "white-web-sdk";
-import { autorun, toJS } from "white-web-sdk";
+import { autorun } from "white-web-sdk";
 import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
 import { BaseCollector } from "./base";
 import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
@@ -33,9 +33,9 @@ export class Collector extends BaseCollector {
         const namespace = (plugin.displayer as Room).state.sceneState.scenePath;
         this.setNamespace(namespace)
     }
-    public addStorageStateListener(callBack:(diff:Diff<any>)=>void){
+    addStorageStateListener(callBack:(diff:Diff<any>)=>void){
         this.stateDisposer = autorun(async () => {
-            const storage = toJS(this.plugin?.attributes[this.namespace]) || {};
+            const storage = this.getNamespaceData(this.namespace);
             const diff = this.diffFun(this.serviceStorage, storage);
             this.serviceStorage = storage;
             for (const [key,value] of Object.entries(diff)) {
@@ -48,7 +48,7 @@ export class Collector extends BaseCollector {
             callBack(diff);
         })
     }
-    public removeStorageStateListener():void {
+    removeStorageStateListener():void {
         if (this.stateDisposer) {
             this.stateDisposer();
         }
@@ -168,7 +168,7 @@ export class Collector extends BaseCollector {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
                     if (old) {
-                        old.type = type;
+                        // old.type = type;
                         old.updateNodeOpt = updateNodeOpt;
                         if (ops) {
                             old.ops = ops;

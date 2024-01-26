@@ -83,8 +83,6 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                         }
                         break;
                     case EPostMessageType.UpdateNode:
-                        this.updateNode(data);
-                        break;
                     case EPostMessageType.FullWork:
                         this.consumeFull(dataType, data)
                         break;
@@ -101,13 +99,6 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                 }
             }
         });
-    }
-    private updateNode(data: IWorkerMessage): undefined {
-        const {dataType} = data;
-        const noLocalEffectData = this.localWork.colloctEffectSelectWork(data);
-        if (noLocalEffectData && dataType === EDataType.Service) {
-            this.serviceWork.consumeFull(noLocalEffectData);
-        }
     }
     setToolsOpt(opt: IActiveToolsDataType) {
         this.localWork.setToolsOpt(opt);

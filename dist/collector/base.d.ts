@@ -8,6 +8,7 @@ export declare abstract class BaseCollector {
     abstract storage: ISerializableStorageData;
     protected abstract namespace: string;
     setNamespace(namespace: string): void;
+    getNamespaceData(namespace: string): ISerializableStorageData;
     isLocalId(key: string): boolean;
     getLocalId(key: string): string;
     abstract transformKey(key: IworkId): string;

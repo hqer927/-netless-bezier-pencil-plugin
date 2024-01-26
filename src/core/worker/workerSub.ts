@@ -198,6 +198,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
+                        case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork:
                             this.localWork.runFullWork({
                                 ...value,
@@ -242,6 +243,11 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 },[imageBitmap]);
                 imageBitmap.close();
                 this.snapshotFullLayer.removeAllChildren();
+                (this.snapshotFullLayer.parent as Layer).children.forEach(c=>{
+                    if (c.name !== "viewport") {
+                        c.remove();
+                    }
+                })
                 this.setCameraOpt(curCameraOpt as ICameraOpt, this.drawLayer);
             }
         }

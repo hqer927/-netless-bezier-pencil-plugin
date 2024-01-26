@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import { EPostMessageType, EToolsKey } from "../core/enum";
-import { autorun, toJS } from "white-web-sdk";
+import { autorun } from "white-web-sdk";
 import { BaseCollector } from "./base";
 import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
 import isEqual from "lodash/isEqual";
@@ -65,7 +65,7 @@ export class Collector extends BaseCollector {
     }
     addStorageStateListener(callBack) {
         this.stateDisposer = autorun(async () => {
-            const storage = toJS(this.plugin?.attributes[this.namespace]) || {};
+            const storage = this.getNamespaceData(this.namespace);
             const diff = this.diffFun(this.serviceStorage, storage);
             this.serviceStorage = storage;
             for (const [key, value] of Object.entries(diff)) {
@@ -199,7 +199,7 @@ export class Collector extends BaseCollector {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
                     if (old) {
-                        old.type = type;
+                        // old.type = type;
                         old.updateNodeOpt = updateNodeOpt;
                         if (ops) {
                             old.ops = ops;

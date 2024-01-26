@@ -818,8 +818,8 @@ export class MainEngineForWorker extends MainEngine {
     getSnapshot(scenePath, width, height, camera) {
         const cur = this.snapshotMap?.get(scenePath);
         if (!cur) {
-            const scenes = this.collector.plugin?.attributes[scenePath];
-            if (scenes) {
+            const scenes = this.collector.getNamespaceData(scenePath);
+            if (Object.keys(scenes).length) {
                 const data = {
                     msgType: EPostMessageType.Snapshot,
                     dataType: EDataType.Local,

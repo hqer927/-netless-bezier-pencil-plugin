@@ -5,8 +5,11 @@ import { Storage_Splitter } from "./const";
 export class BaseCollector {
     setNamespace(namespace) {
         this.namespace = namespace;
-        this.serviceStorage = toJS(this.plugin?.attributes[namespace]) || {};
+        this.serviceStorage = this.getNamespaceData(namespace);
         this.storage = cloneDeep(this.serviceStorage);
+    }
+    getNamespaceData(namespace) {
+        return toJS(this.plugin?.attributes[namespace]) || {};
     }
     isLocalId(key) {
         return key.split(Storage_Splitter).length === 1;

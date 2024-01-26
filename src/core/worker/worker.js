@@ -124,8 +124,6 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                         }
                         break;
                     case EPostMessageType.UpdateNode:
-                        this.updateNode(data);
-                        break;
                     case EPostMessageType.FullWork:
                         this.consumeFull(dataType, data);
                         break;
@@ -143,13 +141,6 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                 }
             }
         });
-    }
-    updateNode(data) {
-        const { dataType } = data;
-        const noLocalEffectData = this.localWork.colloctEffectSelectWork(data);
-        if (noLocalEffectData && dataType === EDataType.Service) {
-            this.serviceWork.consumeFull(noLocalEffectData);
-        }
     }
     setToolsOpt(opt) {
         this.localWork.setToolsOpt(opt);

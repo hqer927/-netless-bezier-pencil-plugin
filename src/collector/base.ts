@@ -14,8 +14,11 @@ export abstract class BaseCollector {
     protected abstract namespace: string;
     public setNamespace(namespace: string){
         this.namespace = namespace;
-        this.serviceStorage = toJS(this.plugin?.attributes[namespace]) || {};
+        this.serviceStorage = this.getNamespaceData(namespace);
         this.storage = cloneDeep(this.serviceStorage);
+    }
+    public getNamespaceData(namespace: string): ISerializableStorageData {
+        return toJS(this.plugin?.attributes[namespace]) || {};
     }
     public isLocalId(key:string): boolean {
         return key.split(Storage_Splitter).length === 1;
