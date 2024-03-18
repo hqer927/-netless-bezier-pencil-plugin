@@ -1,9 +1,9 @@
-import { EStrokeType, EmitEventType } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
 import { IWorkerMessage } from "../../types";
 import { ECanvasShowType, EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
-import { isIntersect } from "../../utils";
+import { isIntersect, isSealedGroup } from "../../utils";
 import { Group, Path } from "spritejs";
 
 
@@ -29,7 +29,7 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
         const rect = workShapeNode.oldSelectRect;
         if (isActiveZIndex && rect && this.localWork) {
             const sealToDrawIds:Set<string> = new Set();
-            this.localWork.curNodeMap.forEach((value, key)=>{
+            this.localWork.vNodes.curNodeMap.forEach((value, key)=>{
                 if (isIntersect(rect, value.rect)) {
                     sealToDrawIds.add(key)
                 }
@@ -39,11 +39,8 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                 sealToDrawIds.forEach(name => {
                     this.localWork?.fullLayer.getElementsByName(name).forEach(c=>{
                         const cloneP = c.cloneNode(true) as (Path | Group);
-                        if (cloneP.tagName === 'GROUP') {
-                            const other = (c as Group).className.split(',');
-                            if(other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
-                                (cloneP as Group).seal();
-                            }
+                        if (isSealedGroup(c)) {
+                            (cloneP as Group).seal();
                         }
                         if (!this.localWork?.drawLayer?.getElementsByName(name).length) {
                             sealToDrawNodes.push(cloneP);
@@ -73,9 +70,9 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                     type: EPostMessageType.Select,
                     selectIds: workShapeNode.selectIds,
                     opt: workShapeNode.getWorkOptions(),
-                    padding: SelectorShape.SelectBorderPadding,
                     selectRect: rect,
-                    nodeColor: workShapeNode.nodeColor,
+                    strokeColor: workShapeNode.strokeColor,
+                    fillColor: workShapeNode.fillColor,
                     willSyncService:false, 
                     isSync:true
                 }]

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
-import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
-import { BaseShapeOptions, BaseShapeTool } from './tools';
+import { ETextEditorType, TextOptions } from '../component/textEditor/types';
+import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EScaleType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
+import { BaseShapeOptions, BaseShapeTool, ShapeOptions } from './tools';
 
 export type IworkId = string | number; 
 
@@ -40,14 +41,19 @@ export interface ILayerOptionType {
 }
 export interface IUpdateNodeOpt {
     scale?: [number,number],
-    size?: {
-        width: number,
-        height: number
+    box?: {
+        x: number,
+        y: number,
+        w: number,
+        h: number
     },
     translate?: [number,number],
     selectorColor?: string,
-    color?: string,
-    opacity?:number,
+    strokeColor?: string,
+    fillColor?: string,
+    fontColor?: string,
+    fontBgColor?: string,
+    isOpacity?: boolean,
     pos?:[number, number];
     workState?: EvevtWorkState;
     useAnimation?: boolean;
@@ -56,7 +62,10 @@ export interface IUpdateNodeOpt {
     originPos?:[number,number]
     ops?:string;
     angle?:number;
-    centralPoint?:[number,number]
+    centralPoint?:[number,number];
+    selectScale?: number[];
+    boxScale?:[number,number];
+    boxTranslate?:[number,number];
 }
 
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
@@ -91,11 +100,13 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
     }>;
     willSerializeData?:boolean;
     isRunSubWork?:boolean;
-    noRender?:boolean;
     // isSafari?:boolean;
     undoTickerId?:number;
     scenePath?:string;
     scenes?:ISerializableStorageData;
+    textType?:ETextEditorType;
+    mainTasksqueueCount?:number;
+    textUpdateForWoker?:boolean;
 }
 export interface IRectType {
     x:number;
@@ -116,15 +127,16 @@ export interface IMainMessage extends INormalPushMsg {
     isFullWork?: boolean;
     drawCount?: number;
     selectIds?: Array<string>;
-    color?: string;
     padding?: number;
     selectRect?: IRectType;
+    selectorColor?: string,
+    strokeColor?: string,
+    fillColor?: string,
+    isOpacity?: boolean,
     updateNodeOpts?: Map<string, IUpdateNodeOpt>;
-    nodeColor?:string;
-    nodeOpactiy?:number;
     willSyncService?:boolean;
-    newWorkDatas?:Array<{
-        op:number[];
+    newWorkDatas?: Map<string,{
+        op: number[];
         opt: BaseShapeOptions;
         workId: IworkId;
         toolsType: EToolsKey;
@@ -134,6 +146,10 @@ export interface IMainMessage extends INormalPushMsg {
     canvasWidth?:number;
     canvasHeight?:number;
     workState?:EvevtWorkState;
+    canTextEdit?:boolean;
+    canRotate?:boolean;
+    scaleType?: EScaleType;
+    textOpt?:TextOptions;
     
 }
 export interface IMainMessageRenderData {
@@ -161,6 +177,7 @@ export interface IBatchMainMessage {
     /** 同步服务端数据 */
     sp?: Array<IMainMessage>;
     drawCount?: number;
+    workerTasksqueueCount?:number;
 }
 
 export interface ICameraOpt {
@@ -174,13 +191,13 @@ export interface ICameraOpt {
 
 export interface IActiveToolsDataType {
     toolsType: EToolsKey;
-    toolsOpt: BaseShapeOptions;
+    toolsOpt: ShapeOptions;
 }
 
 export interface IActiveWorkDataType {
     workId: IworkId | undefined;
     workState: EvevtWorkState;
-    toolsOpt?: BaseShapeOptions;
+    toolsOpt?: ShapeOptions;
 }
 export type IServiceWorkItem = {
     toolsType: EToolsKey;
@@ -197,12 +214,31 @@ export type IServiceWorkItem = {
     selectIds?: string[];
     oldRect?:IRectType;
     totalRect?: IRectType;
-    noRender?:boolean;
 }
 export type BaseNodeMapItem = {
     name: string;
     rect: IRectType;
-    ops?: string;
-    opt?: BaseShapeOptions;
-    toolsType?: EToolsKey;
+    op: number[];
+    opt: BaseShapeOptions;
+    centerPos: [number, number];
+    toolsType: EToolsKey;
+    canRotate: boolean;
+    scaleType: EScaleType;
 }
+// export type TextOpt = {
+//     fontSize?: number;
+//     fontColor?: string;
+//     fontBgColor?: string;
+//     fontFamily?: string;
+//     fontVariant?: string;
+//     fontWeight?: string;
+//     fontStretch?: string;
+//     textAlign?: string;
+//     verticalAlign?: string;
+// }
+// export type TextInfo = {
+//     x: number,
+//     y: number,
+//     text: string[],
+//     opt?: TextOpt
+// }

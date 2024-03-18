@@ -1,3 +1,6 @@
+import { TextOptions } from "../component/textEditor";
+import { EScaleType } from "../core";
+
 export type Color = [number, number, number];
 
 export type ShowFloatBarMsgValue = {
@@ -6,11 +9,17 @@ export type ShowFloatBarMsgValue = {
     w: number;
     h: number;
     padding?: number;
-    color?: string;
+    selectorColor?: string;
     translate?: [number, number];
-    opacity?: number;
-    nodeColor?: string;
     selectIds?: string[];
     canvasWidth?: number;
     canvasHeight?: number;
+    strokeColor?: string;
+    fillColor?: string;
+    thickness?: number;
+    lineDash?: number[];
+    canTextEdit?: boolean;
+    textOpt?: TextOptions,
+    scaleType?: EScaleType;
+    canRotate?: boolean;
 };

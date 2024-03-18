@@ -6,9 +6,8 @@ import { autorun } from "white-web-sdk";
 import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData, IStorageValueItem } from "./types";
 import { BaseCollector } from "./base";
 import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
-import { BezierPencilPlugin } from "../plugin";
+import type { TeachingAidsPlugin } from "../plugin";
 import isEqual from "lodash/isEqual";
-import { SelectorShape } from "../core/tools";
 import cloneDeep from "lodash/cloneDeep";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
@@ -20,11 +19,11 @@ export class Collector extends BaseCollector<ISerializableStorageData> {
     public serviceStorage: ISerializableStorageData = {};
     public storage: ISerializableStorageData = {};
     public uid: string;
-    public plugin?: BezierPencilPlugin;
+    public plugin?: TeachingAidsPlugin;
     protected namespace: string = '';
     private stateDisposer: (() => void) | undefined;
     private asyncClockState:boolean=false;
-    constructor(plugin: BezierPencilPlugin, syncInterval?: number ){
+    constructor(plugin: TeachingAidsPlugin, syncInterval?: number ){
         super();
         Collector.syncInterval = (syncInterval || Collector.syncInterval) * 0.5;
         this.plugin = plugin;
@@ -91,7 +90,7 @@ export class Collector extends BaseCollector<ISerializableStorageData> {
         return key.split(Storage_Splitter)[0] === this.uid;
     }
     dispatch(action: BaseCollectorReducerAction): void {
-        //console.log('dispatch', action)
+        // console.log('dispatch', action)
         const {type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds, isSync} = action
         switch (type) {
             case EPostMessageType.Clear:
@@ -135,7 +134,7 @@ export class Collector extends BaseCollector<ISerializableStorageData> {
                     const _toolsType = toolsType || old?.toolsType;
                     const _opt = opt || old?.opt;
                     const _ops = ops || old?.ops;
-                    if (_toolsType && _opt  && _ops) {
+                    if (_toolsType && _opt) {
                         this.updateValue(key.toString(),{
                             type: EPostMessageType.FullWork,
                             updateNodeOpt: _updateNodeOpt,
@@ -169,17 +168,15 @@ export class Collector extends BaseCollector<ISerializableStorageData> {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[key];
                     if (old) {
-                        // old.type = type;
                         old.updateNodeOpt = updateNodeOpt;
-                        if (ops) {
+                        if (ops || op) {
                             old.ops = ops;
-                        }
-                        if (updateNodeOpt) {
-                            old.updateNodeOpt = updateNodeOpt;
+                            old.op = op;
                         }
                         if (opt) {
                             old.opt = opt;
                         }
+                        old.type = EPostMessageType.FullWork;
                         //console.log('dispatch---111',key, old)
                         this.updateValue(key.toString(),old, { isSync });
                     }
@@ -195,7 +192,7 @@ export class Collector extends BaseCollector<ISerializableStorageData> {
                         return id;
                     })
                 }
-                const key = this.transformKey(SelectorShape.selectorId);
+                const key = this.transformKey(Storage_Selector_key);
                 const old = this.storage[key];
                 const _opt = opt || old?.opt;
                 _selectIds && this.checkOtherSelector(key, _selectIds, { isSync });

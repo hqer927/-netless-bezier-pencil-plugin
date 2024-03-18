@@ -1,5 +1,5 @@
 
-import { WorkThreadEngine } from "../base";
+import { WorkThreadEngine } from "../threadEngine";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessageRenderData, IOffscreenCanvasOptionType, IRectType, IWorkerMessage } from "../types";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../enum";
 import type  { Scene, Group, Layer } from "spritejs";
@@ -26,7 +26,8 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         this.scene = this.createScene(offscreenCanvasOpt);
         this.drawLayer = this.createLayer(this.scene, {...layerOpt, width:offscreenCanvasOpt.width, height:offscreenCanvasOpt.height})
         this.snapshotFullLayer = this.createLayer(this.scene, {...layerOpt, width:offscreenCanvasOpt.width, height:offscreenCanvasOpt.height, bufferSize: 5000})
-        this.localWork = new SubLocalDrawWorkForWorker(this.curNodeMap, this.drawLayer, this.post.bind(this));
+        this.vNodes.init(this.drawLayer);
+        this.localWork = new SubLocalDrawWorkForWorker(this.vNodes, this.drawLayer, this.post.bind(this));
     }
     getOffscreen(isSnapshot:boolean): OffscreenCanvas {
         return ((isSnapshot && this.snapshotFullLayer || this.drawLayer).parent as Layer)?.canvas as OffscreenCanvas;
@@ -127,7 +128,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     }
     async post(msg: IBatchMainMessage): Promise<void> {
         const render = msg.render;
-        const newRender:IMainMessageRenderData[] = []
+        const newRender:IMainMessageRenderData[] = [];
         if (render?.length) {
             for (const renderData of render) {
                 if (renderData.drawCanvas) {
@@ -148,7 +149,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             msg.render = newRender;
         }
         if (msg.sp?.length || msg.drawCount || newRender?.length) {
-            // console.log('post1', msg);
+            console.log('post1', msg.drawCount, msg?.render && msg?.render[0] && msg?.render[0].rect);
             SubWorkThreadEngineByWorker._self.postMessage(msg);
             if (newRender.length) {
                 for (const renderData of newRender) {
@@ -161,6 +162,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     }
     on(callBack: (msg: IterableIterator<IWorkerMessage>) => void): void {
         onmessage = (e: MessageEvent<Map<unknown,IWorkerMessage>>)=>{
+            // console.log('onmessage1', cloneDeep(e.data))
             if (e.data) {
                 // 优先级 init=》draw=》fullWork=》serviceWork=》updateCamera=》clearAll
                 const initJob = e.data.get('Init');
@@ -199,18 +201,21 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
             this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
             this.localWork.fullLayer = this.snapshotFullLayer;
             this.localWork.drawLayer = this.drawLayer;
+            let rect:IRectType|undefined;
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
-                        case EPostMessageType.FullWork:
-                            this.localWork.runFullWork({
+                        case EPostMessageType.FullWork: {
+                            const r = this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service
                             });
+                            rect = computRect(rect,r);
                             break;
+                        }
                         default:
                             break;
                     }
@@ -253,31 +258,21 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
-                        case EPostMessageType.FullWork:
-                            this.localWork.runFullWork({
+                        case EPostMessageType.FullWork: {
+                            const r = this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service
                             });
+                            rect = computRect(rect,r);
                             break;
+                        }
                         default:
                             break;
                     }
                 }
             }
-            this.localWork.computNodeMap();
-            this.curNodeMap.forEach((r,key)=> {
-                if(r.rect){
-                    rect = computRect(rect, {
-                        x: Math.floor((r.rect.x - this.snapshotFullLayer.worldPosition[0])/this.snapshotFullLayer.worldScaling[0]),
-                        y: Math.floor((r.rect.y - this.snapshotFullLayer.worldPosition[1])/this.snapshotFullLayer.worldScaling[1]),
-                        w: Math.floor(r.rect.w / this.snapshotFullLayer.worldScaling[0]),
-                        h: Math.floor(r.rect.h / this.snapshotFullLayer.worldScaling[1]),
-                    });
-                    this.curNodeMap.delete(key);
-                }
-            })
             if(rect){
                 SubWorkThreadEngineByWorker._self.postMessage({
                     sp:[{

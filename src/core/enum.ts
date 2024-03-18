@@ -1,21 +1,44 @@
 export enum EToolsKey{
+    /** 铅笔绘制工具 */
     Pencil = 1,
+    /** 橡皮擦工具 */
     Eraser,
+    /** 选择工具 */
     Selector,
+    /** 点击互动工具 */
     Clicker,
+    /** 箭头工具 */
     Arrow,
+    /** 抓手工具 */
     Hand,
-    LaserPen
-}
-export enum ESpriteNodeKey{
-    Path,
-    Rect
+    /** 激光铅笔绘制工具 */
+    LaserPen,
+    /** 文字工具 */
+    Text,
+    /** 直线工具 */
+    Straight,
+    /** 矩形工具 */
+    Rectangle,
+    /** 圆形工具 */
+    Ellipse,
+    /** 星形工具 */
+    Star,
+    /** 三角形工具 */
+    Triangle,
+    /** 菱形工具 */
+    Rhombus,
+    /** 多边形工具 */
+    Polygon,
+    /** 聊天泡泡框 */
+    SpeechBalloon
 }
 export enum EDataType{
     /** 本地数据 */
     Local = 1,
     /** 服务端数据 */
-    Service
+    Service,
+    /** 来源于worker */
+    Worker
 }
 export enum EvevtWorkState{
     Pending,
@@ -59,12 +82,12 @@ export enum EPostMessageType {
     Snapshot,
     /** 获取指定场所有元素的的包围盒 */
     BoundingBox,
-    Cursor
-}
-export enum EShapeDataTypeKey{
-    Path,
-    Rect,
-    Texture,
+    /**  */
+    Cursor,
+    /** */
+    TextUpdate,
+    /**  */
+    GetTextActive,
 }
 export enum ECanvasContextType {
     Webgl2 = 'webgl2',
@@ -77,23 +100,24 @@ export enum ECanvasShowType {
     Selector,
     None
 }
-export enum EScaleDirection {
-    LT = 'topLeft',
-    LC = 'left',
-    LB = 'bottomLeft',
-    TC = 'top',
-    RT = 'topRight',
-    RC = 'right',
-    RB = 'bottomRight',
-    BC = 'bottom'
-}
 
 export enum EventMessageType {
     /** cursor事件 */
     Cursor = 1,
+    /** 创建text编辑器 */
+    TextCreate,
 }
 
 export enum ElayerType {
     Top = 1,
     Bottom
+}
+
+export enum EScaleType {
+    /** 不可以拉伸 */
+    none = 1,
+    /** 八个方向都可以拉伸 */
+    all,
+    /** 两个方向拉伸 */
+    both
 }

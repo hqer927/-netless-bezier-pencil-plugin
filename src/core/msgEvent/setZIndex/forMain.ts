@@ -4,8 +4,8 @@ import { IUpdateNodeOpt, IWorkerMessage, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, ElayerType } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import { BaseShapeOptions, SelectorShape } from "../../tools";
-import { Collector } from "../../../collector";
+import { BaseShapeOptions } from "../../tools";
+import { Collector, Storage_Selector_key } from "../../../collector";
 
 export type ZIndexNodeEmtData = {
     workIds: IworkId[],
@@ -57,7 +57,7 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
             let zIndex:number|undefined;
-            if (curStore && localWorkId === SelectorShape.selectorId) {
+            if (curStore && localWorkId === Storage_Selector_key) {
                 if (curStore.selectIds) {
                     selectIds.push(...curStore.selectIds);
                     selectIds.sort((a,b)=>{
@@ -86,19 +86,19 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
                         opt: BaseShapeOptions;
                         updateNodeOpt?: IUpdateNodeOpt;
                     }> = new Map();
+                    if (layer === ElayerType.Top) {
+                        this.addMaxLayer();
+                        zIndex = this.max;
+                    } else {
+                        this.addMinLayer();
+                        zIndex = this.min;
+                    }
                     selectIds.forEach((name)=> {
                         const isLocalId = this.serviceColloctor?.isLocalId(name);
                         let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
                         const curStore = store[key];
                         if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
                             key = this.serviceColloctor.getLocalId(key);
-                        }
-                        if (layer === ElayerType.Top) {
-                            this.addMaxLayer();
-                            zIndex = this.max;
-                        } else {
-                            this.addMinLayer();
-                            zIndex = this.min;
                         }
                         updateNodeOpt.zIndex = zIndex;
                         if (curStore?.opt) {

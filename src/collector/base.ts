@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { toJS } from "white-web-sdk";
-import { BezierPencilPlugin } from "../plugin";
+import { TeachingAidsPlugin } from "../plugin";
 import { IworkId } from "../core";
 import cloneDeep from "lodash/cloneDeep";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
@@ -8,7 +8,7 @@ import { Storage_Selector_key, Storage_Splitter } from "./const";
 export abstract class BaseCollector<T> {
     public abstract uid:string;
     public abstract serviceStorage: T;
-    public abstract plugin?: BezierPencilPlugin;
+    public abstract plugin?: TeachingAidsPlugin;
     public abstract storage: T;
     protected abstract namespace: string;
     public setNamespace(namespace: string){

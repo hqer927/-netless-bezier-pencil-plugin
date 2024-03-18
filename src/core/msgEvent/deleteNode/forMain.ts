@@ -1,11 +1,11 @@
-import { EmitEventType, InternalMsgEmitterType } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
-import { EDataType, EPostMessageType } from "../../enum";
-import { BaseCollectorReducerAction } from "../../../collector/types";
-import { SelectorShape } from "../../tools";
+import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
+// import { BaseCollectorReducerAction } from "../../../collector/types";
 import { UndoRedoMethod } from "../../../undo";
-import { BezierPencilManager } from "../../../plugin";
+// import { TeachingAidsManager } from "../../../plugin";
+// import { Storage_Selector_key } from "../../../collector";
 
 export type DeleteNodeEmtData = {
     workIds: IworkId[]
@@ -20,7 +20,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
         const store = this.serviceColloctor.storage;
         const keys = [...workIds];
         const localMsgs: IWorkerMessage[] = [];
-        const serviceMsgs: BaseCollectorReducerAction[] = [];
+        // const serviceMsgs: BaseCollectorReducerAction[] = [];
         const removeIds:string[] = [];
         const undoTickerId = Date.now();
         while (keys.length) {
@@ -32,47 +32,30 @@ export class DeleteNodeMethod extends BaseMsgMethod {
             const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
             const curStore = store[key];
-            let localWorkId:string | undefined = curKeyStr ;
-            if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-                localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-            }
-            if (curStore && localWorkId === SelectorShape.selectorId) {
-                removeIds.push(key);
-                BezierPencilManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
-                if (curStore.selectIds) {
-                    removeIds.push(...curStore.selectIds);
-                    localMsgs.push({
-                        msgType: EPostMessageType.RemoveNode,
-                        workId: localWorkId,
-                        dataType: EDataType.Local,
-                        emitEventType: EmitEventType.DeleteNode,
-                    });
-                }
-                continue;
-            }
             if (curStore) {
-                removeIds.push(key);
+                let localWorkId:string | undefined = curKeyStr ;
+                if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
+                    localWorkId = this.serviceColloctor.getLocalId(localWorkId);
+                }
+                if (curStore.toolsType === EToolsKey.Text) {
+                    this.mainEngine.textEditorManager.delete(localWorkId);
+                    continue;
+                }
+                removeIds.push(localWorkId);
             }
-            localMsgs.push({
-                msgType: EPostMessageType.RemoveNode,
-                emitEventType: EmitEventType.DeleteNode,
-                workId: curKey,
-                dataType: EDataType.Local,
-                willSyncService: false,
-                willRefresh: true
-            });
         }
+        localMsgs.push({
+            msgType: EPostMessageType.RemoveNode,
+            emitEventType: EmitEventType.DeleteNode,
+            removeIds,
+            dataType: EDataType.Local,
+            willSyncService: true,
+            willRefresh: true,
+            undoTickerId,
+        });
         UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
-        }
-        if (removeIds.length) {
-            serviceMsgs.push({
-                type: EPostMessageType.RemoveNode,
-                removeIds,
-                undoTickerId
-            })
-            this.collectForServiceWorker(serviceMsgs);
         }
     }
 }

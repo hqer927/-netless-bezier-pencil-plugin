@@ -1,9 +1,9 @@
-import { Group, Path } from "spritejs";
+import { Group } from "spritejs";
 import { IRectType } from "../types";
 import { Point2d } from "./primitives/Point2d";
 import { Vec2d } from "./primitives/Vec2d";
-import { EStrokeType } from "../../plugin/types";
 import type { Rectangle } from "white-web-sdk";
+import { BaseShapeTool, ShapeNodes } from "../tools";
 
 export function computRect(rect1?: IRectType, rect2?: IRectType){
     if(rect1 && rect2){
@@ -67,6 +67,14 @@ export function getSafetyRect(oldRect:IRectType, tolerance:number = 10) {
       h: Math.floor(oldRect.h + tolerance * 2)
   }
 }
+export function getRectTranslated(rect:IRectType, translate:[number,number]) {
+  return {
+    x: rect.x + translate[0],
+    y: rect.y + translate[1],
+    w: rect.w,
+    h: rect.h,
+  }
+}
 export function getRectRotated(rect:IRectType, angle:number) {
   const p1 = new Vec2d(rect.x, rect.y);
   const p2 = new Vec2d(rect.x + rect.w, rect.y);
@@ -126,47 +134,30 @@ export function scalePoints(points:number[], originPos:[number,number], scale:[n
   }
 }
 
-export function getNodeRect(key:string, layer?: Group):IRectType|undefined {
+export function getNodeRect(key:string, layer?: Group, safeBorderPadding:number = BaseShapeTool.SafeBorderPadding):IRectType|undefined {
   let rect: IRectType | undefined;
   layer?.getElementsByName(key).forEach(f => {
-      if (f.tagName === "PATH") {
-          const r = (f as Path)?.getBoundingClientRect();
-          if (r) {
-              rect = computRect(rect, {
-                  x: Math.floor(r.x),
-                  y: Math.floor(r.y),
-                  w: Math.round(r.width),
-                  h: Math.round(r.height),
-              })
-          }
-      } else if (f.tagName === 'GROUP') {
-          const other = (f as Group).className.split(',');
-          if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
-              const r = (f as Group)?.getBoundingClientRect();
-              if (r) {
-                  rect = computRect(rect, {
-                      x: Math.floor(r.x),
-                      y: Math.floor(r.y),
-                      w: Math.round(r.width),
-                      h: Math.round(r.height),
-                  })
-              }
-          } else {
-              (f as Group).children.forEach(c =>{
-                  if (c.tagName === "PATH") {
-                      const r = (c as Path)?.getBoundingClientRect();
-                      if (r) {
-                          rect = computRect(rect, {
-                              x: Math.floor(r.x),
-                              y: Math.floor(r.y),
-                              w: Math.round(r.width),
-                              h: Math.round(r.height),
-                          })
-                      }
-                  }
-              })
-          }
+    const r = (f as ShapeNodes)?.getBoundingClientRect();
+    // console.log('getNodeRect', r)
+    if (r) {
+      if (f.tagName === 'GROUP') {
+        rect = computRect(rect, {
+          x: Math.floor(r.x),
+          y: Math.floor(r.y),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        })
       }
+      else {
+        rect = computRect(rect, {
+          x: Math.floor(r.x - safeBorderPadding),
+          y: Math.floor(r.y - safeBorderPadding),
+          w: Math.round(r.width + safeBorderPadding * 2),
+          h: Math.round(r.height + safeBorderPadding * 2),
+        })
+      }
+    }
+       
   })
   return rect
 }
@@ -226,3 +217,8 @@ export const getLineSegIntersection = (
   return null;
 };
 
+export function getWHRatio(w:number,h:number):[number,number] {
+  const wRatio = w <= h ? 1 : w / h;
+  const hRatio = h <= w ? 1 : h / w;
+  return [wRatio, hRatio];
+}

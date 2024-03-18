@@ -1,46 +1,51 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Group, Path} from "spritejs";
-import { BaseShapeOptions, BaseShapeTool } from "./base";
-import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
+import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
 import { transformToSerializableData } from "../../collector/utils";
-import { computRect, getRectFromPoints, getRectRotated, getRectScaleed } from "../utils";
+import { computRect, getRectFromPoints, isSealedGroup } from "../utils";
 import { EStrokeType } from "../../plugin/types";
+import { VNodeManager } from "../threadEngine";
+import { ShapeNodes } from "./utils";
 
 export interface PencilOptions extends BaseShapeOptions {
     thickness: number;
+    strokeColor: string;
     strokeType: EStrokeType;
 }
 export class PencilShape extends BaseShapeTool {
+    readonly canRotate: boolean = true;
+    readonly scaleType: EScaleType = EScaleType.all;
     readonly toolsType: EToolsKey = EToolsKey.Pencil;
-    protected syncTimestamp: number;
+    private syncTimestamp: number;
     private syncIndex:number = 0;
     protected tmpPoints:Array<Point2d> = [];
     private MAX_REPEAR = 10;
     /** 合并原始点的灵敏度 */
     private uniThickness: number;
     protected workOptions: PencilOptions;
-    static PencilBorderPadding = 10;
     private centerPos:[number,number]=[0,0];
-    constructor(workOptions: PencilOptions, fullLayer: Group, drawlayer?: Group) {
-        super(fullLayer, drawlayer);
-        this.workOptions = workOptions;
-        this.uniThickness = this.MAX_REPEAR / workOptions.thickness / 10;
+    constructor(props:BaseShapeToolProps) {
+        super(props);
+        this.workOptions = props.toolsOpt as PencilOptions;
+        this.uniThickness = this.MAX_REPEAR / this.workOptions.thickness / 10;
         this.syncTimestamp = 0;
     }
+    /** 批量合并消费本地数据,返回绘制结果 */
     combineConsume(): IMainMessage | undefined {
       const workId = this.workId?.toString();
       const tasks = this.transformDataAll(true);
       const attrs = {
         name: workId,
-        className: 'pencil'
       }
       let rect:IRectType|undefined;
+      const layer = this.drawLayer || this.fullLayer;
       if (tasks.length) {
-        rect = this.draw({attrs, tasks, replaceId: workId, isFullWork:false, normalize:true, isClearAll:true});
+        rect = this.draw({attrs, tasks, replaceId: workId, layer, isClearAll:true});
       }
       return {
         rect,
@@ -63,8 +68,7 @@ export class PencilShape extends BaseShapeTool {
         const {tasks, effects, consumeIndex} = this.transformData(data,false);
         this.syncIndex = Math.min(this.syncIndex, consumeIndex);
         const attrs = {
-            name: workId?.toString(),
-            className: 'pencil'
+            name: workId?.toString()
         }
         let rect:IRectType|undefined;
         let isSync:boolean = false;
@@ -79,7 +83,8 @@ export class PencilShape extends BaseShapeTool {
             this.syncTimestamp = tasks[0].taskId;
             this.syncIndex = this.tmpPoints.length;
           }
-          rect = this.draw({attrs, tasks, effects, isFullWork, isClearAll});
+          const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+          rect = this.draw({attrs, tasks, effects, layer, isClearAll});
         }
         if(isSubWorker){
           if (consumeIndex > 10) {
@@ -114,14 +119,17 @@ export class PencilShape extends BaseShapeTool {
           }
         }
         const workId = this.workId?.toString();
+        if (!workId) {
+          return {type: EPostMessageType.None};
+        }
         const tasks = this.transformDataAll(true);
         const attrs = {
           name: workId,
-          className: 'pencil'
         }
         let rect:IRectType|undefined;
+        const layer = this.fullLayer;
         if (tasks.length) {
-          rect = this.draw({attrs, tasks, replaceId: workId, isFullWork:true, normalize:true, isClearAll:false});
+          rect = this.draw({attrs, tasks, replaceId: workId, layer, isClearAll:false});
         }
         const nop:number[] = [];
         this.tmpPoints.map(p=>{
@@ -129,12 +137,22 @@ export class PencilShape extends BaseShapeTool {
         })
         this.syncTimestamp = 0;
         delete this.workOptions.syncUnitTime;
+        const ops = transformToSerializableData(nop);
+        this.vNodes.setInfo(workId, {
+          rect,
+          op: nop,
+          opt: this.workOptions,
+          toolsType: this.toolsType,
+          scaleType: this.scaleType,
+          canRotate: this.canRotate,
+          centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
+        });
         return {
           rect,
           type: EPostMessageType.FullWork,
           dataType: EDataType.Local,
           workId,
-          ops: transformToSerializableData(nop),
+          ops,
           updateNodeOpt:{
             pos: this.centerPos,
             useAnimation: true
@@ -161,7 +179,6 @@ export class PencilShape extends BaseShapeTool {
         if (this.tmpPoints.length > 0) {
           const lastTmpPoint = this.tmpPoints[this.tmpPoints.length-1];
           const vector = Vec2d.Sub(point, lastTmpPoint).uni();
-          // lastTmpPoint.setv(vector);
           point.setv(vector);
         }
         this.tmpPoints.push(point);
@@ -170,11 +187,20 @@ export class PencilShape extends BaseShapeTool {
       const name = this.workId?.toString();
       const attrs = {
         name,
-        className: 'pencil'
       }
       let rect:IRectType|undefined;
-      if (tasks.length) {
-          rect = this.draw({attrs, tasks, replaceId, isFullWork, normalize:true, isClearAll});
+      if (name && tasks.length) {
+          const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+          rect = this.draw({attrs, tasks, replaceId, layer, isClearAll});
+          this.vNodes.setInfo(name, {
+            rect,
+            op,
+            opt: this.workOptions,
+            toolsType: this.toolsType,
+            scaleType: this.scaleType,
+            canRotate: this.canRotate,
+            centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
+          })
       }
       return rect
     }
@@ -191,15 +217,13 @@ export class PencilShape extends BaseShapeTool {
             radius: number;
           }[]
         }>;
-        isFullWork?:boolean;
+        layer:Group;
         replaceId?: number|string;
         effects?: Set<number>;
-        normalize?: boolean;
         isClearAll?: boolean;
       }): IRectType | undefined {
-        const {attrs, tasks, replaceId, effects, isFullWork, normalize, isClearAll} = data;
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const {color, strokeType, thickness, opacity, zIndex, scale, rotate} = this.workOptions;
+        const {attrs, tasks, replaceId, effects, layer, isClearAll} = data;
+        const {strokeColor, strokeType, thickness, zIndex, scale, rotate, translate} = this.workOptions;
         if (isClearAll) {
           layer.removeAllChildren();
         }
@@ -220,9 +244,7 @@ export class PencilShape extends BaseShapeTool {
         for (let i=0; i < tasks.length; i++) {
             const {pos, points, taskId} = tasks[i];
             attrs.id = taskId.toString();
-            // const node = new Path();
             const {ps, rect} = this.computDrawPoints(points);
-            // console.log('consumeService - rect - 0', rect, this.centerPos, pos, this.tmpPoints.map(p=>p.XY))
             let d:string;
             const isDot:boolean = points.length === 1;
             if (strokeType === EStrokeType.Stroke || isDot) {
@@ -230,52 +252,23 @@ export class PencilShape extends BaseShapeTool {
             } else {
               d = getSvgPathFromPoints(ps, false);
             }
+            console.log('getRectFromLayer-pencil', rect)
             const attr:any = {
               pos,
               d,
-              fillColor: strokeType === EStrokeType.Stroke || isDot ? color : undefined, 
+              fillColor: strokeType === EStrokeType.Stroke || isDot ? strokeColor : undefined, 
               lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
-              strokeColor: color,
-              opacity,
+              strokeColor: strokeColor,
               lineCap: strokeType === EStrokeType.Stroke || isDot ? undefined : 'round',
               lineWidth: strokeType === EStrokeType.Stroke || isDot ? 0 : thickness,
-              className: `${pos[0]},${pos[1]},${strokeType}`,
             };
-            if(tasks.length ===1 && normalize) {
-              const centerPos = [rect.x + rect.w / 2, rect.y + rect.h / 2];
-              this.centerPos = [centerPos[0] + pos[0], centerPos[1] + pos[1]];
-              attr.normalize= true;
-              attr.pos = this.centerPos;
-              attr.className= `${this.centerPos[0]},${this.centerPos[1]},${strokeType}`;
-              attr.id = attrs.name;
-              attr.zIndex = zIndex;
-              if (scale) {
-                attr.scale = scale;
-                const r1 = getRectScaleed({
-                  x: Math.floor(rect.x + pos[0] + worldPosition[0] - PencilShape.PencilBorderPadding),
-                  y: Math.floor(rect.y + pos[1] + worldPosition[1] - PencilShape.PencilBorderPadding),
-                  w: Math.floor(rect.w + 2 * PencilShape.PencilBorderPadding),
-                  h: Math.floor(rect.h + 2 * PencilShape.PencilBorderPadding)
-                },scale);
-                r = computRect(r, r1);
-              }
-              if (rotate) {
-                attr.rotate = rotate;
-                const r1 = getRectRotated({
-                  x: Math.floor(rect.x + pos[0] + worldPosition[0] - PencilShape.PencilBorderPadding),
-                  y: Math.floor(rect.y + pos[1] + worldPosition[1] - PencilShape.PencilBorderPadding),
-                  w: Math.floor(rect.w + 2 * PencilShape.PencilBorderPadding),
-                  h: Math.floor(rect.h + 2 * PencilShape.PencilBorderPadding)
-                },rotate);
-                r = computRect(r, r1);
-              }
-            }
             r = computRect(r, {
-              x: Math.floor((rect.x + pos[0]) * worldScaling[0] + worldPosition[0] - PencilShape.PencilBorderPadding),
-              y: Math.floor((rect.y + pos[1]) * worldScaling[1] + worldPosition[1] - PencilShape.PencilBorderPadding),
-              w: Math.floor(rect.w * worldScaling[0] + 2 * PencilShape.PencilBorderPadding),
-              h: Math.floor(rect.h * worldScaling[1]  + 2 * PencilShape.PencilBorderPadding)
+              x: Math.floor((rect.x + pos[0]) * worldScaling[0] + worldPosition[0] - BaseShapeTool.SafeBorderPadding),
+              y: Math.floor((rect.y + pos[1]) * worldScaling[1] + worldPosition[1] - BaseShapeTool.SafeBorderPadding),
+              w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding),
+              h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding)
             });
+            console.log('getRectFromLayer-pencil', r)
             // todo 渲染材质
             // const {vertex, fragment} = this.workOptions;
             // if (vertex && fragment) {
@@ -289,43 +282,49 @@ export class PencilShape extends BaseShapeTool {
             // }
             pathAttrs.push(attr);
         }
-        if (normalize && pathAttrs.length > 1 && r) {
-          const group = new Group();
-          this.centerPos = [
-            ((r.x + r.w / 2) - worldPosition[0]) / worldScaling[0],
-            ((r.y + r.h / 2) - worldPosition[1]) / worldScaling[1]
-          ]
+        // let node:Group|Path|undefined;
+        if (scale) {
+          attrs.scale = scale;
+        }
+        if (rotate) {
+          attrs.rotate = rotate;
+        }
+        if (translate) {
+          attrs.translate = translate;
+        }
+        const group = new Group();
+        if (r) {
+          this.centerPos = BaseShapeTool.getCenterPos(r, layer);
           group.attr({
             ...attrs,
+            normalize:true,
             id: attrs.name,
             anchor: [0.5, 0.5],
-            bgcolor: strokeType === EStrokeType.Stroke ? color : undefined,
-            scale,
-            opacity,
+            bgcolor: strokeType === EStrokeType.Stroke ? strokeColor : undefined,
             pos: this.centerPos,
-            rotate,
-            className: `${this.centerPos[0]},${this.centerPos[1]},${strokeType}`,
-            size: [r.w, r.h],
+            size: [(r.w - 2 * BaseShapeTool.SafeBorderPadding) / worldScaling[0], (r.h - 2 * BaseShapeTool.SafeBorderPadding) / worldScaling[1]],
             zIndex,
           });
-          pathAttrs.forEach(attr=>{
-            attr.pos = [attr.pos[0] - this.centerPos[0], attr.pos[1] - this.centerPos[1]];
-            attr.opacity = 1;
-            const node = new Path(attr);
-            group.appendChild(node);
-          })
+          const children = pathAttrs.map((attr) => {
+              attr.pos = [attr.pos[0] - this.centerPos[0], attr.pos[1] - this.centerPos[1]];
+              return  new Path(attr);
+          });
+          group.append(...children);
           if (strokeType === EStrokeType.Stroke) {
             group.seal();
           }
           layer.append(group);
-        } else {
-          const nodes = pathAttrs.map(p=>{
-            return new Path({
-              ...attrs,
-              ...p
-            })
-          })
-          layer.append(...nodes);
+        }
+        if(scale || rotate || translate){
+          const r = group?.getBoundingClientRect();
+          if (r) {
+            return {
+                x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
+                y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
+                w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
+                h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
+            }
+          }
         }
         return r;
     }
@@ -357,10 +356,8 @@ export class PencilShape extends BaseShapeTool {
         const length = points.length;
         if (length === 1) {
           return this.computDotStroke(points[0])
-          // return Bezier.bezier(10,this.computDotStroke(points[0]));
         }
         return this.computLineStroke(points)
-        // return Bezier.bezier(10,this.computLineStroke(points)) 
     }
     private computLineStroke(strokes: Array<{
         point: Point2d,
@@ -389,7 +386,7 @@ export class PencilShape extends BaseShapeTool {
         radius: number
       }) {
         const {point, radius} = newPoint;
-        const rect = {x:point.x-radius, y:point.y-radius, w:radius*2, h:radius*2};
+        const rect = {x:point.x - radius, y: point.y - radius, w: radius*2, h: radius*2};
         return {ps:Point2d.GetDotStroke(point, radius, 8), rect};
     }
     private transformData(data:IWorkerMessage, isFullWork?:boolean){
@@ -686,57 +683,49 @@ export class PencilShape extends BaseShapeTool {
         this.tmpPoints.push(nextPoint);
       }
     }
-    updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined {
-      let rect:IRectType|undefined;
-      const name = this.workId?.toString();
-      if(name && opt){
-        const paths = this.fullLayer.getElementsByName(name) as Path[];
-        const { pos, zIndex, color, scale, angle, opacity } = opt;
-        const attr:any = {};
-        if (typeof zIndex === 'number') {
-          attr.zIndex = zIndex;
-        }
-        if (pos) {
-          attr.pos = [pos[0],pos[1]];
-          if(paths[0]){
-            const oldClassName = paths[0].className.split(',');
-            attr.className = `${pos[0]},${pos[1]},${oldClassName[2]}`;
+    static updateNodeOpt(param:{
+      node: ShapeNodes,
+      opt: IUpdateNodeOpt, 
+      vNodes: VNodeManager,
+      willSerializeData?: boolean,
+  }){
+      const {node, opt, vNodes} = param;
+      const {strokeColor} = opt;
+      const nodeOpt = vNodes.get(node.name);
+      if (strokeColor) {
+        if (node.tagName === 'GROUP') {
+          if (isSealedGroup(node)) {
+            node.setAttribute('bgcolor',strokeColor);
+          } else {
+              (node as Group).children.forEach(f=>{
+                  f.setAttribute('strokeColor', strokeColor);
+                  if (f.getAttribute('fillColor')) {
+                    f.setAttribute('fillColor', strokeColor);
+                  }
+              })
           }
+        } else {
+            node.setAttribute('strokeColor', strokeColor);
+            node.setAttribute('fillColor', strokeColor);
         }
-        if (color) {
-          attr.strokeColor = color;
+        if (nodeOpt?.opt?.strokeColor ) {
+            nodeOpt.opt.strokeColor = strokeColor;
         }
-        if (scale) {
-          attr.scale = scale;
-        }
-        if (opacity) {
-          attr.opacity = opacity;
-        }
-        if (angle) {
-          attr.rotate = angle;
-        }
-        if(Object.keys(attr).length){
-          paths.forEach(path => {
-            const oldFillColor = path.attr('fillColor');
-            if (color && oldFillColor) {
-              path.attr({...attr, fillColor:color});
-            } else {
-              path.attr(attr);
-            }
-            const r = path?.getBoundingClientRect();
-            if (r) {
-                rect = computRect(rect, {
-                  x: Math.floor(r.x - PencilShape.PencilBorderPadding),
-                  y: Math.floor(r.y - PencilShape.PencilBorderPadding),
-                  w: Math.floor(r.width + PencilShape.PencilBorderPadding * 2),
-                  h: Math.floor(r.height + PencilShape.PencilBorderPadding * 2)
-                });
-            }
-          });
-        }
-        //console.log('updataOptService', this.fullLayer.children)
-        return rect;
       }
-      return ;
+      nodeOpt && vNodes.setInfo(node.name, nodeOpt);
+      return BaseShapeTool.updateNodeOpt(param);
     }
+    static getRectFromLayer(layer: Group, name:string): IRectType|undefined {
+      const node = layer.getElementsByName(name)[0] as ShapeNodes;
+      if (node) {
+          const r = node.getBoundingClientRect();
+          return {
+              x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
+              y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
+              w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
+              h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
+          }
+      }
+      return undefined
+  }
 }

@@ -1,9 +1,9 @@
 import type { Group } from "spritejs";
-import { SubLocalWork } from "../base";
+import { SubLocalWork, VNodeManager } from "../threadEngine";
 import { ECanvasShowType, EPostMessageType, EToolsKey } from "../enum";
 import { BaseShapeTool, SelectorShape } from "../tools";
 import { LaserPenOptions } from "../tools/laserPen";
-import { IWorkerMessage, IMainMessage, IworkId, IRectType, IBatchMainMessage, BaseNodeMapItem } from "../types";
+import { IWorkerMessage, IMainMessage, IworkId, IRectType, IBatchMainMessage } from "../types";
 import { computRect } from "../utils";
 import { transformToNormalData } from "../../collector/utils";
 
@@ -20,8 +20,8 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
     private animationId?: number | undefined;
     private closeAnimationTime: number = 1100;
     private runLaserPenStep:number = 0;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>,layer: Group, postFun: (msg: IBatchMainMessage)=> Promise<void>) {
-        super(curNodeMap, layer);
+    constructor(vNodes: VNodeManager, layer: Group, postFun: (msg: IBatchMainMessage)=> Promise<void>) {
+        super(vNodes, layer);
         this._post = postFun;
     }
     blurSelector(): void {}
@@ -84,6 +84,18 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
             sp: res?.op && [res]
         });
     }
+    private drawArrow(res:IMainMessage) {
+        this._post({
+            drawCount: this.drawCount,
+            render: [{
+                rect: res?.rect,
+                drawCanvas: ECanvasShowType.Float,
+                isClear: true,
+                clearCanvas: ECanvasShowType.Float,
+                isFullWork: false,
+            }]
+        });
+    }
     consumeDraw(data: IWorkerMessage): IMainMessage | undefined {
         const {op, workId} = data;
         if(op?.length && workId){
@@ -92,21 +104,38 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 return
             }
             const toolsType = workShapeNode.toolsType;
-            const result = workShapeNode.consume({data,isFullWork: false, isClearAll:true, isSubWorker:true});
-            if (toolsType === EToolsKey.LaserPen) {
-                if (result?.rect) {
-                    this.animationWorkRects?.set(workId,{
-                        res: result,
-                        canDel: false,
-                        isRect: true,
-                    });
-                }
-                this.runLaserPenAnimation();
-                return;
-            }
-            if (result) {
-                this.drawCount++;
-                this.drawPencil(result);
+            const result = workShapeNode.consume({data, isFullWork: false, isClearAll:true, isSubWorker:true});
+            switch (toolsType) {
+                case EToolsKey.LaserPen:
+                    if (result?.rect) {
+                        this.animationWorkRects?.set(workId,{
+                            res: result,
+                            canDel: false,
+                            isRect: true,
+                        });
+                    }
+                    this.runLaserPenAnimation();
+                    break;
+                case EToolsKey.Arrow:
+                case EToolsKey.Straight:
+                case EToolsKey.Ellipse:
+                case EToolsKey.Rectangle:
+                case EToolsKey.Star:
+                case EToolsKey.Polygon:
+                case EToolsKey.SpeechBalloon:  
+                    if (result) {
+                        this.drawCount++;
+                        this.drawArrow(result)
+                    }
+                    break;
+                case EToolsKey.Pencil:
+                    if (result) {
+                        this.drawCount++;
+                        this.drawPencil(result);
+                    }
+                    break;
+                default:
+                    break;
             }
         }
     }
@@ -118,45 +147,57 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 return;
             }
             const toolsType = workShapeNode.toolsType;
-            if (toolsType === EToolsKey.LaserPen && this.animationId) {
-                const result = workShapeNode.consumeAll({data});
-                if (result?.op) {
-                    if (result?.rect) {
-                        this.animationWorkRects?.set(workId,{
-                            res: result,
-                            canDel: false,
-                            isRect: true,
-                        });
-                        this.runLaserPenAnimation();
+            switch (toolsType) {
+                case EToolsKey.LaserPen:
+                    if (this.animationId) {
+                        const result = workShapeNode.consumeAll({ data});
+                        if (result?.op) {
+                            if (result?.rect) {
+                                this.animationWorkRects?.set(workId,{
+                                    res: result,
+                                    canDel: false,
+                                    isRect: true,
+                                });
+                                this.runLaserPenAnimation();
+                            }
+                            this._post({
+                                sp: [result]
+                            });
+                        }
+                        const duration = (workShapeNode.getWorkOptions() as LaserPenOptions)?.duration;
+                        this.closeAnimationTime = duration ?  duration * 1000 + 100 : this.closeAnimationTime;
+                        setTimeout(() => {                   
+                            this.fullLayer.getElementsByName(workId.toString()).map(p => p.remove());
+                            this.clearWorkShapeNodeCache(workId);
+                            const rectData = this.animationWorkRects?.get(workId);
+                            if (rectData) {
+                                rectData.canDel = true;
+                            }
+                            setTimeout(()=>{
+                                this._post({
+                                    sp: [{
+                                        removeIds:[workId.toString()],
+                                        type: EPostMessageType.RemoveNode,
+                                    }]
+                                });
+                            }, workShapeNode.getWorkOptions().syncUnitTime || this.closeAnimationTime )
+                        }, this.closeAnimationTime);
                     }
-                    this._post({
-                        sp: [result]
-                    });
-                }
-                const duration = (workShapeNode.getWorkOptions() as LaserPenOptions)?.duration;
-                this.closeAnimationTime = duration ?  duration * 1000 + 100 : this.closeAnimationTime;
-                setTimeout(() => {                   
-                    this.fullLayer.getElementsByName(workId.toString()).map(p => p.remove());
+                    break;
+                case EToolsKey.Arrow:
+                case EToolsKey.Straight:
+                case EToolsKey.Ellipse:
+                case EToolsKey.Pencil:
+                case EToolsKey.Rectangle:
+                case EToolsKey.Star:
+                case EToolsKey.Polygon: 
+                case EToolsKey.SpeechBalloon:   
+                    this.drawCount = 0;
+                    this.fullLayer.removeAllChildren();
                     this.clearWorkShapeNodeCache(workId);
-                    const rectData = this.animationWorkRects?.get(workId);
-                    if (rectData) {
-                        rectData.canDel = true;
-                    }
-                    setTimeout(()=>{
-                        this._post({
-                            sp: [{
-                                removeIds:[workId.toString()],
-                                type: EPostMessageType.RemoveNode,
-                            }]
-                        });
-                    }, workShapeNode.getWorkOptions().syncUnitTime || this.closeAnimationTime )
-                }, this.closeAnimationTime);
-                return;
-            }
-            if ( toolsType === EToolsKey.Pencil){
-                this.drawCount = 0;
-                this.fullLayer.removeAllChildren();
-                this.clearWorkShapeNodeCache(workId);
+                    break;           
+                default:
+                    break;
             }
         }
         return ;
@@ -176,23 +217,24 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
             return curWorkShapes
         }
     }
-    runFullWork(data: IWorkerMessage): undefined {
+    runFullWork(data: IWorkerMessage): IRectType | undefined {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
-            workShape.consumeService({
+            const rect = workShape.consumeService({
                 op, 
                 isFullWork: true,
                 replaceId: workShape.getWorkId()?.toString()
             });
-            data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
+            const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
             data.workId && this.workShapes.delete(data.workId)
+            return rect1 || rect;
         }
     }
     runSelectWork(data: IWorkerMessage): undefined {
         const workShape = this.setFullWork(data);
         if(workShape && data.selectIds?.length && data.workId){
-            (workShape as SelectorShape).selectServiceNode(data.workId.toString(), {selectIds:data.selectIds}, this.curNodeMap);
+            (workShape as SelectorShape).selectServiceNode(data.workId.toString(), {selectIds:data.selectIds});
         }
     }
 }

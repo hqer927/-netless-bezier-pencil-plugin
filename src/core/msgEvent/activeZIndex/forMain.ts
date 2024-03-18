@@ -3,7 +3,7 @@ import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
 import { EDataType, EPostMessageType } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import { SelectorShape } from "../../tools";
+import { Storage_Selector_key } from "../../../collector";
 
 export type ZIndexActiveEmtData = {
     workId: IworkId,
@@ -19,7 +19,7 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         // console.log('ZIndexActiveEmtData', isActive)
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
-        if (workId === SelectorShape.selectorId) {
+        if (workId === Storage_Selector_key) {
             localMsgs.push({
                 workId,
                 msgType: EPostMessageType.UpdateNode,

@@ -1,6 +1,6 @@
 import { RoomMember } from "white-web-sdk";
 import { EventMessageType, EvevtWorkState, IMainMessage, MainEngineForWorker } from "../core";
-import { BezierPencilManager, BezierPencilPlugin } from "../plugin";
+import { TeachingAidsManager, TeachingAidsPlugin } from "../plugin";
 import { EventCollector } from "../collector/eventCollector";
 import { BaseEventCollectorReducerAction } from "../collector";
 import isNumber from "lodash/isNumber";
@@ -24,7 +24,7 @@ export type CursorInfo = {x?:number, y?:number, roomMember?: RoomMember}
 
 export class CursorManager {
     eventCollector: EventCollector;
-    plugin: BezierPencilPlugin;
+    plugin: TeachingAidsPlugin;
     roomMember:RoomMemberManager;
     private animationId?: number | undefined;
     private removeTimerId?: number | undefined;
@@ -32,7 +32,7 @@ export class CursorManager {
     private animationDrawWorkers: Map<string, IServiceWorkItem> = new Map();
     private worker?: MainEngineForWorker;
     
-    constructor(plugin: BezierPencilPlugin, roomMember:RoomMemberManager, syncInterval?: number){
+    constructor(plugin: TeachingAidsPlugin, roomMember:RoomMemberManager, syncInterval?: number){
         this.plugin = plugin;
         this.roomMember = roomMember;
         this.eventCollector = new EventCollector(plugin, syncInterval);
@@ -57,6 +57,7 @@ export class CursorManager {
                         }
                     })
                     if(ops.length){
+                        // console.log('activePointWorkShape', ops)
                         this.activePointWorkShape(uid, ops);
                         this.runAnimation();
                         if (this.removeTimerId) {
@@ -205,7 +206,7 @@ export class CursorManager {
             }
         })
         // console.log('animationCursor', this.animationPointWorkers.size, this.animationDrawWorkers.size, [...cursorInfos.values()]);
-        BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.ActiveCursor], [...cursorInfos.values()])
+        TeachingAidsManager.InternalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.ActiveCursor], [...cursorInfos.values()])
         if (this.animationPointWorkers.size || this.animationDrawWorkers.size) {
             this.runAnimation();
         }

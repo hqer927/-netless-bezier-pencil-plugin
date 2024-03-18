@@ -1,5 +1,7 @@
-export * from './bezierPencilPlugin';
-export * from './single/bezierPencilManager';
-export * from './single/bezierPencilDisplayer';
-export {BezierPencilManager as BezierPencilMultiManager} from './multi/bezierPencilMultiManager';
-export {BezierPencilDisplayer as BezierPencilMultiDisplayer, DisplayerContext as MultiDisplayerContext}  from './multi/bezierPencilMultiDisplayer';
+// export * from './types';
+export * from './single/teachingAidsPlugin';
+export * from './single/teachingAidsManager';
+export * from './single/teachingAidsDisplayer';
+
+// export {TeachingAidsPlugin as TeachingAidsMultiPlugin } from './multi/teachingAidsPlugin';
+// export {TeachingAidsManager as TeachingAidsMultiManager} from './multi/teachingAidsMultiManager';

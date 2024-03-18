@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useContext, useEffect, useState } from "react"
-import { DisplayerContext } from "../../plugin"
+import { DisplayerContext, TeachingAidsDisplayer } from "../../plugin"
 import { IconURL } from "../icons";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
 import throttle from "lodash/throttle";
@@ -14,7 +14,7 @@ export const RotateBtn = (props:{
     className: string,
 }) => {
     const { className } = props;
-    const {floatBarData, InternalMsgEmitter, angle, setAngle, setRotateState, position, setShowRotateBtn} = useContext(DisplayerContext);
+    const {floatBarData, angle, setAngle, position, setOperationType} = useContext(DisplayerContext);
     const [showMousePointer, setShowMousePointer] = useState(false);
     const [originPoint,setOriginPoint] = useState<Point2d>(new Point2d());
     const [centralPoint,setCentralPoint] = useState<Point2d>(new Point2d());
@@ -33,9 +33,12 @@ export const RotateBtn = (props:{
         setShowMousePointer(true);
         const a = Math.round(Point2d.GetAngleByPoints(originPoint,centralPoint,new Point2d(pos.x, pos.y))) || 0;
         setAngle(a);
-        setRotateState(true);
+        setOperationType(EmitEventType.RotateNode);
         // console.log('onDragStartHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+        if (TeachingAidsDisplayer.control.room) {
+            TeachingAidsDisplayer.control.room.disableDeviceInputs = true;
+        }
+        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Start})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
@@ -45,10 +48,12 @@ export const RotateBtn = (props:{
         setShowMousePointer(false);
         const a = Math.round(Point2d.GetAngleByPoints(originPoint,centralPoint,new Point2d(pos.x, pos.y))) || 0;
         setAngle(a);
-        setRotateState(false);
-        setShowRotateBtn(false);
+        setOperationType(EmitEventType.RotateNode);
         // console.log('onDragEndHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+        if (TeachingAidsDisplayer.control.room) {
+            TeachingAidsDisplayer.control.room.disableDeviceInputs = false;
+        }
+        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Done})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
@@ -57,9 +62,8 @@ export const RotateBtn = (props:{
         setShowMousePointer(true);
         const a = Math.round(Point2d.GetAngleByPoints(originPoint,centralPoint,new Point2d(pos.x, pos.y))) || 0;
         setAngle(a);
-        setRotateState(true);
         // console.log('onDragHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Doing})
     }, 100, {'leading':false})
     return (
@@ -78,7 +82,7 @@ export const RotateBtn = (props:{
            >
                 {
                     !showMousePointer && (
-                        <div className="bezier-pencil-plugin-rotate-btn" style={{ backgroundColor: floatBarData?.color }}>
+                        <div className="bezier-pencil-plugin-rotate-btn" style={{ backgroundColor: floatBarData?.selectorColor }}>
                             <img alt="icon" src={IconURL('rotation-button')}/>
                         </div>
                     )

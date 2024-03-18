@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import { BaseCollectorReducerAction, Collector, Diff, DiffOne, Storage_Selector_key } from "../../collector";
-import { MainEngine, WorkThreadEngine } from "../base";
+import { MainEngine } from "../mainEngine";
 import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IBatchMainMessage, IworkId, IUpdateNodeOpt, IMainMessage, IMainMessageRenderData, IRectType } from "../types";
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import SWorker from './worker.ts?worker&inline';
-import SubWorker from './workerSub.ts?worker&inline';
-import { BezierPencilDisplayer, BezierPencilManager, BezierPencilPluginOptions } from "../../plugin";
-import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
+import { TeachingAidsDisplayer, TeachingAidsManager } from "../../plugin";
+import {TeachingAidsPluginOptions, EmitEventType, InternalMsgEmitterType} from "../../plugin/types"
 import cloneDeep from "lodash/cloneDeep";
 import { BaseShapeOptions } from "../tools";
 import { MethodBuilderMain, ZIndexNodeMethod } from "../msgEvent";
@@ -15,12 +13,19 @@ import { ShowFloatBarMsgValue } from "../../displayer/types";
 import { requestAsyncCallBack } from "../utils";
 import { UndoRedoMethod } from "../../undo";
 import { CursorManager } from "../../cursors";
+import { WorkThreadEngine } from "../threadEngine";
+
+import SWorker from './worker.ts?worker&inline';
+import SubWorker from './workerSub.ts?worker&inline';
+import { TextEditorManager } from "../../component/textEditor";
+import { ETextEditorType, TextOptions } from "../../component/textEditor/types";
+import type { Room } from "white-web-sdk";
 
 export class MainEngineForWorker extends MainEngine {
     protected dpr: number = 1;
     // private browserName:string;
     protected threadEngine?: WorkThreadEngine;
-    private pluginOptions?: BezierPencilPluginOptions;
+    private pluginOptions?: TeachingAidsPluginOptions;
     static defaultScreenCanvasOpt = {
         autoRender: false,
         contextType: ECanvasContextType.Canvas2d, 
@@ -34,13 +39,15 @@ export class MainEngineForWorker extends MainEngine {
     static maxLastSyncTime = 500;
     protected layerOpt!: ILayerOptionType;
     protected msgEmitter!: Worker;
-    public offscreenCanvasOpt!: IOffscreenCanvasOptionType;
+    room?: Room;
+    textEditorManager: TextEditorManager;
+    offscreenCanvasOpt!: IOffscreenCanvasOptionType;
     // 坐标系原点
-    public originalPoint: [number, number] = [0,0];
+    originalPoint: [number, number] = [0,0];
     protected cameraOpt!: ICameraOpt;
     protected localPointsBatchData: number[] = [];
-    public taskBatchData: Map<unknown, IWorkerMessage> = new Map();
-    protected currentToolsData!: IActiveToolsDataType;
+    taskBatchData: Map<unknown, IWorkerMessage> = new Map();
+    currentToolsData!: IActiveToolsDataType;
     protected currentLocalWorkData!: IActiveWorkDataType;
     private animationId: number|undefined;
     private subWorker: Worker | undefined;
@@ -60,15 +67,35 @@ export class MainEngineForWorker extends MainEngine {
     private cursor!:CursorManager;
     private cachePoint?:[number|undefined,number|undefined];
     private clearAllResolve?: (bool:boolean) => void;
-    constructor(collector: Collector, cursor:CursorManager, options?: BezierPencilPluginOptions){
-        super(BezierPencilDisplayer.instance, collector);
+    private useTasksqueue: boolean = false;
+    private useTasksClockId?: number;
+    private mianTasksqueueCount?: number;
+    private workerTasksqueueCount?: number;
+    constructor(props:{
+        collector: Collector, 
+        cursor:CursorManager, 
+        options?: TeachingAidsPluginOptions,
+        room?: Room
+        textComponent: TextEditorManager
+    }){
+        const {collector,cursor,options, room, textComponent} = props;
+        super(TeachingAidsDisplayer.instance, collector);
         this.cursor = cursor;
-        this.bgCanvas = BezierPencilDisplayer.instance.canvasBgRef;
-        this.floatCanvas = BezierPencilDisplayer.instance.canvasFloatRef;
+        this.room = room;
+        this.bgCanvas = TeachingAidsDisplayer.instance.canvasBgRef;
+        this.floatCanvas = TeachingAidsDisplayer.instance.canvasFloatRef;
+        this.textEditorManager = textComponent;
         if (this.bgCanvas && this.floatCanvas) {
             this.pluginOptions = options;
             MainEngineForWorker.maxLastSyncTime = (options?.syncOpt?.interval || MainEngineForWorker.maxLastSyncTime) * 0.5;
             this.msgEmitter = new SWorker();
+            this.cameraOpt = {
+                centerX: 0,
+                centerY: 0,
+                scale: 1,
+                width: this.bgCanvas.offsetWidth, 
+                height: this.bgCanvas.offsetHeight,
+            }
             const screenCanvasOpt = {
                 ...MainEngineForWorker.defaultScreenCanvasOpt,
                 ...this.pluginOptions?.canvasOpt,
@@ -85,14 +112,83 @@ export class MainEngineForWorker extends MainEngine {
             this.internalMsgEmitterListener();
             this.on();
         }
-        BezierPencilManager.InternalMsgEmitter.on([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor],this.sendCursorEvent.bind(this))
+        TeachingAidsManager.InternalMsgEmitter.on([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor],this.sendCursorEvent.bind(this))
+    }
+    private get isRunSubWork(): boolean {
+        const {toolsType} = this.currentToolsData;
+        if (
+            toolsType === EToolsKey.Pencil || 
+            toolsType === EToolsKey.LaserPen || 
+            toolsType === EToolsKey.Arrow || 
+            toolsType === EToolsKey.Straight || 
+            toolsType === EToolsKey.Ellipse || 
+            toolsType === EToolsKey.Rectangle || 
+            toolsType === EToolsKey.Star || 
+            toolsType === EToolsKey.Polygon || 
+            toolsType === EToolsKey.SpeechBalloon
+        ) {
+            return true;
+        }
+        return false
+    }
+    private get isCanDrawWork(): boolean {
+        const {toolsType} = this.currentToolsData;
+        if (
+            toolsType === EToolsKey.Pencil || 
+            toolsType === EToolsKey.LaserPen || 
+            toolsType === EToolsKey.Arrow || 
+            toolsType === EToolsKey.Straight || 
+            toolsType === EToolsKey.Ellipse || 
+            toolsType === EToolsKey.Rectangle || 
+            toolsType === EToolsKey.Star || 
+            toolsType === EToolsKey.Polygon || 
+            toolsType === EToolsKey.SpeechBalloon
+        ) {
+            return true;
+        }
+        return false
+    }
+    private get isUseZIndex(): boolean {
+        const {toolsType} = this.currentToolsData;
+        if (
+            toolsType === EToolsKey.Pencil || 
+            toolsType === EToolsKey.Arrow || 
+            toolsType === EToolsKey.Straight || 
+            toolsType === EToolsKey.Ellipse || 
+            toolsType === EToolsKey.Rectangle || 
+            toolsType === EToolsKey.Star || 
+            toolsType === EToolsKey.Polygon || 
+            toolsType === EToolsKey.SpeechBalloon || 
+            toolsType === EToolsKey.Text
+        ) {
+            return true;
+        }
+        return false
+    }
+    private get isCanRecordUndoRedo(): boolean {
+        const {toolsType} = this.currentToolsData;
+        if (
+            toolsType === EToolsKey.Pencil || 
+            toolsType === EToolsKey.Selector || 
+            toolsType === EToolsKey.Eraser || 
+            toolsType === EToolsKey.Arrow || 
+            toolsType === EToolsKey.Straight || 
+            toolsType === EToolsKey.Ellipse || 
+            toolsType === EToolsKey.Rectangle || 
+            toolsType === EToolsKey.Star || 
+            toolsType === EToolsKey.Polygon || 
+            toolsType === EToolsKey.SpeechBalloon
+        ) {
+            return true;
+        }
+        return false
     }
     private sendCursorEvent(p:[number|undefined,number|undefined]) {
         if (this.currentLocalWorkData.workState === EvevtWorkState.Freeze || this.currentLocalWorkData.workState === EvevtWorkState.Unwritable ) {
             return;
         }
         let point:[number|undefined,number|undefined] = [undefined,undefined];
-        if (this.currentToolsData && (this.currentToolsData.toolsType === EToolsKey.LaserPen || this.currentToolsData.toolsType === EToolsKey.Pencil)) {
+        if ( this.currentToolsData && (this.isCanDrawWork || this.currentToolsData.toolsType === EToolsKey.Text)) {
             if (this.currentLocalWorkData.workState !== EvevtWorkState.Start && this.currentLocalWorkData.workState !== EvevtWorkState.Doing ) {
                 point = p;
             }
@@ -112,9 +208,9 @@ export class MainEngineForWorker extends MainEngine {
             ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this, this.collector);
             this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
         }
-        BezierPencilManager.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
-        BezierPencilManager.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
-        BezierPencilManager.InternalMsgEmitter?.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
     }
     private showFloatBar(show: boolean){
         if(show){
@@ -131,8 +227,8 @@ export class MainEngineForWorker extends MainEngine {
     }
     private internalMsgEmitterRemoveListener () {
         this.methodBuilder?.destroy();
-        BezierPencilManager.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
-        BezierPencilManager.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.off([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
     }
     private createSceneLintener(width: number, height: number, dpr: number) {
         this.offscreenCanvasOpt = {
@@ -244,7 +340,7 @@ export class MainEngineForWorker extends MainEngine {
         this.localPointsBatchData.push(point[0],point[1]);
     }
     transformToScenePoint(p:[number,number]):[number,number] {
-        const point:[number,number] = p;
+        const point:[number,number] = [p[0],p[1]];
         const {scale, centerX, centerY} = this.cameraOpt;
         if (this.originalPoint) {
             point[0] = (p[0] - this.originalPoint[0]) / scale + centerX;
@@ -253,7 +349,7 @@ export class MainEngineForWorker extends MainEngine {
         return point;
     }
     transformToOriginPoint(p:[number,number]):[number,number] {
-        const point:[number,number] = p;
+        const point:[number,number] = [p[0],p[1]];
         const {scale, centerX, centerY} = this.cameraOpt;
         if (this.originalPoint) {
             point[0] = (p[0] - centerX) * scale + this.originalPoint[0];
@@ -281,6 +377,10 @@ export class MainEngineForWorker extends MainEngine {
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
                     data.useAnimation = false;
+                    if (data.toolsType === EToolsKey.Text) {
+                        this.textEditorManager.onServiceDerive(data)
+                        continue;
+                    }
                     this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`, data);
                     if (data.opt?.zIndex) {
                         maxZIndex = Math.max(maxZIndex || 0, data.opt.zIndex);
@@ -329,24 +429,28 @@ export class MainEngineForWorker extends MainEngine {
             }
         }
         if (msgType && workId) {
-            const data: IWorkerMessage & Pick<IWorkerMessage, 'workId'> = msg as IWorkerMessage;
-            data.workId = this.collector.isOwn(workId) ? this.collector.getLocalId(workId) : workId;
-            data.msgType = msgType;
-            data.dataType = EDataType.Service;
-            if (data.selectIds) {
-                data.selectIds = data.selectIds.map(id=>{
+            const d: IWorkerMessage & Pick<IWorkerMessage, 'workId'> = msg as IWorkerMessage;
+            d.workId = this.collector.isOwn(workId) ? this.collector.getLocalId(workId) : workId;
+            d.msgType = msgType;
+            d.dataType = EDataType.Service;
+            if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
+                this.textEditorManager.onServiceDerive(d);
+                return;
+            }
+            if (d.selectIds) {
+                d.selectIds = d.selectIds.map(id=>{
                     return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
                 })
             }
             if (relevantId === key) {
-                // console.log('onServiceDerive1', data)
+                console.log('onServiceDerive1', data)
                 setTimeout(()=>{
-                    this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
+                    this.taskBatchData.set(`${d.dataType},${d.msgType},${d.workId}`,d);
                     this.runAnimation();
                 }, 16);
             } else {
-                // console.log('onServiceDerive', data)
-                this.taskBatchData.set(`${data.dataType},${data.msgType},${data.workId}`,data);
+                console.log('onServiceDerive', data)
+                this.taskBatchData.set(`${d.dataType},${d.msgType},${d.workId}`,d);
             }
         }
         this.runAnimation();
@@ -360,6 +464,14 @@ export class MainEngineForWorker extends MainEngine {
             if (maxZIndex) this.zIndexNodeMethod.maxZIndex = maxZIndex;
             if (minZIndex) this.zIndexNodeMethod.minZIndex = minZIndex;
         }
+    }
+    private setZIndex(){
+        const opt:BaseShapeOptions = cloneDeep(this.currentToolsData.toolsOpt);
+        if(this.zIndexNodeMethod && this.isUseZIndex ){
+            this.zIndexNodeMethod.addMaxLayer();
+            opt.zIndex = this.zIndexNodeMethod.maxZIndex;
+        }
+        return opt;
     }
     private onLocalEventEnd(point: [number, number]): void {
         const workState = this.currentLocalWorkData.workState;
@@ -375,8 +487,26 @@ export class MainEngineForWorker extends MainEngine {
                 this.runAnimation();
             }, 0) as unknown as number;
             if (this.currentToolsData.toolsType === EToolsKey.Selector) {
-                BezierPencilManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], 2);
+                TeachingAidsManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], 2);
             }
+        } else if (this.currentToolsData.toolsType === EToolsKey.Text) {
+            const _point:[number,number] = this.transformToScenePoint(point);
+            if (this.localPointsBatchData[0] === _point[0] && this.localPointsBatchData[1] === _point[1]) {
+                const opt = this.currentToolsData.toolsOpt as TextOptions;
+                opt.workState = EvevtWorkState.Doing;
+                opt.boxPoint = _point;
+                opt.boxSize = [opt.fontSize, opt.fontSize];
+                this.textEditorManager.createTextForMain({
+                    workId: Date.now().toString(),
+                    x: point[0],
+                    y: point[1],
+                    scale: this.cameraOpt.scale,
+                    opt,
+                    type: ETextEditorType.Text,
+                    isActive: true,
+                });
+            }
+            this.localPointsBatchData.length = 0;
         }
     }
     private onLocalEventDoing(point: [number, number]): void {
@@ -401,31 +531,25 @@ export class MainEngineForWorker extends MainEngine {
         if(workState === EvevtWorkState.Freeze || workState === EvevtWorkState.Unwritable){
             return ;
         }
-        const workId = this.currentToolsData.toolsType === EToolsKey.Selector? Storage_Selector_key : Date.now();
-        const opt:BaseShapeOptions = cloneDeep(this.currentToolsData.toolsOpt);
-        if(this.currentToolsData.toolsType === EToolsKey.Pencil && this.zIndexNodeMethod){
-            this.zIndexNodeMethod.addMaxLayer();
-            opt.zIndex = this.zIndexNodeMethod.maxZIndex;
-            // console.log('zIndex---000', opt.zIndex)
+        const _point:[number,number] = this.transformToScenePoint(point);
+        this.pushPoint(_point);
+        if (this.currentToolsData.toolsType === EToolsKey.Text) {
+            return ;
         }
+        this.textEditorManager.checkEmptyTextBlur();
+        const workId = this.currentToolsData.toolsType === EToolsKey.Selector? Storage_Selector_key : Date.now();
+        const opt = this.setZIndex();
         this.setCurrentLocalWorkData({
             workId,
             workState: EvevtWorkState.Start,
             toolsOpt: opt
         }, EPostMessageType.CreateWork)
-        const _point:[number,number] = this.transformToScenePoint(point);
-        this.pushPoint(_point);
         this.maxDrawCount = 0;
         this.cacheDrawCount = 0;
         this.wokerDrawCount = 0;
         this.subWorkerDrawCount = 0;
         this.reRenders.length = 0;
-        if (
-            this.currentToolsData.toolsType === EToolsKey.Pencil || 
-            this.currentToolsData.toolsType === EToolsKey.Eraser || 
-            this.currentToolsData.toolsType === EToolsKey.Selector
-        ) {
-            
+        if ( this.isCanRecordUndoRedo ) {
             if (this.currentToolsData.toolsType === EToolsKey.Selector) {
                 this.undoTickerId = Date.now();
             } else {
@@ -433,7 +557,7 @@ export class MainEngineForWorker extends MainEngine {
             }
             UndoRedoMethod.emitter.emit("undoTickerStart", this.undoTickerId);
         }
-        if (this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen) {
+        if (this.isCanDrawWork) {
             this.collector?.dispatch({
                 type: EPostMessageType.CreateWork,
                 workId,
@@ -449,7 +573,7 @@ export class MainEngineForWorker extends MainEngine {
                 })
             }
         } else if (this.currentToolsData.toolsType === EToolsKey.Selector) {
-            BezierPencilManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], -1);
+            TeachingAidsManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], -1);
         }
         this.consume();
     }
@@ -458,8 +582,7 @@ export class MainEngineForWorker extends MainEngine {
         const workState = this.currentLocalWorkData.workState;
         let isAble = false;
         if (!this.localEventTimerId) {
-            if (this.localPointsBatchData.length) {
-                const isRunSubWork = this.currentToolsData.toolsType === EToolsKey.Pencil || this.currentToolsData.toolsType === EToolsKey.LaserPen;
+            if (workState !== EvevtWorkState.Pending && this.localPointsBatchData.length) {
                 if (this.wokerDrawCount !== Infinity && this.wokerDrawCount <= this.subWorkerDrawCount && this.cacheDrawCount < this.maxDrawCount) {
                     isAble = true;
                 }
@@ -473,7 +596,7 @@ export class MainEngineForWorker extends MainEngine {
                         workId: this.currentLocalWorkData.workId,
                         dataType: EDataType.Local,
                         msgType: EPostMessageType.DrawWork,
-                        isRunSubWork,
+                        isRunSubWork: this.isRunSubWork,
                         undoTickerId: workState === EvevtWorkState.Done && this.undoTickerId || undefined
                     })
                     this.localPointsBatchData.length = 0;
@@ -509,7 +632,11 @@ export class MainEngineForWorker extends MainEngine {
     on(): void {
         this.msgEmitter.onmessage = (e: MessageEvent<IBatchMainMessage>) => {
             if (e.data) {
-                const {render, sp, drawCount} = e.data;
+                const {render, sp, drawCount, workerTasksqueueCount} = e.data;
+                if (workerTasksqueueCount) {
+                    this.workerTasksqueueCount = workerTasksqueueCount;
+                }
+                console.log('render', render, sp, workerTasksqueueCount)
                 if (sp?.length) {
                     this.collectorSyncData(sp);
                 }
@@ -572,26 +699,41 @@ export class MainEngineForWorker extends MainEngine {
     private collectorSyncData(sp: IMainMessage[]){
         let isHasOther = false;
         for (const data of sp) {
-            const {type, selectIds, opt, padding, selectRect, nodeColor, nodeOpactiy, willSyncService, isSync, undoTickerId, imageBitmap, scenePath, canvasHeight, canvasWidth, rect, op } = data;
+            const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, 
+                undoTickerId, imageBitmap, scenePath, canvasHeight, canvasWidth, rect, op, canTextEdit, 
+                selectorColor, canRotate, scaleType, textOpt, toolsType, workId} = data;
             switch (type) {
                 case EPostMessageType.Select:
                     const value:Partial<ShowFloatBarMsgValue> | undefined = selectIds?.length ? {...selectRect, selectIds, canvasHeight, canvasWidth} : undefined;
-                    if (value && opt?.color) {
-                        value.color = opt.color;
+                    if (value && opt?.strokeColor) {
+                        value.selectorColor = opt.strokeColor;
                     }
-                    if(value && padding){
-                        value.padding = padding;
+                    if (value && selectorColor) {
+                        value.selectorColor = selectorColor;
                     }
-                    if(value && nodeColor){
-                        value.nodeColor = nodeColor;
+                    if(value && strokeColor){
+                        value.strokeColor = strokeColor;
                     }
-                    if (value && opt?.opacity) {
-                        value.opacity = opt.opacity;
+                    if (value && opt?.fillColor) {
+                        value.fillColor = opt.fillColor;
                     }
-                    if (value && nodeOpactiy) {
-                        value.opacity = nodeOpactiy;
+                    if (value && fillColor) {
+                        value.fillColor = fillColor;
                     }
-                    BezierPencilManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], !!value, value);
+                    if (value && canRotate) {
+                        value.canRotate = canRotate;
+                    }
+                    if (value && scaleType) {
+                        value.scaleType = scaleType;
+                    }
+                    if (value && canTextEdit) {
+                        value.canTextEdit = canTextEdit;
+                    }
+                    if (value && textOpt) {
+                        value.textOpt = textOpt;
+                    }
+                    // console.log('collectorSyncData', value)
+                    TeachingAidsManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], !!value, value);
                     if (willSyncService) {
                         this.collector?.dispatch({type, selectIds, opt, isSync });
                         if (undoTickerId) {
@@ -621,8 +763,32 @@ export class MainEngineForWorker extends MainEngine {
                     }
                     break;
                 case EPostMessageType.Clear:
-                    BezierPencilManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
+                    TeachingAidsManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], false);
                     this.clearAllResolve && this.clearAllResolve(true);
+                    break;
+                case EPostMessageType.TextUpdate:
+                    if (toolsType === EToolsKey.Text && workId) {
+                        const point = this.transformToOriginPoint((opt as TextOptions)?.boxPoint || [0,0])
+                        const boxSize =  (opt as TextOptions)?.boxSize || [0,0];
+                        this.textEditorManager.updateTextForWorker({
+                            x: point[0],
+                            y: point[1],
+                            w: boxSize[0],
+                            h: boxSize[1],
+                            scale: this.cameraOpt.scale,
+                            workId: workId as string,
+                            opt: opt as TextOptions,
+                            isDel: !opt
+                        })
+                    }
+                    break;
+                case EPostMessageType.GetTextActive:
+                    if (toolsType === EToolsKey.Text && workId) {
+                        this.textEditorManager.updateTextForWorker({
+                            workId: workId as string,
+                            isActive: true
+                        })
+                    }
                     break;
                 default:
                     isHasOther = true;
@@ -656,8 +822,8 @@ export class MainEngineForWorker extends MainEngine {
                     }
                     break;
                 case EPostMessageType.UpdateNode:
-                    if (updateNodeOpt || opt || ops) {
-                        this.collector?.dispatch({type, updateNodeOpt, workId, opt, ops,isSync})
+                    if (updateNodeOpt || opt || ops || op) {
+                        this.collector?.dispatch({type, updateNodeOpt, workId, opt, ops, op, isSync})
                     }
                     break;
                 case EPostMessageType.RemoveNode:
@@ -678,6 +844,7 @@ export class MainEngineForWorker extends MainEngine {
             dataType: EDataType.Local,
             msgType: EPostMessageType.Clear,
         });
+        this.textEditorManager.destory();
         this.runAnimation();
         if (!justLocal) {
             const undoTickerId = Date.now();
@@ -732,36 +899,42 @@ export class MainEngineForWorker extends MainEngine {
                 toolsType: toolsType,
                 opt: {...this.currentToolsData.toolsOpt, ...toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime},
                 dataType: EDataType.Local,
-                isRunSubWork: toolsType === EToolsKey.Pencil || toolsType === EToolsKey.LaserPen
+                isRunSubWork: this.isRunSubWork
             })
             this.runAnimation();
         }
     }
     setCurrentToolsData(currentToolsData: IActiveToolsDataType) {
-        super.setCurrentToolsData(currentToolsData);
         const toolsType = currentToolsData.toolsType;
-        if (this.collector.hasSelector()) {
-            const undoTickerId = Date.now();
-            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
-            this.taskBatchData.set(Storage_Selector_key,{
-                workId: Storage_Selector_key,
-                msgType: EPostMessageType.RemoveNode,
-                dataType: EDataType.Local,
-                undoTickerId
-            })
+        const isChangeToolsType = this.currentToolsData?.toolsType !== currentToolsData.toolsType;
+        super.setCurrentToolsData(currentToolsData);
+        if (isChangeToolsType) {
+            if (this.collector.hasSelector()) {
+                const undoTickerId = Date.now();
+                UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+                this.taskBatchData.set(Storage_Selector_key,{
+                    workId: Storage_Selector_key,
+                    msgType: EPostMessageType.RemoveNode,
+                    dataType: EDataType.Local,
+                    undoTickerId
+                })
+            }
+            if (this.textEditorManager.activeId) {
+                this.textEditorManager.checkEmptyTextBlur();
+            }
         }
+        
         this.taskBatchData.set(`UpdateTools`,{
             msgType: EPostMessageType.UpdateTools,
             dataType: EDataType.Local,
             toolsType,
             opt: {...currentToolsData.toolsOpt, syncUnitTime: MainEngineForWorker.maxLastSyncTime },
-            isRunSubWork: toolsType === EToolsKey.Pencil || toolsType === EToolsKey.LaserPen
+            isRunSubWork: this.isRunSubWork
         })
         this.runAnimation();
     }
     setCameraOpt(cameraOpt: ICameraOpt){
         super.setCameraOpt(cameraOpt);
-        // console.log('cameraOpt', cameraOpt.width, cameraOpt.height)
         const {width,height} = cameraOpt;
         if (width !== this.offscreenCanvasOpt.width || height !== this.offscreenCanvasOpt.height) {
             if (this.bgCanvas) {
@@ -774,13 +947,36 @@ export class MainEngineForWorker extends MainEngine {
             }
             this.updateCanvas({width, height});
         }
-        this.taskBatchData.set(`UpdateCamera`,{
-            msgType: EPostMessageType.UpdateCamera,
-            dataType: EDataType.Local,
-            cameraOpt,
-            isRunSubWork: true
-        })
-        this.runAnimation();
+        if (!this.useTasksqueue) {
+            this.useTasksqueue = true;
+            this.mianTasksqueueCount = 1;
+            this.workerTasksqueueCount = 1;
+        }
+        if (this.useTasksqueue) {
+            if (this.mianTasksqueueCount && this.workerTasksqueueCount) {
+                if(this.mianTasksqueueCount === this.workerTasksqueueCount){
+                    this.mianTasksqueueCount++;
+                    this.taskBatchData.set(`UpdateCamera`,{
+                        msgType: EPostMessageType.UpdateCamera,
+                        dataType: EDataType.Local,
+                        cameraOpt,
+                        isRunSubWork: true,
+                        mainTasksqueueCount: this.mianTasksqueueCount
+                    })
+                    this.runAnimation();
+                    this.textEditorManager.onCameraChange(cameraOpt)
+                }   
+            }
+            if (this.useTasksClockId) {
+                clearTimeout(this.useTasksClockId);
+            }
+            this.useTasksClockId = setTimeout(() => {
+                this.useTasksClockId = undefined;
+                this.useTasksqueue = false;
+                this.mianTasksqueueCount = undefined;
+                this.workerTasksqueueCount = undefined;
+            }, MainEngineForWorker.maxLastSyncTime) as unknown as number;
+        }
     }
     getSnapshot(scenePath: string, width?: number, height?: number, camera?:Pick<ICameraOpt,"centerX" | "centerY" | "scale">):Promise<ImageBitmap> | undefined{
         const cur = this.snapshotMap?.get(scenePath);

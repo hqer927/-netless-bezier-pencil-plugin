@@ -1,11 +1,11 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
-import { IUpdateNodeOpt, IWorkerMessage, IworkId } from "../../types";
+import { IWorkerMessage, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";
-import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../enum";
+import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import { BaseShapeOptions, SelectorShape } from "../../tools";
 import { UndoRedoMethod } from "../../../undo";
+import { Storage_Selector_key } from "../../../collector";
 
 export type RotateNodeEmtData = {
     workIds: IworkId[],
@@ -15,6 +15,7 @@ export type RotateNodeEmtData = {
 export class RotateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.RotateNode;
     private undoTickerId?:number;
+    private cacheOriginRotate:number = 0;
     collect(data: RotateNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
@@ -43,51 +44,35 @@ export class RotateNodeMethod extends BaseMsgMethod {
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
-            if (curStore && localWorkId === SelectorShape.selectorId) {
-                if (curStore.selectIds) {
-                    selectIds.push(...curStore.selectIds);
-                    // keys.push(...curStore.selectIds); 
-                    if (workState !== EvevtWorkState.Start) {
-                        const updateNodeOpt = curStore.updateNodeOpt || {}
-                        updateNodeOpt.angle = angle;
-                        updateNodeOpt.workState = workState;
-                        const taskData: IWorkerMessage = {
-                            workId: curKey,
-                            msgType: EPostMessageType.UpdateNode,
-                            dataType: EDataType.Local,
-                            updateNodeOpt,
-                            emitEventType: this.emitEventType,
-                            willRefreshSelector: false,
-                            willSyncService: true
-                        };
-                        if (workState === EvevtWorkState.Done) {
-                            const subStore: Map<string, {
-                                updateNodeOpt?: IUpdateNodeOpt;
-                                ops?: string;
-                                opt?: BaseShapeOptions;
-                                toolsType?: EToolsKey;
-                            }> = new Map();
-                            selectIds.forEach((name)=>{
-                                const isLocalId = this.serviceColloctor?.isLocalId(name);
-                                let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
-                                const curStore = store[key];
-                                if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
-                                    key = this.serviceColloctor.getLocalId(key);
-                                }
-                                curStore?.ops && subStore.set(key, {
-                                    ops: curStore.ops,
-                                    updateNodeOpt: curStore.updateNodeOpt,
-                                    opt: curStore.opt,
-                                    toolsType: curStore.toolsType,
-                                })
-                            })
-                            taskData.willRefreshSelector = true;
-                            taskData.selectStore = subStore;
-                            taskData.willSerializeData = true;
-                            taskData.undoTickerId = this.undoTickerId;
-                        }
-                        localMsgs.push(taskData)
+            if (curStore && localWorkId === Storage_Selector_key) {
+                if (curStore.selectIds?.length === 1) {
+                    const id = curStore.selectIds[0];
+                    selectIds.push(id);
+                    if (workState === EvevtWorkState.Start) {
+                        const isLocalId = this.serviceColloctor?.isLocalId(id);
+                        const key = isLocalId && this.serviceColloctor?.transformKey(id) || id;
+                        const curSubStore = store[key];
+                        this.cacheOriginRotate = curSubStore?.opt?.rotate || 0
                     }
+                    const updateNodeOpt = curStore.updateNodeOpt || {}
+                    updateNodeOpt.angle = (angle + this.cacheOriginRotate) % 360;
+                    updateNodeOpt.workState = workState;
+                    const taskData: IWorkerMessage = {
+                        workId: curKey,
+                        msgType: EPostMessageType.UpdateNode,
+                        dataType: EDataType.Local,
+                        updateNodeOpt,
+                        emitEventType: this.emitEventType,
+                        willRefreshSelector: false,
+                        willSyncService: true
+                    };
+                    if (workState === EvevtWorkState.Done) {
+                        taskData.willRefreshSelector = true;
+                        taskData.willSerializeData = true;
+                        taskData.undoTickerId = this.undoTickerId;
+                        this.cacheOriginRotate = 0;
+                    }
+                    localMsgs.push(taskData)
                 }
                 continue;
             }

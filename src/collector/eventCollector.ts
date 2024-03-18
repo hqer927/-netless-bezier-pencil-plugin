@@ -3,7 +3,7 @@ import type { Room } from "white-web-sdk";
 import { autorun } from "white-web-sdk";
 import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types";
 import { BaseCollector } from "./base";
-import { BezierPencilPlugin } from "../plugin";
+import { TeachingAidsPlugin } from "../plugin";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
 import isEqual from "lodash/isEqual";
@@ -16,11 +16,11 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
     serviceStorage: ISerializableEventData = {};
     storage: ISerializableEventData = {};
     uid: string;
-    plugin?: BezierPencilPlugin;
+    plugin?: TeachingAidsPlugin;
     private stateDisposer: (() => void) | undefined;
     private asyncClockTimer?:number;
     protected namespace!: string;
-    constructor(plugin: BezierPencilPlugin, syncInterval?: number ){
+    constructor(plugin: TeachingAidsPlugin, syncInterval?: number ){
         super();
         EventCollector.syncInterval = (syncInterval || EventCollector.syncInterval) * 0.5;
         this.plugin = plugin;

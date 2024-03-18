@@ -5,11 +5,11 @@ import { IWorkerMessage } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { requestAsyncCallBack } from "../utils";
 import { UndoRedoMethod } from "../../undo";
-import { BezierPencilManager } from "../../plugin";
+import { TeachingAidsManager } from "../../plugin";
 
 export abstract class BaseMsgMethod {
     static dispatch(emtType: InternalMsgEmitterType, emitEventType:EmitEventType, value: unknown) {
-        BezierPencilManager.InternalMsgEmitter?.emit([emtType, emitEventType], value);
+        TeachingAidsManager.InternalMsgEmitter?.emit([emtType, emitEventType], value);
     }
     abstract readonly emitEventType: EmitEventType;
     emtType: InternalMsgEmitterType | undefined;
@@ -19,11 +19,11 @@ export abstract class BaseMsgMethod {
         this.emtType = emtType;
         this.mainEngine = main;
         this.serviceColloctor = serviceColloctor;
-        BezierPencilManager.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
+        TeachingAidsManager.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }
     destroy() {
-        this.emtType && BezierPencilManager.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
+        this.emtType && TeachingAidsManager.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
     }
     collectForLocalWorker(data: IWorkerMessage[] ): void {
         const keys = this.mainEngine?.taskBatchData && [...this.mainEngine.taskBatchData.keys()] || [];

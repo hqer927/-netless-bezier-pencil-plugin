@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EPostMessageType, EToolsKey, EventMessageType } from "../core/enum";
-import { BaseShapeOptions } from "../core/tools";
+import { ShapeOptions } from "../core/tools";
 import { IUpdateNodeOpt, IworkId } from "../core/types";
 import { EmitEventType } from "../plugin/types";
 import { EEventDataKey } from "./enum";
@@ -26,7 +26,7 @@ export type IStorageValueItem = Partial<INormalPushMsg>;
 export interface INormalPushMsg {
     workId?: IworkId;
     toolsType?: EToolsKey;
-    opt?: BaseShapeOptions;
+    opt?: ShapeOptions;
     uid?: string;
     taskId?: number;
     namespace?: string;

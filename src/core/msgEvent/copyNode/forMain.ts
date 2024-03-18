@@ -1,12 +1,13 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
-import { EDataType, EPostMessageType } from "../../enum";
+import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import { SelectorShape } from "../../tools";
 import cloneDeep from "lodash/cloneDeep";
 import { transformToNormalData, transformToSerializableData } from "../../../collector/utils";
 import { UndoRedoMethod } from "../../../undo";
+import { Storage_Selector_key } from "../../../collector";
+import { ETextEditorType, TextOptions } from "../../../component/textEditor";
 
 export type CopyNodeEmtData = {
     workIds: IworkId[]
@@ -35,10 +36,10 @@ export class CopyNodeMethod extends BaseMsgMethod {
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
             const curStore = cloneDeep(store[key]);
             let localWorkId:string | undefined = curKeyStr ;
-            if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-                localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-            }
-            if (curStore && localWorkId === SelectorShape.selectorId) {
+                if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
+                    localWorkId = this.serviceColloctor.getLocalId(localWorkId);
+                }
+            if (curStore && localWorkId === Storage_Selector_key) {
                 if (curStore.selectIds) {
                     keys.push(...curStore.selectIds);
                 }
@@ -54,8 +55,25 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 }
                 updateNodeOpt.pos = [pos[0] + t[0]+ random, pos[1] + t[1] + random];
                 updateNodeOpt.useAnimation = false;
-                // console.log('curStore', pos, curStore.updateNodeOpt?.pos?.map(x=>x), updateNodeOpt)
                 const translate = [updateNodeOpt.pos[0] - pos[0], updateNodeOpt.pos[1] - pos[1]];
+                if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
+                    const opt = curStore.opt as TextOptions;
+                    if ( opt && opt.boxPoint && opt.text) {
+                        opt.workState = EvevtWorkState.Done;
+                        opt.boxPoint = [translate[0],translate[1]];
+                        const point:[number,number] = this.mainEngine.transformToOriginPoint(opt.boxPoint);
+                        this.mainEngine.textEditorManager.createTextForMain({
+                            workId: Date.now().toString(),
+                            x: point[0],
+                            y: point[1],
+                            opt,
+                            scale: this.mainEngine.getCameraOpt().scale,
+                            type: ETextEditorType.Text,
+                            isActive: false,
+                        });
+                    }
+                    continue;
+                }
                 if (curStore.ops) {
                     const op = (transformToNormalData(curStore.ops) as number[]).map((n,index)=>{
                         const i = index % 3

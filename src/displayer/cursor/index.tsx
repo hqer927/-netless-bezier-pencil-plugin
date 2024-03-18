@@ -4,6 +4,8 @@ import {
     RoomMember,
 } from "white-web-sdk";
 import pencilCursor from "@netless/cursor-tool/src/image/pencil-cursor.png";
+import shapeCursor from "@netless/cursor-tool/src/image/shape-cursor.svg";
+import textCursor from "@netless/cursor-tool/src/image/text-cursor.svg";
 import "@netless/cursor-tool/src/index.less";
 type CursorComponentProps = {
     roomMember: RoomMember;
@@ -129,6 +131,54 @@ class CursorComponent extends React.Component<CursorComponentProps> {
                             </div>
                             <div>
                                 <img className="cursor-pencil-image" src={pencilCursor} alt={"pencilCursor"}/>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            case ApplianceNames.text: {
+                return (
+                    <div className="cursor-box">
+                        <div className="cursor-mid cursor-pencil-offset" style={{transform: `translate(-50%, -65%)`, marginLeft:'0px'}}>
+                            <div className="cursor-name">
+                                <div style={{
+                                    opacity: this.getOpacity(roomMember),
+                                    backgroundColor: this.getCursorBackgroundColor(roomMember),
+                                    color: this.getCursorTextColor(roomMember),
+                                }} className={this.getThemeClass(roomMember)}>
+                                    {this.renderAvatar(roomMember)}
+                                    {cursorName}
+                                    {this.renderTag(roomMember)}
+                                </div>
+                            </div>
+                            <div>
+                                <img className="cursor-arrow-image" src={textCursor} alt={"textCursor"}/>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            case ApplianceNames.rectangle:
+            case ApplianceNames.arrow:
+            case ApplianceNames.straight:
+            case ApplianceNames.shape:
+            case ApplianceNames.ellipse: {
+                return (
+                    <div className="cursor-box">
+                        <div className="cursor-mid cursor-pencil-offset" style={{transform: `translate(-50%, -65%)`, marginLeft:'0px'}}>
+                            <div className="cursor-name">
+                                <div style={{
+                                    opacity: this.getOpacity(roomMember),
+                                    backgroundColor: this.getCursorBackgroundColor(roomMember),
+                                    color: this.getCursorTextColor(roomMember),
+                                }} className={this.getThemeClass(roomMember)}>
+                                    {this.renderAvatar(roomMember)}
+                                    {cursorName}
+                                    {this.renderTag(roomMember)}
+                                </div>
+                            </div>
+                            <div>
+                                <img className="cursor-arrow-image" src={shapeCursor} alt={"shapeCursor"}/>
                             </div>
                         </div>
                     </div>

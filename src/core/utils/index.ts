@@ -2,6 +2,7 @@
 import { Box2d } from './primitives/Box2d'
 import { Vec2d, VecLike } from './primitives/Vec2d'
 export * from "./math";
+export * from "./spriteNode";
 
 /** @public */
 export function precise(A: VecLike) {

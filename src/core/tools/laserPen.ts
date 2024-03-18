@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Group, Path, Node} from "spritejs";
-import { BaseShapeOptions, BaseShapeTool } from "./base";
-import { EDataType, EPostMessageType, EToolsKey } from "../enum";
+import { Path, Node} from "spritejs";
+import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType } from "../types";
 // import { Vec2d } from "../utils/primitives/Vec2d";
 import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
@@ -13,21 +13,21 @@ import { computRect, getRectFromPoints } from "../utils";
 export interface LaserPenOptions extends BaseShapeOptions {
     thickness: number;
     duration: number;
+    strokeColor:string;
     strokeType: Omit<EStrokeType,'Stroke'>;
 }
 export class LaserPenShape extends BaseShapeTool {
-    updataOptService(): undefined {
-       return;
-    }
+    readonly toolsType: EToolsKey = EToolsKey.LaserPen;
+    readonly canRotate: boolean = false;
+    readonly scaleType: EScaleType = EScaleType.none;
     protected syncTimestamp: number;
     private syncIndex:number = 0;
-    readonly toolsType: EToolsKey = EToolsKey.LaserPen;
     protected tmpPoints:Array<Point2d> = [];
     protected workOptions: LaserPenOptions;
     private consumeIndex:number = 0;
-    constructor(workOptions: LaserPenOptions, fullLayer: Group) {
-        super(fullLayer);
-        this.workOptions = workOptions;
+    constructor(props: BaseShapeToolProps) {
+        super(props);
+        this.workOptions = props.toolsOpt as LaserPenOptions;
         this.syncTimestamp = 0;
     }
     combineConsume(): undefined {}
@@ -45,7 +45,7 @@ export class LaserPenShape extends BaseShapeTool {
         if (this.consumeIndex > this.tmpPoints.length - 4) {
             return { type: EPostMessageType.None };
         }
-        const {color, thickness, strokeType, opacity} = this.workOptions;
+        const {strokeColor, thickness, strokeType} = this.workOptions;
         const rect = getRectFromPoints(this.tmpPoints, thickness);
         let isSync:boolean = false;
         const index:number = this.syncIndex;
@@ -56,11 +56,9 @@ export class LaserPenShape extends BaseShapeTool {
         }
         const attrs = {
             name: workId?.toString(),
-            className: 'LaserPen',
-            // fillColor: isDot ? color : undefined,
-            opacity: opacity || 1,
+            opacity: 1,
             lineDash: strokeType === EStrokeType.Dotted ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted ? [thickness, thickness * 2] : undefined,
-            strokeColor: color,
+            strokeColor,
             lineCap: 'round',
             lineWidth: thickness,
             anchor: [0.5, 0.5],
@@ -100,7 +98,7 @@ export class LaserPenShape extends BaseShapeTool {
         if (this.tmpPoints.length - 1 > this.consumeIndex) {
             let points = this.tmpPoints.slice(this.consumeIndex);
             const isDot = points.length === 1;
-            const {color, thickness, strokeType, opacity} = this.workOptions;
+            const {strokeColor, thickness, strokeType} = this.workOptions;
             if (isDot) {
                 const dotData = this.computDotStroke({
                     point: points[0],
@@ -113,11 +111,10 @@ export class LaserPenShape extends BaseShapeTool {
             }
             const attrs = {
                 name: workId?.toString(),
-                className: 'LaserPen',
-                fillColor: isDot ? color : undefined,
-                opacity: opacity || 1,
+                fillColor: isDot ? strokeColor : undefined,
+                opacity: 1,
                 lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
-                strokeColor: color,
+                strokeColor,
                 lineCap: isDot ? undefined : 'round',
                 lineWidth: isDot ? 0 : thickness,
                 anchor: [0.5, 0.5],
@@ -146,7 +143,6 @@ export class LaserPenShape extends BaseShapeTool {
         }
     }
     clearTmpPoints(): void {
-        //console.log('animationDraw7')
         this.tmpPoints.length = 0;
         this.syncTimestamp = 0;
         this.syncIndex = 0;
@@ -155,7 +151,7 @@ export class LaserPenShape extends BaseShapeTool {
         op: number[]
     }): IRectType | undefined {
         const {op} = props;
-        const {color, thickness, strokeType, opacity} = this.workOptions;
+        const {strokeColor, thickness, strokeType} = this.workOptions;
         if (!op.length) {
             const r = getRectFromPoints(this.tmpPoints, thickness)
             return {
@@ -182,11 +178,10 @@ export class LaserPenShape extends BaseShapeTool {
         }
         const attrs = {
             name: this.workId?.toString(),
-            className: 'LaserPen',
-            fillColor: isDot ? color : undefined,
-            opacity: opacity || 1,
+            fillColor: isDot ? strokeColor : undefined,
+            opacity: 1,
             lineDash: strokeType === EStrokeType.Dotted && !isDot ? [1, thickness * 2] : strokeType === EStrokeType.LongDotted && !isDot ? [thickness, thickness * 2] : undefined,
-            strokeColor: color,
+            strokeColor,
             lineCap: isDot ? undefined : 'round',
             lineWidth: isDot ? 0 : thickness,
             anchor: [0.5, 0.5],

@@ -1,12 +1,13 @@
-import { SubServiceWork } from "../base";
+import { SubServiceWork, VNodeManager } from "../threadEngine";
 import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import { BaseShapeOptions, BaseShapeTool, PencilOptions, PencilShape, SelectorOptions, SelectorShape } from "../tools";
-import { IServiceWorkItem, IWorkerMessage, IRectType, IBatchMainMessage, BaseNodeMapItem } from "../types";
-import { computRect } from "../utils";
+import { ArrowShape, SelectorShape } from "../tools";
+import { IServiceWorkItem, IWorkerMessage, IRectType, IBatchMainMessage, IMainMessageRenderData } from "../types";
+import { computRect, getSafetyRect } from "../utils";
 import { transformToNormalData } from "../../collector/utils";
-import { LaserPenOptions, LaserPenShape } from "../tools/laserPen";
-import type { Group, Path, Node } from "spritejs";
+import { LaserPenOptions } from "../tools/laserPen";
+import type { Group, Node } from "spritejs";
 import { Storage_Splitter } from "../../collector/const";
+// import cloneDeep from "lodash/cloneDeep";
 
 export class SubServiceWorkForWorker extends SubServiceWork {
     protected workShapes: Map<string, IServiceWorkItem> = new Map();
@@ -17,15 +18,16 @@ export class SubServiceWorkForWorker extends SubServiceWork {
     private willRunEffectSelectorIds: Set<string> = new Set;
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
-    constructor(curNodeMap: Map<string, BaseNodeMapItem>, layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>Promise<void>) {
-        super(curNodeMap, layer, drawLayer);
+    constructor(vNodes: VNodeManager, layer: Group,drawLayer: Group, postFun: (msg: IBatchMainMessage)=>Promise<void>) {
+        super(vNodes, layer, drawLayer);
         this._post = postFun;
     }
     private activeWorkShape(data: IWorkerMessage){
-        const {workId, opt, toolsType, type, updateNodeOpt, ops, op, useAnimation, noRender } = data;
+        const {workId, opt, toolsType, type, updateNodeOpt, ops, op, useAnimation } = data;
         if (!workId) {
             return;
         }
+        // console.log('activeWorkShape', cloneDeep(data))
         const key = workId.toString();
         if (!this.workShapes?.has(key)) {
             let workItem = {
@@ -36,14 +38,12 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                 updateNodeOpt,
                 ops,
                 useAnimation: typeof useAnimation !== 'undefined' ? useAnimation : typeof updateNodeOpt?.useAnimation !== 'undefined' ? updateNodeOpt?.useAnimation : true,
-                oldRect: this.getNodeRect(key),
-                noRender,
+                oldRect: this.vNodes.get(key)?.rect
             } as IServiceWorkItem;
             if (toolsType && opt) {
                 workItem = this.setNodeKey(workItem, toolsType, opt);
             }
             this.workShapes?.set(key, workItem);
-            // return workItem;
         }
         const workShape = this.workShapes?.get(key) as IServiceWorkItem;
         if (type) {
@@ -58,9 +58,6 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         if (op) {
             workShape.animationWorkData = op;
-        }
-        if (noRender) {
-            workShape.noRender = noRender;
         }
         if (workShape.node && workShape.node.getWorkId() !== key) {
             workShape.node.setWorkId(key);
@@ -97,24 +94,6 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         }
         workShape.selectIds = selectIds || [];
     }
-    private setNodeKey(workShape: IServiceWorkItem ,tools:EToolsKey, opt: BaseShapeOptions) { 
-        workShape.toolsType = tools;
-        switch (tools) {
-            case EToolsKey.Pencil:
-                workShape.node = new PencilShape((opt as PencilOptions), this.fullLayer, this.drawLayer ) as BaseShapeTool;
-                break;
-            case EToolsKey.LaserPen:
-                workShape.node = new LaserPenShape((opt as LaserPenOptions), this.drawLayer ) as BaseShapeTool;
-                break;
-            case EToolsKey.Selector:
-                workShape.node = new SelectorShape((opt as SelectorOptions), this.fullLayer ) as BaseShapeTool;
-                break;    
-            default:
-                workShape.node = undefined;
-                break;
-        }
-        return workShape;
-    }
     private computNextAnimationIndex(workShape:IServiceWorkItem, pointUnit:number){
         // const pointUnit = workShape.toolsType === EToolsKey.Pencil ? 3 : 2;
         const step = Math.floor((workShape.animationWorkData || []).slice(workShape.animationIndex).length * 32 / pointUnit / (workShape.node?.syncUnitTime || 1000)) * pointUnit;
@@ -122,124 +101,283 @@ export class SubServiceWorkForWorker extends SubServiceWork {
     }
     private animationDraw() {
         this.animationId = undefined;
-        let rect: IRectType | undefined;
-        let clearRect: IRectType | undefined;
         let isNext:boolean = false;
-        let isFullWork: boolean = false;
-        let noAnimationRect: IRectType | undefined;
         const cursorPoints: Map<string,{
             op:number[],
             workState:EvevtWorkState
         }>= new Map();
+
+        const bgRenders: IMainMessageRenderData[] = [];
+        const floatRenders: IMainMessageRenderData[] = [];
+        const bgClearRenders: IMainMessageRenderData[] = [];
+        const floatClearRenders: IMainMessageRenderData[] = [];
+
         this.workShapes.forEach((workShape,key) => {
-            if (!workShape.useAnimation) {
-                if (workShape.toolsType === EToolsKey.Pencil && workShape.ops) {
-                    let rect1 = workShape.node?.consumeService({
-                        op: workShape.animationWorkData||[], 
-                        isFullWork:true,
-                        replaceId:key
-                    });
-                    rect1 = computRect(workShape.oldRect, rect1);
-                    // console.log('consumeService', rect1)
-                    rect1 = computRect(rect1, workShape.node?.updataOptService(workShape.updateNodeOpt));
-                    // console.log('consumeService1', rect1)
-                    if (!workShape.noRender) {
-                        noAnimationRect = computRect(noAnimationRect, rect1);
-                    }
-                    // console.log('consumeService2', noAnimationRect);
-                    this.selectorWorkShapes.forEach((s,selectorId)=>{
-                        if (s.selectIds?.includes(key)) {
-                            this.willRunEffectSelectorIds.add(selectorId);
-                            this.noAnimationRect = computRect(this.noAnimationRect, noAnimationRect);
-                            noAnimationRect = undefined;
-                            this.runEffect();
+            switch (workShape.toolsType) {
+                case EToolsKey.Text: {
+                    if (workShape.node) {
+                        const oldRect =  workShape.oldRect;
+                        if (oldRect) {
+                            // bgClearRenders.push({
+                            //     rect: oldRect,
+                            //     isClear: true,
+                            //     clearCanvas: ECanvasShowType.Bg,
+                            // })
                         }
-                    })
-                    this.updataNodeMap(key, workShape.ops, workShape.node?.getWorkOptions());
-                    this.workShapes.delete(key);
-                }
-            } else {
-                const pointUnit = workShape.toolsType === EToolsKey.Pencil ? 3 : 2;
-                const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
-                const lastPointIndex = Math.max(0, (workShape.animationIndex || 0) - pointUnit);
-                const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
-                let rect1: IRectType | undefined;
-                if ((workShape.animationIndex || 0) < nextAnimationIndex) {
-                    rect1 = workShape.node?.consumeService({
-                        op: data,
-                        isFullWork: false,
-                        replaceId: workShape.node.getWorkId()?.toString()
-                    });
-                    if (workShape.toolsType === EToolsKey.LaserPen) {
-                        clearRect = computRect(clearRect, rect1);
-                        if (workShape.timer) {
-                            clearTimeout(workShape.timer);
-                            workShape.timer = undefined;
-                        }
-                    } else {
-                        if (!workShape.noRender) {
-                            rect = computRect(rect, rect1);
-                            workShape.totalRect = computRect(workShape.totalRect, rect1);
-                        }
-                    }
-                    isNext = true;
-                    workShape.animationIndex = nextAnimationIndex;
-                }
-                else if (!workShape.isDel) {
-                    if (workShape.toolsType === EToolsKey.Pencil && workShape.ops) {
-                        rect1 = workShape.node?.consumeService({
-                            op: workShape.animationWorkData || [],
-                            isFullWork: true,
-                            replaceId: workShape.node.getWorkId()?.toString(),
+                        const rect = workShape.node?.consumeService({
+                            op: workShape.animationWorkData || [], 
+                            isFullWork:true
                         });
-                        workShape.isDel = true;
-                        isFullWork = true;
-                        if (!workShape.noRender) {
-                            clearRect = computRect(clearRect, rect1);
-                            workShape.totalRect = clearRect;
-                        }
-                    }
-                    if (workShape.toolsType === EToolsKey.LaserPen) {
-                        if (!workShape.timer) {
-                            workShape.timer = setTimeout(() => {
-                                workShape.timer = undefined;
-                                workShape.isDel = true;
-                                this.runAnimation();
-                            }, (workShape.node?.getWorkOptions() as LaserPenOptions).duration * 1000 + 100) as unknown as number;
-                        }
-                        isFullWork = false;
-                        rect1 = workShape.node?.consumeService({
-                            op:[],
-                            isFullWork: false
-                        });
-                        clearRect = computRect(clearRect, rect1);
-                    }
-                    isNext = true;
-                } else if (workShape.isDel) {
-                    if(workShape.toolsType === EToolsKey.LaserPen){
-                        rect1 = workShape.node?.consumeService({
-                            op:[],
-                            isFullWork: false
-                        });
-                        if (!workShape.noRender) {
-                            clearRect = computRect(clearRect, rect1);
-                        }
-                    }
-                    this.updataNodeMap(key, workShape.ops, workShape.node?.getWorkOptions());
-                    this.workShapes.delete(key);
-                }
-                if (data.length) {
-                    cursorPoints.set(key, {
-                        workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                        op: data.filter((_v, i) => {
-                            if (pointUnit === 3 && i % pointUnit !== pointUnit - 1) {
-                                return true;
-                            } else if (pointUnit === 2) {
-                                return true;
+                        this.selectorWorkShapes.forEach((s,selectorId)=>{
+                            if (s.selectIds?.includes(key)) {
+                                this.willRunEffectSelectorIds.add(selectorId);
+                                this.noAnimationRect = computRect(this.noAnimationRect, oldRect);
+                                this.noAnimationRect = computRect(this.noAnimationRect, rect);
+                                this.runEffect();
                             }
-                        }).slice(-2),
-                    })
+                        })
+                        workShape.node?.clearTmpPoints();
+                        this.workShapes.delete(key);
+                        // bgRenders.push({
+                        //     rect,
+                        //     drawCanvas: ECanvasShowType.Bg,
+                        //     isFullWork: true
+                        // })
+                    }
+                    break;
                 }
+                case EToolsKey.Arrow:
+                case EToolsKey.Straight:
+                case EToolsKey.Rectangle:
+                case EToolsKey.Ellipse:
+                case EToolsKey.Star:
+                case EToolsKey.Polygon:
+                case EToolsKey.SpeechBalloon:
+                {
+                    const isFullWork = !!workShape.ops;
+                    if (workShape.animationWorkData?.length) {
+                        // console.log('workShape', workShape)
+                        const oldRect =  workShape.oldRect;
+                        const tmpRect = (workShape.node as ArrowShape).oldRect;
+                        // console.log('first----2', workShape, oldRect, workShape.oldRect)
+                        if (oldRect) {
+                            bgClearRenders.push({
+                                rect: oldRect,
+                                isClear: true,
+                                clearCanvas: ECanvasShowType.Bg,
+                            })
+                        }
+                        if (tmpRect) {
+                            floatClearRenders.push({
+                                rect: tmpRect,
+                                isClear: true,
+                                clearCanvas: ECanvasShowType.Float
+                            })
+                        }
+                        const rect = workShape.node?.consumeService({
+                            op: workShape.animationWorkData, 
+                            isFullWork
+                        });
+                        const cursorPs = {
+                            workState: !oldRect? EvevtWorkState.Start : workShape.ops ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                            op: workShape.animationWorkData.filter((_v, i) => {
+                                if (i % 3 !== 2) {
+                                    return true;
+                                }
+                            }).slice(-2),
+                        };
+                        cursorPoints.set(key, cursorPs)
+                        if (isFullWork) {
+                            this.selectorWorkShapes.forEach((s,selectorId)=>{
+                                if (s.selectIds?.includes(key)) {
+                                    this.willRunEffectSelectorIds.add(selectorId);
+                                    this.noAnimationRect = computRect(this.noAnimationRect, oldRect);
+                                    this.noAnimationRect = computRect(this.noAnimationRect, tmpRect);
+                                    this.noAnimationRect = computRect(this.noAnimationRect, rect);
+                                    this.runEffect();
+                                }
+                            })
+                            workShape.node?.clearTmpPoints();
+                            this.workShapes.delete(key);
+                            bgRenders.push({
+                                rect,
+                                drawCanvas: ECanvasShowType.Bg,
+                                isFullWork
+                            })
+                        } else {
+                            floatRenders.push({
+                                rect,
+                                drawCanvas: ECanvasShowType.Float,
+                                isFullWork
+                            })
+                        }
+                        workShape.animationWorkData.length = 0;
+                    }
+                    break;
+                }
+                case EToolsKey.Pencil: {
+                    if (!workShape.useAnimation && workShape.ops) {
+                        let rect = workShape.node?.consumeService({
+                            op: workShape.animationWorkData||[], 
+                            isFullWork: true,
+                            replaceId: key
+                        });
+                        const rect1 = workShape.node?.updataOptService(workShape.updateNodeOpt);
+                        rect = computRect(rect, rect1);
+                        bgClearRenders.push({
+                            rect: computRect(workShape.oldRect, rect),
+                            clearCanvas: ECanvasShowType.Bg
+                        });
+                        bgRenders.push({
+                            rect: computRect(workShape.oldRect, rect),
+                            drawCanvas: ECanvasShowType.Bg,
+                        });
+                        // console.log('consumeService2', noAnimationRect);
+                        this.selectorWorkShapes.forEach((s,selectorId)=>{
+                            if (s.selectIds?.includes(key)) {
+                                this.willRunEffectSelectorIds.add(selectorId);
+                                this.noAnimationRect = computRect(this.noAnimationRect, rect);
+                                this.runEffect();
+                            }
+                        });
+                        workShape.node?.clearTmpPoints();
+                        this.workShapes.delete(key);
+                    } 
+                    else if(workShape.useAnimation){
+                        const pointUnit = 3;
+                        const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
+                        const lastPointIndex = Math.max(0, (workShape.animationIndex || 0) - pointUnit);
+                        const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
+                        // let rect1: IRectType | undefined;
+                        if (!workShape.isDel) {
+                            if ((workShape.animationIndex || 0) < nextAnimationIndex) {
+                                const rect = workShape.node?.consumeService({
+                                    op: data,
+                                    isFullWork: false,
+                                    replaceId: workShape.node.getWorkId()?.toString()
+                                });
+                                floatRenders.push({
+                                    rect,
+                                    drawCanvas: ECanvasShowType.Float,
+                                });
+                                workShape.animationIndex = nextAnimationIndex;
+                            } else if (workShape.ops) {
+                                const rect = workShape.node?.consumeService({
+                                    op: workShape.animationWorkData || [],
+                                    isFullWork: true,
+                                    replaceId: workShape.node.getWorkId()?.toString(),
+                                });
+                                workShape.isDel = true;
+                                // workShape.totalRect = computRect(workShape.totalRect, rect);
+                                floatClearRenders.push({
+                                    rect,
+                                    clearCanvas: ECanvasShowType.Float
+                                })
+                                if (workShape.node?.getWorkOptions().isOpacity) {
+                                    bgClearRenders.push({
+                                        rect,
+                                        clearCanvas:ECanvasShowType.Bg,
+                                    })
+                                }
+                                bgRenders.push({
+                                    rect,
+                                    drawCanvas:ECanvasShowType.Bg,
+                                })
+                                this.vNodes.setInfo(key,{
+                                    op: workShape.animationWorkData,
+                                    opt: workShape.node?.getWorkOptions(),
+                                    toolsType: workShape.toolsType,
+                                    rect
+                                })
+                            }
+                            isNext = true;
+                        } else if (workShape.isDel) {
+                            workShape.node?.clearTmpPoints();
+                            this.workShapes.delete(key);
+                        }
+                        if (data.length) {
+                            cursorPoints.set(key, {
+                                workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                                op: data.filter((_v, i) => {
+                                    if (i % pointUnit !== pointUnit - 1) {
+                                        return true;
+                                    }
+                                }).slice(-2),
+                            });
+                        }
+                        break;
+                    }
+                    break;
+                }
+                case EToolsKey.LaserPen: {
+                    const pointUnit = 2;
+                    const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
+                    const lastPointIndex = Math.max(0, (workShape.animationIndex || 0) - pointUnit);
+                    const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
+                    if (!workShape.isDel) {
+                        if ((workShape.animationIndex || 0) < nextAnimationIndex) {
+                            const rect = workShape.node?.consumeService({
+                                op: data,
+                                isFullWork: false,
+                                replaceId: workShape.node.getWorkId()?.toString()
+                            });
+                            workShape.totalRect = computRect(workShape.totalRect, rect);
+                            if (workShape.timer) {
+                                clearTimeout(workShape.timer);
+                                workShape.timer = undefined;
+                            }
+                            workShape.animationIndex = nextAnimationIndex;
+                        } else {
+                            if (!workShape.timer) {
+                                workShape.timer = setTimeout(() => {
+                                    workShape.timer = undefined;
+                                    workShape.isDel = true;
+                                    this.runAnimation();
+                                }, (workShape.node?.getWorkOptions() as LaserPenOptions).duration * 1000 + 100) as unknown as number;
+                            }
+                            const rect = workShape.node?.consumeService({
+                                op:[],
+                                isFullWork: false
+                            });
+                            workShape.totalRect = computRect(workShape.totalRect, rect);
+                        }
+                        floatClearRenders.push({
+                            rect: workShape.totalRect,
+                            clearCanvas: ECanvasShowType.Float,
+                        });
+                        floatRenders.push({
+                            rect: workShape.totalRect,
+                            drawCanvas: ECanvasShowType.Float,
+                        });
+                        isNext = true;
+                    }
+                    else if (workShape.isDel) {
+                        const rect = workShape.node?.consumeService({
+                            op:[],
+                            isFullWork: false
+                        });
+                        workShape.totalRect = computRect(workShape.totalRect, rect);
+                        floatClearRenders.push({
+                            rect: workShape.totalRect,
+                            clearCanvas: ECanvasShowType.Float
+                        });
+                        floatRenders.push({
+                            rect: workShape.totalRect,
+                            drawCanvas: ECanvasShowType.Float,
+                        });
+                        workShape.node?.clearTmpPoints();
+                        this.workShapes.delete(key);
+                    }
+                    if (data.length) {
+                        cursorPoints.set(key, {
+                            workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                            op: data.slice(-2),
+                        })
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
         })
         if (isNext) {
@@ -248,44 +386,65 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         const _postData:IBatchMainMessage = {
             render:[],
         }
-        if (rect) {
-            // console.log('animationDraw1', rect)
-            _postData.render?.push({
-                rect,
-                drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                isClear: isFullWork,
-                clearCanvas: ECanvasShowType.Float,
-                isFullWork
-            });
-        }
-        if (clearRect) {
-            // console.log('animationDraw2', clearRect, isFullWork)
-            _postData.render?.push({
-                rect: clearRect,
-                drawCanvas: !isFullWork && ECanvasShowType.Float || undefined ,
-                isClear: true,
-                clearCanvas: ECanvasShowType.Float,
-                isFullWork
-            });
-            if (isFullWork) {
-                _postData.render?.push({
-                    rect: clearRect,
-                    drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork
-                })
+        if (bgClearRenders.length) {
+            const clearBg = bgClearRenders.reduce((pre,cur)=>{
+                if (cur.rect && cur.clearCanvas === ECanvasShowType.Bg) {
+                    pre.rect = computRect(pre.rect, cur.rect);
+                }
+                return pre
+            },{
+                isClear:true,
+                clearCanvas: ECanvasShowType.Bg
+            } as IMainMessageRenderData)
+            if (clearBg.rect) {
+                clearBg.rect = clearBg.rect && getSafetyRect(clearBg.rect);
+                _postData.render?.push(clearBg);
             }
         }
-        if (noAnimationRect) {
-            // console.log('animationDraw3', noAnimationRect)
-            _postData.render?.push({
-                rect: noAnimationRect,
-                drawCanvas: ECanvasShowType.Bg,
-                isClear: true,
-                clearCanvas: ECanvasShowType.Bg,
-                isFullWork: true
-            });
+        if (floatClearRenders.length) {
+            const clearFloat = floatClearRenders.reduce((pre,cur)=>{
+                if (cur.rect && cur.clearCanvas === ECanvasShowType.Float) {
+                    pre.rect = computRect(pre.rect, cur.rect);
+                }
+                return pre
+            },{
+                isClear:true,
+                clearCanvas: ECanvasShowType.Float
+            } as IMainMessageRenderData)
+            if (clearFloat.rect) {
+                clearFloat.rect = clearFloat.rect && getSafetyRect(clearFloat.rect);
+                _postData.render?.push(clearFloat);
+            }
+        }
+        if (bgRenders.length) {
+            const bgs = bgRenders.reduce((pre,cur)=>{
+                if (cur.rect && cur.drawCanvas === ECanvasShowType.Bg) {
+                    pre.rect = computRect(pre.rect, cur.rect);
+                }
+                return pre
+            },{
+                isFullWork:true,
+                drawCanvas: ECanvasShowType.Bg
+            } as IMainMessageRenderData)
+            if (bgs.rect) {
+                bgs.rect = bgs.rect && getSafetyRect(bgs.rect);
+                _postData.render?.push(bgs);
+            }
+        }
+        if (floatRenders.length) {
+            const floats = floatRenders.reduce((pre,cur)=>{
+                if (cur.rect && cur.drawCanvas === ECanvasShowType.Float) {
+                    pre.rect = computRect(pre.rect, cur.rect);
+                }
+                return pre
+            },{
+                isFullWork: false,
+                drawCanvas: ECanvasShowType.Float
+            } as IMainMessageRenderData)
+            if (floats.rect) {
+                floats.rect = floats.rect && getSafetyRect(floats.rect);
+                _postData.render?.push(floats);
+            }
         }
         if (cursorPoints.size) {
             _postData.sp = [];
@@ -296,13 +455,9 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                     op: v.op,
                     workState: v.workState
                 })
-                // console.log('animationDraw4', v.op)
             })
         }
         if (_postData.render?.length) {
-            // if (isFullWork) {
-            //     console.log('animationDraw4', _postData)
-            // }
             this._post(_postData);
         }
     }
@@ -358,7 +513,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         let rect: IRectType | undefined = this.noAnimationRect;
         this.willRunEffectSelectorIds.forEach(id => {
             const workShape = this.selectorWorkShapes.get(id);
-            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape, this.curNodeMap);
+            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape);
             rect = computRect(rect, r);
             if (!workShape?.selectIds?.length) {
                 this.selectorWorkShapes.delete(id);
@@ -367,7 +522,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         if (rect) {
             this._post({render: [
                 {
-                    rect,
+                    rect: getSafetyRect(rect),
                     drawCanvas: ECanvasShowType.Bg,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Bg,
@@ -395,18 +550,14 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         const nodes:Node[] = this.fullLayer.getElementsByName(key).concat(this.drawLayer?.getElementsByName(key));
         if (key.indexOf(SelectorShape.selectorId) > -1) {
             this.removeSelectWork(data);
-            // nodes = (this.fullLayer.parent as Layer).getElementsByName(SelectorShape.selectorId).concat((this.drawLayer?.parent as Layer)?.getElementsByName(SelectorShape.selectorId));
         }
         const removeNode:Node[]=[]
         let rect:IRectType|undefined = oldRect;
+        const rect1 = this.vNodes.get(key)?.rect;
+        if (rect1) {
+            rect = computRect(rect1, rect);
+        }
         nodes.forEach(node=>{
-            const r = (node as Path).getBoundingClientRect();
-            rect = computRect(rect, {
-                x: Math.floor(r.x - 10),
-                y: Math.floor(r.y - 10),
-                w: Math.floor(r.width + 20),
-                h: Math.floor(r.height + 20),
-            });
             removeNode.push(node);
         })
         if(removeNode.length) {
@@ -416,7 +567,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             this._post({
                 render:[
                     {
-                        rect,
+                        rect: getSafetyRect(rect),
                         isClear:true,
                         isFullWork,
                         clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
@@ -424,21 +575,9 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                     }
                 ]
             })
-            this.curNodeMap.delete(key);
+            // this.curNodeMap.delete(key);
+            this.vNodes.delete(key);
         }
-    }
-    private getNodeRect(workId:string){
-        let rect: IRectType | undefined;
-        this.fullLayer.getElementsByName(workId).forEach(c=>{
-            const r = (c as Path).getBoundingClientRect();
-            const x = Math.floor(r.left - PencilShape.PencilBorderPadding);
-            const y = Math.floor(r.top - PencilShape.PencilBorderPadding);
-            const w = Math.ceil(r.width + PencilShape.PencilBorderPadding * 2);
-            const h = Math.ceil(r.height + PencilShape.PencilBorderPadding * 2);
-            rect = computRect(rect, {x, y, w, h})
-        })
-        // console.log('rect', worldPosition, rect)
-        return rect;
     }
     runReverseSelectWork(selectIds: string[]){
         selectIds.forEach(id=>{
