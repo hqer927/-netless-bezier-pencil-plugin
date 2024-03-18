@@ -6,10 +6,11 @@ import { SetColorNodeMethod } from './setColor/forMain';
 import { ZIndexNodeMethod } from './setZIndex/forMain';
 import { TranslateNodeMethod } from './translateNode/forMain';
 import { MainEngineForWorker } from '../worker/main';
-import { BaseCollector } from '../../collector';
+import { Collector } from '../../collector';
 import { DeleteNodeMethod } from './deleteNode/forMain';
 import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
+export { ZIndexNodeMethod };
 
 export type MsgMethod<T extends BaseMsgMethod> = T;
 export class MethodBuilderMain {
@@ -38,7 +39,10 @@ export class MethodBuilderMain {
        }
        return undefined
     }
-    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector){
+    getBuilder(type:EmitEventType){
+        return this.builders.get(type);
+    }
+    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: Collector){
         this.builders.forEach(builder=>{
             if (builder) {
                 builder.registerForMainEngine(emtType, main, serviceColloctor)

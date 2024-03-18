@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EPostMessageType, EToolsKey } from "../core/enum";
+import { EPostMessageType, EToolsKey, EventMessageType } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools";
 import { IUpdateNodeOpt, IworkId } from "../core/types";
 import { EmitEventType } from "../plugin/types";
@@ -56,6 +56,17 @@ export interface ISerializableStorageData {
     [key: string]: BaseCollectorReducerAction | undefined;
 }
 
+export interface BaseEventCollectorReducerAction {
+    type?: EventMessageType;
+    uid?: string;
+    memberId?: number;
+    op?: Array<number|undefined>;
+    isHide?: boolean;
+    isSync?: boolean;
+}
+export interface ISerializableEventData {
+    [key: string]: Array<BaseEventCollectorReducerAction | undefined> | undefined;
+}
 
 
 

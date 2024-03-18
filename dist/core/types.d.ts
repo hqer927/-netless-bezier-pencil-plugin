@@ -1,5 +1,5 @@
 import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
-import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from './enum';
+import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool } from './tools';
 export type IworkId = string | number;
 export interface ICanvasSceneType {
@@ -46,7 +46,7 @@ export interface IUpdateNodeOpt {
     workState?: EvevtWorkState;
     useAnimation?: boolean;
     zIndex?: number;
-    zIndexDistance?: number;
+    zIndexLayer?: ElayerType;
     originPos?: [number, number];
     ops?: string;
     angle?: number;
@@ -125,10 +125,12 @@ export interface IMainMessage extends INormalPushMsg {
     scenePath?: string;
     canvasWidth?: number;
     canvasHeight?: number;
+    workState?: EvevtWorkState;
 }
 export interface IMainMessageRenderData {
     rect?: IRectType;
     imageBitmap?: ImageBitmap;
+    isDrawAll?: boolean;
     drawCanvas?: ECanvasShowType;
     isClear?: boolean;
     isClearAll?: boolean;

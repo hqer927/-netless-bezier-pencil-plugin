@@ -7,6 +7,7 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import Draggable from "react-draggable";
 import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
+import { Storage_Selector_key } from "../../collector";
 const ColorBtn = (props) => {
     const { color, opacity, activeColor, onClickHandler, onTouchEndHandler } = props;
     return (React.createElement("div", { className: `font-color-button ${color === activeColor ? 'active' : ''}`, onClick: onClickHandler, onTouchEnd: onTouchEndHandler },
@@ -61,7 +62,7 @@ export const Colors = () => {
     const SubOpacityBtn = useMemo(() => {
         return React.createElement(OpacityBtn, { opacity: floatBarData?.opacity || 1, activeColor: activeColor, setCurOpacity: (curOpacity, workState) => {
                 setOpacity(curOpacity);
-                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: activeColor, opacity: curOpacity, workState });
+                InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], color: activeColor, opacity: curOpacity, workState });
             } });
     }, [InternalMsgEmitter, activeColor, floatBarData?.opacity]);
     const SubBtns = useMemo(() => {
@@ -79,12 +80,12 @@ export const Colors = () => {
                     return (React.createElement(ColorBtn, { key: index, color: curColor, opacity: opacity, activeColor: activeColor, onTouchEndHandler: (e) => {
                             e.stopPropagation();
                             setColor(curColor);
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], color: curColor });
                         }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
-                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: ['selector'], color: curColor });
+                            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], color: curColor });
                         } }));
                 }),
                 SubOpacityBtn));

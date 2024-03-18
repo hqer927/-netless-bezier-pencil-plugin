@@ -17,6 +17,7 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
             return;
         }
         const { workId, isActive } = data;
+        // console.log('ZIndexActiveEmtData', isActive)
         const localMsgs = [];
         const serviceMsgs = [];
         if (workId === SelectorShape.selectorId) {

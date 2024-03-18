@@ -1,4 +1,4 @@
-import { DisplayerContext } from "../../plugin/bezierPencilDisplayer"
+import { DisplayerContext } from "../../plugin/single/bezierPencilDisplayer"
 import React, { useContext, useEffect, useState } from "react"
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
@@ -6,6 +6,7 @@ import { EvevtWorkState } from "../../core";
 import { Resizable, NumberSize } from "re-resizable";
 import type { Direction } from "re-resizable/lib/resizer";
 import throttle from "lodash/throttle";
+import { Storage_Selector_key } from "../../collector";
 
 export const HightLightBox = () => {
     const [curSize, setCurSize] =  useState<NumberSize>({width: 0, height: 0});
@@ -24,7 +25,7 @@ export const HightLightBox = () => {
         setSize(size);
         setCurSize(size);
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Start})
+            EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], size, workState: EvevtWorkState.Start})
     }
     const onResize = throttle((e: MouseEvent | TouchEvent, _dir: Direction, ele: HTMLElement) => {
         e.preventDefault();
@@ -36,7 +37,7 @@ export const HightLightBox = () => {
             setSize(size);
             setCurSize(size);
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Doing})
+                EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], size, workState: EvevtWorkState.Doing})
         }
     }, 100, {'leading':false})
     const onResizeStop = (e: MouseEvent | TouchEvent, _dir: Direction, ele: HTMLElement) => {
@@ -48,7 +49,7 @@ export const HightLightBox = () => {
         setSize(size);
         setCurSize(size);
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ScaleNode, {workIds:['selector'], size, workState: EvevtWorkState.Done})
+            EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], size, workState: EvevtWorkState.Done})
     }
     return (
         <Resizable className="bezier-pencil-plugin-hightlight-box" 

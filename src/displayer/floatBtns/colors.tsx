@@ -7,6 +7,7 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
 import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
+import { Storage_Selector_key } from "../../collector";
 
 const ColorBtn = (props: {
     color: string;
@@ -94,7 +95,7 @@ export const Colors = () => {
         return <OpacityBtn opacity={floatBarData?.opacity || 1} activeColor={activeColor} setCurOpacity={(curOpacity, workState)=>{
             setOpacity(curOpacity);
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.SetColorNode, {workIds: ['selector'], color: activeColor, opacity: curOpacity, workState})
+                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], color: activeColor, opacity: curOpacity, workState})
         }} />
     },[InternalMsgEmitter, activeColor, floatBarData?.opacity])
     const SubBtns = useMemo(() => {
@@ -120,14 +121,14 @@ export const Colors = () => {
                                         e.stopPropagation();
                                         setColor(curColor);
                                         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: ['selector'], color: curColor})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], color: curColor})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
                                         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: ['selector'], color: curColor})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], color: curColor})
                                     }}
                                 />
                             )

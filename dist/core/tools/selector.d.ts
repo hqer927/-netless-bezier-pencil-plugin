@@ -51,6 +51,9 @@ export declare class SelectorShape extends BaseShapeTool {
     updateSelector(param: {
         updateSelectorOpt: IUpdateNodeOpt;
         selectIds?: string[];
+        selectStore?: Map<string, {
+            updateNodeOpt?: IUpdateNodeOpt;
+        }>;
     }): IMainMessage | undefined;
     blurSelector(nodeMaps: Map<string, BaseNodeMapItem>): {
         type: EPostMessageType;

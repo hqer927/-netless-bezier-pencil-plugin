@@ -159,7 +159,7 @@ export class PencilShape extends BaseShapeTool {
             nop.push(p.x, p.y, this.computRadius(p.z, this.workOptions.thickness));
         });
         this.syncTimestamp = 0;
-        // console.log('consumeAll', rect, this.centerPos, this.fullLayer.worldPosition)
+        delete this.workOptions.syncUnitTime;
         return {
             rect,
             type: EPostMessageType.FullWork,
@@ -170,6 +170,7 @@ export class PencilShape extends BaseShapeTool {
                 pos: this.centerPos,
                 useAnimation: true
             },
+            opt: this.workOptions,
             undoTickerId: props.data?.undoTickerId
         };
     }
@@ -213,17 +214,15 @@ export class PencilShape extends BaseShapeTool {
         if (isClearAll) {
             layer.removeAllChildren();
         }
-        else {
-            if (replaceId) {
-                layer.getElementsByName(replaceId + '').map(o => o.remove());
-                this.drawLayer?.getElementsByName(replaceId + '').map(o => o.remove());
-            }
-            if (effects?.size) {
-                effects.forEach(id => {
-                    layer.getElementById(id + '')?.remove();
-                });
-                effects.clear();
-            }
+        if (replaceId) {
+            this.fullLayer.getElementsByName(replaceId + '').map(o => o.remove());
+            this.drawLayer?.getElementsByName(replaceId + '').map(o => o.remove());
+        }
+        if (effects?.size) {
+            effects.forEach(id => {
+                layer.getElementById(id + '')?.remove();
+            });
+            effects.clear();
         }
         let r;
         const pathAttrs = [];

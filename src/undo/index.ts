@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import EventEmitter2 from "eventemitter2";
 import { MainEngineForWorker } from "../core";
-import { BaseCollectorReducerAction, Collector } from "../collector";
+import { BaseCollectorReducerAction, Collector, Storage_Selector_key } from "../collector";
 import { cloneDeep, debounce, isEqual } from "lodash";
 import type { Room } from "white-web-sdk";
 
@@ -185,7 +185,7 @@ export class UndoRedoMethod {
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -198,7 +198,7 @@ export class UndoRedoMethod {
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -225,10 +225,10 @@ export class UndoRedoMethod {
                             if (value.data.updateNodeOpt?.useAnimation) {
                                 value.data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.colloctor.getLocalId(value.key) === Storage_Selector_key && this.colloctor.isOwn(value.key)) {
                                 const selectIds = value.data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -258,10 +258,10 @@ export class UndoRedoMethod {
                             if (value.data.updateNodeOpt?.useAnimation) {
                                 value.data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.colloctor.getLocalId(value.key) === Storage_Selector_key && this.colloctor.isOwn(value.key)) {
                                 const selectIds = value.data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -288,10 +288,10 @@ export class UndoRedoMethod {
                             if (newData.updateNodeOpt?.useAnimation) {
                                 newData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.colloctor.getLocalId(value.key) === Storage_Selector_key && this.colloctor.isOwn(value.key)) {
                                 const selectIds = newData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -312,10 +312,10 @@ export class UndoRedoMethod {
                             if (oldData.updateNodeOpt?.useAnimation) {
                                 oldData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.colloctor.getLocalId(value.key) === Storage_Selector_key && this.colloctor.isOwn(value.key)) {
                                 const selectIds = oldData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === Storage_Selector_key && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -356,6 +356,7 @@ export class UndoRedoMethod {
     }
     redo(_redo:()=>number): number {
         const data = this.redoStack.pop();
+        // console.log('redo', data)
         if (data) {
             this.undoStack.push(data);
             if ((data.type === EUndoType.plugin || data.type === EUndoType.both) && data.data) {

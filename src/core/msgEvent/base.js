@@ -1,7 +1,7 @@
 import { MainEngineForWorker } from "../worker/main";
 import { requestAsyncCallBack } from "../utils";
 import { UndoRedoMethod } from "../../undo";
-import { BezierPencilDisplayer } from "../../plugin";
+import { BezierPencilManager } from "../../plugin";
 export class BaseMsgMethod {
     constructor() {
         Object.defineProperty(this, "emtType", {
@@ -24,22 +24,33 @@ export class BaseMsgMethod {
         });
     }
     static dispatch(emtType, emitEventType, value) {
-        BezierPencilDisplayer.InternalMsgEmitter?.emit([emtType, emitEventType], value);
+        BezierPencilManager.InternalMsgEmitter?.emit([emtType, emitEventType], value);
     }
     registerForMainEngine(emtType, main, serviceColloctor) {
         this.emtType = emtType;
         this.mainEngine = main;
         this.serviceColloctor = serviceColloctor;
-        BezierPencilDisplayer.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
+        BezierPencilManager.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }
     destroy() {
-        this.emtType && BezierPencilDisplayer.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
+        this.emtType && BezierPencilManager.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
     }
     collectForLocalWorker(data) {
-        data.forEach(d => {
-            this.mainEngine?.taskBatchData.set(`${d.msgType},${d.workId}`, d);
-        });
+        const keys = this.mainEngine?.taskBatchData && [...this.mainEngine.taskBatchData.keys()] || [];
+        // console.log('collectForLocalWorker', data.map(d=>d.emitEventType))
+        for (const d of data) {
+            // 相同worker切换不同method，需要注意时序
+            if (keys.findIndex(k => k.split('##')[0] === `${d.msgType},${d.workId}`)) {
+                requestAnimationFrame(() => {
+                    this.mainEngine?.taskBatchData.set(`${d.msgType},${d.workId}##${d.emitEventType},`, d);
+                    this.mainEngine?.runAnimation();
+                });
+            }
+            else {
+                this.mainEngine?.taskBatchData.set(`${d.msgType},${d.workId}##${d.emitEventType},`, d);
+            }
+        }
         this.mainEngine?.runAnimation();
     }
     collectForServiceWorker(actions) {

@@ -1,8 +1,9 @@
 import React from "react";
 import type { ReactNode } from "react";
 import { EventEmitter2 } from "eventemitter2";
-import { ShowFloatBarMsgValue } from "../displayer/types";
-import { EvevtWorkState } from "../core";
+import { ShowFloatBarMsgValue } from "../../displayer/types";
+import { EvevtWorkState } from "../../core";
+import { RoomMember } from "white-web-sdk";
 interface DisplayerProps {
     children?: ReactNode;
 }
@@ -11,14 +12,19 @@ interface DisplayerState {
     zIndex: number;
     floatBarData?: ShowFloatBarMsgValue;
     dpr: number;
-    position: {
+    position?: {
         x: number;
         y: number;
-    } | undefined;
+    };
     angle: number;
     isRotating: boolean;
     showRotateBtn: boolean;
     showFloatBarBtn: boolean;
+    cursorInfo?: {
+        x?: number;
+        y?: number;
+        roomMember?: RoomMember;
+    }[];
 }
 export declare const DisplayerContext: React.Context<Pick<DisplayerState, "zIndex" | "angle" | "position" | "floatBarData" | "dpr" | "isRotating" | "showFloatBarBtn"> & {
     floatBarColors: [number, number, number][];
@@ -38,8 +44,8 @@ export declare const DisplayerContext: React.Context<Pick<DisplayerState, "zInde
     setShowFloatBarBtn: (show: boolean) => void;
 }>;
 export declare class BezierPencilDisplayer extends React.Component<DisplayerProps, DisplayerState> {
+    static isRoom: boolean;
     static instance: BezierPencilDisplayer;
-    static InternalMsgEmitter: EventEmitter2;
     static floatBarColors: [number, number, number][];
     containerRef: HTMLDivElement | null;
     canvasFloatRef: HTMLCanvasElement | null;
@@ -56,6 +62,7 @@ export declare class BezierPencilDisplayer extends React.Component<DisplayerProp
     private setFloatZIndex;
     componentDidMount(): void;
     componentWillUnmount(): void;
+    private setActiveCursor;
     private getRatioWithContext;
     private init;
     private getContainerOffset;
@@ -65,6 +72,8 @@ export declare class BezierPencilDisplayer extends React.Component<DisplayerProp
     private touchstart;
     private touchmove;
     private touchend;
+    private cursorMouseMove;
+    private cursorMouseLeave;
     private bindDisplayerEvent;
     private removeDisplayerEvent;
     private setPosition;

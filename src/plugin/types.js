@@ -38,8 +38,10 @@ export var EmitEventType;
     EmitEventType["OriginalEvent"] = "OriginalEvent";
     /** 创建canvas */
     EmitEventType["CreateScene"] = "createScene";
-    /** 更新canvas */
-    // UpdateScene = 'UpdateScene',
+    /** 激活cursor */
+    EmitEventType["ActiveCursor"] = "ActiveCursor";
+    /** 移动cursor */
+    EmitEventType["MoveCursor"] = "MoveCursor";
 })(EmitEventType || (EmitEventType = {}));
 export var InternalMsgEmitterType;
 (function (InternalMsgEmitterType) {
@@ -48,4 +50,5 @@ export var InternalMsgEmitterType;
     InternalMsgEmitterType["CanvasSelector"] = "CanvasSelector";
     InternalMsgEmitterType["MainEngine"] = "MainEngine";
     InternalMsgEmitterType["DisplayContainer"] = "DisplayContainer";
+    InternalMsgEmitterType["Cursor"] = "Cursor";
 })(InternalMsgEmitterType || (InternalMsgEmitterType = {}));

@@ -8,6 +8,7 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { EvevtWorkState } from "../../core";
 import { Point2d } from "../../core/utils/primitives/Point2d";
+import { Storage_Selector_key } from "../../collector";
 export const RotateBtn = (props) => {
     const { className } = props;
     const { floatBarData, InternalMsgEmitter, angle, setAngle, setRotateState, position, setShowRotateBtn } = useContext(DisplayerContext);
@@ -30,7 +31,7 @@ export const RotateBtn = (props) => {
         setAngle(a);
         setRotateState(true);
         // console.log('onDragStartHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Start });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: [Storage_Selector_key], angle: a, workState: EvevtWorkState.Start });
     };
     const onDragEndHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -41,7 +42,7 @@ export const RotateBtn = (props) => {
         setRotateState(false);
         setShowRotateBtn(false);
         // console.log('onDragEndHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Done });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: [Storage_Selector_key], angle: a, workState: EvevtWorkState.Done });
     }, 100, { 'leading': false });
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -51,7 +52,7 @@ export const RotateBtn = (props) => {
         setAngle(a);
         setRotateState(true);
         // console.log('onDragHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: ['selector'], angle: a, workState: EvevtWorkState.Doing });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.RotateNode, { workIds: [Storage_Selector_key], angle: a, workState: EvevtWorkState.Doing });
     }, 100, { 'leading': false });
     return (React.createElement(Draggable, { handle: ".bezier-pencil-plugin-rotate-mouse-pointer", onStart: onDragStartHandler, onDrag: onDragHandler, onStop: onDragEndHandler },
         React.createElement("div", { className: `${className}`, style: position && floatBarData ? {

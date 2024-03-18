@@ -1,10 +1,10 @@
-import { ISerializableStorageData } from "../collector/types";
+import { ISerializableEventData, ISerializableStorageData } from "../collector/types";
 import type { MemberState as _MemberState} from "white-web-sdk";
 import { ECanvasContextType } from "../core/enum";
 
 /** attributes 会被实时同步 */
 export interface BezierPencilPluginAttributes {
-    [key: string]: ISerializableStorageData;
+    [key: string]: ISerializableStorageData | ISerializableEventData;
 }
 
 export enum DisplayStateEnum {
@@ -71,8 +71,10 @@ export enum EmitEventType {
     OriginalEvent = 'OriginalEvent',
     /** 创建canvas */
     CreateScene = 'createScene',
-    /** 更新canvas */
-    // UpdateScene = 'UpdateScene',
+    /** 激活cursor */
+    ActiveCursor = 'ActiveCursor',
+    /** 移动cursor */
+    MoveCursor = 'MoveCursor',
 }
 
 export enum InternalMsgEmitterType {
@@ -81,6 +83,7 @@ export enum InternalMsgEmitterType {
     CanvasSelector = 'CanvasSelector',
     MainEngine = 'MainEngine',
     DisplayContainer = 'DisplayContainer',
+    Cursor = 'Cursor'
 }
 
 export type InternalEventValue = {

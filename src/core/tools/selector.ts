@@ -6,7 +6,8 @@ import { computRect, getNodeRect, getRectFromPoints, isIntersect, isSameArray } 
 import { Point2d } from "../utils/primitives/Point2d";
 import { colorRGBA2Hex } from "../../collector/utils/color";
 import { EStrokeType } from "../../plugin/types";
-// import { Vec2d } from "../utils/primitives/Vec2d";
+import { Storage_Selector_key } from "../../collector/const";
+import isNumber from "lodash/isNumber";
 
 export interface SelectorOptions extends BaseShapeOptions {
 }
@@ -30,7 +31,7 @@ export class SelectorShape extends BaseShapeTool{
     updataOptService(): IRectType | undefined {
         return;
     }
-    static selectorId = 'selector';
+    static selectorId = Storage_Selector_key;
     static selectorBorderId = 'selector-border';
     protected tmpPoints:Array<Point2d> = [];
     toolsType: EToolsKey = EToolsKey.Selector;
@@ -234,7 +235,9 @@ export class SelectorShape extends BaseShapeTool{
                         (cloneP as Group).seal();
                     }
                 }
-                cloneNodes.push(cloneP);
+                if (!this.fullLayer.getElementsByName(c.name).length) {
+                    cloneNodes.push(cloneP);
+                }
                 removeNodes.push(c);
                 const r = nodeMaps.get(c.name)?.rect || getNodeRect(c.name, this.drawLayer)
                 if (r) {
@@ -264,7 +267,9 @@ export class SelectorShape extends BaseShapeTool{
                         (cloneP as Group).seal();
                     }
                 }
-                cloneNodes.push(cloneP);
+                if (!this.drawLayer?.getElementsByName(c.name).length) {
+                    cloneNodes.push(cloneP);
+                }
                 removeNodes.push(c as Path)
             })
         });
@@ -363,8 +368,11 @@ export class SelectorShape extends BaseShapeTool{
     updateSelector(param:{
         updateSelectorOpt: IUpdateNodeOpt, 
         selectIds?: string[],
+        selectStore?:Map<string,{
+            updateNodeOpt?:IUpdateNodeOpt;
+        }>
     }): IMainMessage | undefined {
-        const {updateSelectorOpt, selectIds} = param;
+        const {updateSelectorOpt, selectIds, selectStore} = param;
         let rect:IRectType | undefined;
         const updateNodeOpts: Map<string, IUpdateNodeOpt> = new Map();
         // let scale: [number, number] | undefined;
@@ -416,16 +424,17 @@ export class SelectorShape extends BaseShapeTool{
                                 const cPos = c.getAttribute('pos');
                                 itemOpt.pos = [translate[0] / this.fullLayer.worldScaling[0] + cPos[0] , translate[1] / this.fullLayer.worldScaling[0] + cPos[1]];
                                 itemOpt.originPos = c.className.split(',').map(c=>Number(c)) as [number,number];
-                                // console.log('translate', translate, cPos, itemOpt.pos, itemOpt.originPos )
                                 c.setAttribute('pos',itemOpt.pos)
                             }
-                            if (updateSelectorOpt.zIndexDistance || updateSelectorOpt.zIndex) {
-                                if (updateSelectorOpt.zIndexDistance) {
-                                    const ZIndex = c.getAttribute('zIndex');
-                                    itemOpt.zIndex = ZIndex + updateSelectorOpt.zIndexDistance;
-                                } else {
-                                    itemOpt.zIndex = updateSelectorOpt.zIndex
+                            if (updateSelectorOpt.zIndexLayer && selectStore?.has(name)) {
+                                const zIndex = selectStore.get(name)?.updateNodeOpt?.zIndex;
+                                if (isNumber(zIndex)) {
+                                    itemOpt.zIndex = zIndex;
+                                    c.setAttribute('zIndex',itemOpt.zIndex)
                                 }
+                            }
+                            if (updateSelectorOpt.zIndex) {
+                                itemOpt.zIndex = updateSelectorOpt.zIndex;
                                 c.setAttribute('zIndex',itemOpt.zIndex)
                             }
                             if (updateSelectorOpt.color) {
@@ -492,7 +501,6 @@ export class SelectorShape extends BaseShapeTool{
             }
             this.oldRect = computRect(this.oldRect, rect);
             this.oldSelectRect = rect;
-            // console.log('updateSelector', rect)
             return {
                 type: EPostMessageType.UpdateNode,
                 dataType: EDataType.Local,

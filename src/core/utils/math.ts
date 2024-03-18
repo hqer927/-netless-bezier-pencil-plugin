@@ -3,11 +3,12 @@ import { IRectType } from "../types";
 import { Point2d } from "./primitives/Point2d";
 import { Vec2d } from "./primitives/Vec2d";
 import { EStrokeType } from "../../plugin/types";
+import type { Rectangle } from "white-web-sdk";
 
 export function computRect(rect1?: IRectType, rect2?: IRectType){
     if(rect1 && rect2){
-      const x = Math.min(rect1?.x,rect2.x);
-      const y = Math.min(rect1?.y,rect2.y);
+      const x = Math.min(rect1.x,rect2.x);
+      const y = Math.min(rect1.y,rect2.y);
       const maxX = Math.max(rect1.x+rect1.w, rect2.x+rect2.w); 
       const maxY = Math.max(rect1.y+rect1.h, rect2.y+rect2.h); 
       const w = maxX - x;
@@ -16,6 +17,20 @@ export function computRect(rect1?: IRectType, rect2?: IRectType){
     }
     return rect2 || rect1;
 }
+
+export function computRectangle(rect1?: Rectangle, rect2?: Rectangle){
+  if(rect1 && rect2){
+    const originX = Math.min(rect1.originX,rect2.originX);
+    const originY = Math.min(rect1.originY,rect2.originY);
+    const maxX = Math.max(rect1.originX+rect1.width, rect2.originX+rect2.width); 
+    const maxY = Math.max(rect1.originY+rect1.height, rect2.originY+rect2.height); 
+    const width = maxX - originX;
+    const height = maxY - originY;
+    return {originX,originY,width,height}
+  }
+  return rect2 || rect1;
+}
+
 export function getRectFromPoints(points:(Point2d|Vec2d)[], offset:number = 0) {
   const rect = {x:0, y:0, w:0, h:0};
   let minX = Infinity;

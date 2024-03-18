@@ -52,3 +52,6 @@ export declare abstract class BaseShapeTool {
     abstract combineConsume(): IMainMessage | undefined;
     abstract clearTmpPoints(): void;
 }
+export interface ShapeStateInfo {
+    willClear: boolean;
+}

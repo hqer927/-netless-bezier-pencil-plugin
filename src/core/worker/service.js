@@ -1,9 +1,10 @@
 import { SubServiceWork } from "../base";
-import { ECanvasShowType, EToolsKey } from "../enum";
+import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { PencilShape, SelectorShape } from "../tools";
 import { computRect } from "../utils";
 import { transformToNormalData } from "../../collector/utils";
 import { LaserPenShape } from "../tools/laserPen";
+import { Storage_Splitter } from "../../collector/const";
 export class SubServiceWorkForWorker extends SubServiceWork {
     constructor(curNodeMap, layer, drawLayer, postFun) {
         super(curNodeMap, layer, drawLayer);
@@ -158,6 +159,7 @@ export class SubServiceWorkForWorker extends SubServiceWork {
         let isNext = false;
         let isFullWork = false;
         let noAnimationRect;
+        const cursorPoints = new Map();
         this.workShapes.forEach((workShape, key) => {
             if (!workShape.useAnimation) {
                 if (workShape.toolsType === EToolsKey.Pencil && workShape.ops) {
@@ -258,6 +260,19 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                     this.updataNodeMap(key, workShape.ops, workShape.node?.getWorkOptions());
                     this.workShapes.delete(key);
                 }
+                if (data.length) {
+                    cursorPoints.set(key, {
+                        workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                        op: data.filter((_v, i) => {
+                            if (pointUnit === 3 && i % pointUnit !== pointUnit - 1) {
+                                return true;
+                            }
+                            else if (pointUnit === 2) {
+                                return true;
+                            }
+                        }).slice(-2),
+                    });
+                }
             }
         });
         if (isNext) {
@@ -277,14 +292,23 @@ export class SubServiceWorkForWorker extends SubServiceWork {
             });
         }
         if (clearRect) {
-            // console.log('animationDraw2', clearRect)
+            // console.log('animationDraw2', clearRect, isFullWork)
             _postData.render?.push({
                 rect: clearRect,
-                drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                drawCanvas: !isFullWork && ECanvasShowType.Float || undefined,
                 isClear: true,
                 clearCanvas: ECanvasShowType.Float,
                 isFullWork
             });
+            if (isFullWork) {
+                _postData.render?.push({
+                    rect: clearRect,
+                    drawCanvas: ECanvasShowType.Bg,
+                    isClear: true,
+                    clearCanvas: ECanvasShowType.Bg,
+                    isFullWork
+                });
+            }
         }
         if (noAnimationRect) {
             // console.log('animationDraw3', noAnimationRect)
@@ -296,7 +320,22 @@ export class SubServiceWorkForWorker extends SubServiceWork {
                 isFullWork: true
             });
         }
+        if (cursorPoints.size) {
+            _postData.sp = [];
+            cursorPoints.forEach((v, k) => {
+                _postData.sp?.push({
+                    type: EPostMessageType.Cursor,
+                    uid: k.split(Storage_Splitter)[0],
+                    op: v.op,
+                    workState: v.workState
+                });
+                // console.log('animationDraw4', v.op)
+            });
+        }
         if (_postData.render?.length) {
+            // if (isFullWork) {
+            //     console.log('animationDraw4', _postData)
+            // }
             this._post(_postData);
         }
     }

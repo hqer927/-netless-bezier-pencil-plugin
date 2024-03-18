@@ -1,10 +1,10 @@
-import { EmitEventType } from "../../../plugin/types";
+import { EStrokeType, EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
 import { IWorkerMessage } from "../../types";
 import { ECanvasShowType, EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
-import { Node } from "spritejs";
 import { isIntersect } from "../../utils";
+import { Group, Path } from "spritejs";
 
 
 export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
@@ -26,40 +26,39 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
         if (!workShapeNode) {
             return;
         }
-        const rect = workShapeNode.oldRect;
-        if (isActiveZIndex && rect) {
-            const cloneNodes: Node[] = [];
-            const removeNodes: Node[] = [];
-            workShapeNode.curNodeMap.forEach((value, key)=>{
+        const rect = workShapeNode.oldSelectRect;
+        if (isActiveZIndex && rect && this.localWork) {
+            const sealToDrawIds:Set<string> = new Set();
+            this.localWork.curNodeMap.forEach((value, key)=>{
                 if (isIntersect(rect, value.rect)) {
-                    this.localWork?.fullLayer.getElementsByName(key).forEach(cNode=>{
-                        if (cNode) {
-                            const c = cNode.cloneNode(true);
-                            cloneNodes.push(cNode);
-                            removeNodes.push(c);
-                        }
-                    })
+                    sealToDrawIds.add(key)
                 }
             })
-            if (cloneNodes.length) {
-                removeNodes.forEach(r=>r.remove());
-                this.localWork?.drawLayer?.append(...cloneNodes);
+            if (sealToDrawIds.size) {
+                const sealToDrawNodes: (Path | Group)[] = [];
+                sealToDrawIds.forEach(name => {
+                    this.localWork?.fullLayer.getElementsByName(name).forEach(c=>{
+                        const cloneP = c.cloneNode(true) as (Path | Group);
+                        if (cloneP.tagName === 'GROUP') {
+                            const other = (c as Group).className.split(',');
+                            if(other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
+                                (cloneP as Group).seal();
+                            }
+                        }
+                        if (!this.localWork?.drawLayer?.getElementsByName(name).length) {
+                            sealToDrawNodes.push(cloneP);
+                        }
+                    })
+                });
+                if (sealToDrawNodes.length) {
+                    this.localWork.drawLayer?.append(...sealToDrawNodes);
+                }
             }
         } else {
-            const cloneNodes: Node[] = [];
-            const removeNodes: Node[] = [];
-            this.localWork?.drawLayer?.children.filter( c => c.name !== SelectorShape.selectorId && !workShapeNode.selectIds?.includes(c.name)).forEach(c => {
-                const cNode = c.cloneNode(true);
-                cloneNodes.push(cNode);
-                removeNodes.push(c);
-            });
-            if (cloneNodes.length) {
-                removeNodes.forEach(r=>r.remove());
-                this.localWork?.fullLayer?.append(...cloneNodes);
-            }
+            this.localWork?.drawLayer?.children.filter( c => !workShapeNode.selectIds?.includes(c.name)).forEach(r=>r.remove());
         }
         if (willRefreshSelector) {
-            //console.log('render', this.localWork?.fullLayer.children, this.localWork?.drawLayer?.children)
+            // console.log('render', rect, workShapeNode.selectIds, this.localWork?.fullLayer.children.map(n=>n.name), this.localWork?.drawLayer?.children.map(n=>n.name))
             this.localWork?._post({
                 render: [
                     {
@@ -75,7 +74,7 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                     selectIds: workShapeNode.selectIds,
                     opt: workShapeNode.getWorkOptions(),
                     padding: SelectorShape.SelectBorderPadding,
-                    selectRect: workShapeNode.oldSelectRect,
+                    selectRect: rect,
                     nodeColor: workShapeNode.nodeColor,
                     willSyncService:false, 
                     isSync:true

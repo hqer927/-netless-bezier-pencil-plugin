@@ -8,7 +8,7 @@ import isEqual from "lodash/isEqual";
 import { SelectorShape } from "../core/tools";
 import cloneDeep from "lodash/cloneDeep";
 import { requestAsyncCallBack } from "../core/utils";
-import { Storage_Splitter } from "./const";
+import { Storage_Selector_key, Storage_Splitter } from "./const";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -76,7 +76,9 @@ export class Collector extends BaseCollector {
                     this.storage[key] = cloneDeep(value?.newValue);
                 }
             }
-            callBack(diff);
+            if (Object.keys(diff).length > 0) {
+                callBack(diff);
+            }
         });
     }
     removeStorageStateListener() {
@@ -242,7 +244,7 @@ export class Collector extends BaseCollector {
     }
     checkOtherSelector(key, selectIds, options) {
         for (const k of Object.keys(this.storage)) {
-            if (k !== key && this.getLocalId(k) === 'selector') {
+            if (k !== key && this.getLocalId(k) === Storage_Selector_key) {
                 const value = this.storage[k];
                 if (value && value.selectIds) {
                     const ids = value.selectIds.filter(id => !selectIds.includes(id));
@@ -279,7 +281,6 @@ export class Collector extends BaseCollector {
         this.runSyncService(options);
     }
     runSyncService(options) {
-        // console.log('this.storage', this.storage)
         if (!this.asyncClockState) {
             this.asyncClockState = true;
             setTimeout(() => {
@@ -352,9 +353,7 @@ export class Collector extends BaseCollector {
         if (!isAfterUpdate) {
             this.serviceStorage = cloneDeep(state);
         }
-        const attr = {};
-        attr[this.namespace] = state;
-        this.plugin?.setAttributes(attr);
+        this.plugin?.updateAttributes(this.namespace, state);
     }
     transformToSerializableData(data) {
         return transformToSerializableData(data);

@@ -1,22 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BaseCollector } from "../collector";
+import { Collector } from "../collector";
 import { BaseCollectorReducerAction, DiffOne } from "../collector/types";
 import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "./enum";
-import { BaseShapeOptions, BaseShapeTool, EraserOptions, EraserShape, PencilOptions, PencilShape, SelectorOptions, SelectorShape } from "./tools";
+import { BaseShapeOptions, BaseShapeTool, EraserOptions, EraserShape, PencilOptions, PencilShape, SelectorOptions, SelectorShape, ShapeStateInfo } from "./tools";
 import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
 import { Group, Layer, Scene } from "spritejs";
 import { LaserPenOptions, LaserPenShape } from "./tools/laserPen";
 import { BezierPencilDisplayer } from "../plugin";
 import { getNodeRect } from "./utils";
 import { SubServiceWorkForWorker } from "./worker/service";
+import { BezierPencilDisplayer as BezierPencilMultiDisplayer } from "../plugin/multi/bezierPencilMultiDisplayer";
 
 export abstract class MainEngine {
     /** 设备像素比 */
     protected abstract dpr: number;
     /** 数据收集器 */
-    protected collector: BaseCollector;
+    protected collector: Collector;
     /** view容器 */
-    public displayer: BezierPencilDisplayer;
+    public displayer: BezierPencilDisplayer | BezierPencilMultiDisplayer;
     /** 主线程还是工作线程 */
     // protected threadType: EThreadType;
     /** 主线程和工作线程通信机 */
@@ -39,7 +40,7 @@ export abstract class MainEngine {
     /** 临时手动gc数据池 */
     public dustbin: Set<unknown> = new Set();
 
-    protected constructor(displayer: BezierPencilDisplayer, collector:BaseCollector) {
+    protected constructor(displayer: BezierPencilDisplayer | BezierPencilMultiDisplayer, collector: Collector) {
         this.displayer = displayer;
         this.collector = collector;
     }
@@ -161,6 +162,7 @@ export abstract class SubLocalWork {
     protected tmpWorkShapeNode?: BaseShapeTool;
     protected tmpOpt?: IActiveToolsDataType;
     protected abstract workShapes: Map<IworkId, BaseShapeTool>;
+    workShapeState: Map<IworkId, ShapeStateInfo> = new Map();
     protected effectWorkId?: number;
     constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer?: Group){
         this.curNodeMap = curNodeMap;
@@ -219,11 +221,7 @@ export abstract class SubLocalWork {
     }
     setToolsOpt(opt: IActiveToolsDataType) {
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
-            if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
-                this.blurSelector();
-            }
             if (this.tmpOpt?.toolsType) {
-                // console.log('firsthis.tmpOpt?.toolsTypet', this.tmpOpt?.toolsType, opt.toolsType)
                 this.clearAllWorkShapesCache();
             }
         }
@@ -234,10 +232,12 @@ export abstract class SubLocalWork {
     clearWorkShapeNodeCache(workId:IworkId) {
         this.getWorkShape(workId)?.clearTmpPoints();
         this.workShapes.delete(workId);
+        this.workShapeState.delete(workId);
     }
     clearAllWorkShapesCache(){
         this.workShapes.forEach(w=>w.clearTmpPoints());
         this.workShapes.clear();
+        this.workShapeState.clear();
     }
     runEffectWork(callBack?:()=>void){
         if (this.effectWorkId) {

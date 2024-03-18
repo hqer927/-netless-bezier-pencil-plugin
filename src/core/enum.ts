@@ -56,7 +56,10 @@ export enum EPostMessageType {
     /** 什么也不需要做 */
     None,
     /** 获取指定场景快照 */
-    Snapshot
+    Snapshot,
+    /** 获取指定场所有元素的的包围盒 */
+    BoundingBox,
+    Cursor
 }
 export enum EShapeDataTypeKey{
     Path,
@@ -85,3 +88,12 @@ export enum EScaleDirection {
     BC = 'bottom'
 }
 
+export enum EventMessageType {
+    /** cursor事件 */
+    Cursor = 1,
+}
+
+export enum ElayerType {
+    Top = 1,
+    Bottom
+}

@@ -186,14 +186,6 @@ export class SubLocalDrawWorkForWorker extends SubLocalWork {
                 replaceId: workShape.getWorkId()?.toString()
             });
             data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
-            if (data.workId) {
-                this.updataNodeMap({
-                    key: data.workId?.toString(),
-                    ops: data.ops, 
-                    opt: data.opt,
-                    toolsType: data.toolsType,
-                });
-            }
             data.workId && this.workShapes.delete(data.workId)
         }
     }

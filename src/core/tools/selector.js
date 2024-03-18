@@ -5,6 +5,8 @@ import { computRect, getNodeRect, getRectFromPoints, isIntersect, isSameArray } 
 import { Point2d } from "../utils/primitives/Point2d";
 import { colorRGBA2Hex } from "../../collector/utils/color";
 import { EStrokeType } from "../../plugin/types";
+import { Storage_Selector_key } from "../../collector/const";
+import isNumber from "lodash/isNumber";
 export class SelectorShape extends BaseShapeTool {
     updataOptService() {
         return;
@@ -262,7 +264,9 @@ export class SelectorShape extends BaseShapeTool {
                         cloneP.seal();
                     }
                 }
-                cloneNodes.push(cloneP);
+                if (!this.fullLayer.getElementsByName(c.name).length) {
+                    cloneNodes.push(cloneP);
+                }
                 removeNodes.push(c);
                 const r = nodeMaps.get(c.name)?.rect || getNodeRect(c.name, this.drawLayer);
                 if (r) {
@@ -292,7 +296,9 @@ export class SelectorShape extends BaseShapeTool {
                         cloneP.seal();
                     }
                 }
-                cloneNodes.push(cloneP);
+                if (!this.drawLayer?.getElementsByName(c.name).length) {
+                    cloneNodes.push(cloneP);
+                }
                 removeNodes.push(c);
             });
         });
@@ -392,7 +398,7 @@ export class SelectorShape extends BaseShapeTool {
         return rect;
     }
     updateSelector(param) {
-        const { updateSelectorOpt, selectIds } = param;
+        const { updateSelectorOpt, selectIds, selectStore } = param;
         let rect;
         const updateNodeOpts = new Map();
         // let scale: [number, number] | undefined;
@@ -445,17 +451,17 @@ export class SelectorShape extends BaseShapeTool {
                                 const cPos = c.getAttribute('pos');
                                 itemOpt.pos = [translate[0] / this.fullLayer.worldScaling[0] + cPos[0], translate[1] / this.fullLayer.worldScaling[0] + cPos[1]];
                                 itemOpt.originPos = c.className.split(',').map(c => Number(c));
-                                // console.log('translate', translate, cPos, itemOpt.pos, itemOpt.originPos )
                                 c.setAttribute('pos', itemOpt.pos);
                             }
-                            if (updateSelectorOpt.zIndexDistance || updateSelectorOpt.zIndex) {
-                                if (updateSelectorOpt.zIndexDistance) {
-                                    const ZIndex = c.getAttribute('zIndex');
-                                    itemOpt.zIndex = ZIndex + updateSelectorOpt.zIndexDistance;
+                            if (updateSelectorOpt.zIndexLayer && selectStore?.has(name)) {
+                                const zIndex = selectStore.get(name)?.updateNodeOpt?.zIndex;
+                                if (isNumber(zIndex)) {
+                                    itemOpt.zIndex = zIndex;
+                                    c.setAttribute('zIndex', itemOpt.zIndex);
                                 }
-                                else {
-                                    itemOpt.zIndex = updateSelectorOpt.zIndex;
-                                }
+                            }
+                            if (updateSelectorOpt.zIndex) {
+                                itemOpt.zIndex = updateSelectorOpt.zIndex;
                                 c.setAttribute('zIndex', itemOpt.zIndex);
                             }
                             if (updateSelectorOpt.color) {
@@ -523,7 +529,6 @@ export class SelectorShape extends BaseShapeTool {
             }
             this.oldRect = computRect(this.oldRect, rect);
             this.oldSelectRect = rect;
-            // console.log('updateSelector', rect)
             return {
                 type: EPostMessageType.UpdateNode,
                 dataType: EDataType.Local,
@@ -704,7 +709,7 @@ Object.defineProperty(SelectorShape, "selectorId", {
     enumerable: true,
     configurable: true,
     writable: true,
-    value: 'selector'
+    value: Storage_Selector_key
 });
 Object.defineProperty(SelectorShape, "selectorBorderId", {
     enumerable: true,

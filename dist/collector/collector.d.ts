@@ -4,7 +4,7 @@ import { BezierPencilPlugin } from "../plugin";
 /**
  * 服务端事件/状态同步收集器
  */
-export declare class Collector extends BaseCollector {
+export declare class Collector extends BaseCollector<ISerializableStorageData> {
     static syncInterval: number;
     serviceStorage: ISerializableStorageData;
     storage: ISerializableStorageData;

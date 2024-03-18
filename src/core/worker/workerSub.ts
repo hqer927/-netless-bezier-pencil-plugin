@@ -5,6 +5,7 @@ import { EDataType, EPostMessageType, EvevtWorkState } from "../enum";
 import type  { Scene, Group, Layer } from "spritejs";
 import { SubLocalDrawWorkForWorker } from "./localSubDraw";
 import cloneDeep from "lodash/cloneDeep";
+import { computRect } from "../utils";
 
 
 export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
@@ -31,12 +32,15 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
         return ((isSnapshot && this.snapshotFullLayer || this.drawLayer).parent as Layer)?.canvas as OffscreenCanvas;
     }
     private register(){
-        this.on(async (msg:IterableIterator<IWorkerMessage>) => {
+        this.on((msg:IterableIterator<IWorkerMessage>) => {
             for (const data of msg) {
                 const { workState, dataType, msgType, workId, toolsType, opt } = data;
                 switch (msgType) {
                     case EPostMessageType.Snapshot:
-                        await this.getSnapshot(data)
+                        this.getSnapshot(data)
+                        break;
+                    case EPostMessageType.BoundingBox:
+                        this.getBoundingRect(data)
                         break;
                     case EPostMessageType.UpdateTools:
                         if (toolsType && opt) {
@@ -166,7 +170,6 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                         this.init(dpr, offscreenCanvasOpt, layerOpt);
                     }
                 }
-                callBack(e.data.values());
                 const hasClearAll = e.data.has('ClearAll');
                 const updateCameraJob  = e.data.get('UpdateCamera');
                 if (updateCameraJob) {
@@ -176,6 +179,7 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 if (hasClearAll) {
                     this.clearAll();
                 }
+                callBack(e.data.values());
             }
         }
     }
@@ -207,16 +211,6 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                                 dataType: EDataType.Service
                             });
                             break;
-                        case EPostMessageType.Select:
-                            this.localWork.runSelectWork(
-                                {
-                                    ...value,
-                                    workId: key,
-                                    msgType: EPostMessageType.FullWork,
-                                    dataType: EDataType.Service
-                                }
-                            );
-                            break;
                         default:
                             break;
                     }
@@ -243,13 +237,60 @@ export class SubWorkThreadEngineByWorker extends WorkThreadEngine {
                 },[imageBitmap]);
                 imageBitmap.close();
                 this.snapshotFullLayer.removeAllChildren();
-                (this.snapshotFullLayer.parent as Layer).children.forEach(c=>{
-                    if (c.name !== "viewport") {
-                        c.remove();
-                    }
-                })
                 this.setCameraOpt(curCameraOpt as ICameraOpt, this.drawLayer);
             }
+        }
+    }
+    private getBoundingRect(data:IWorkerMessage){
+        const {scenePath, scenes, cameraOpt} = data;
+        if (scenePath && scenes && cameraOpt) {
+            const curCameraOpt = cloneDeep(this.cameraOpt);
+            this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
+            this.localWork.fullLayer = this.snapshotFullLayer;
+            this.localWork.drawLayer = this.drawLayer;
+            let rect:IRectType|undefined;
+            for (const [key,value] of Object.entries(scenes)) {
+                if (value?.type) {
+                    switch (value?.type) {
+                        case EPostMessageType.UpdateNode:
+                        case EPostMessageType.FullWork:
+                            this.localWork.runFullWork({
+                                ...value,
+                                workId: key,
+                                msgType: EPostMessageType.FullWork,
+                                dataType: EDataType.Service
+                            });
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            this.localWork.computNodeMap();
+            this.curNodeMap.forEach((r,key)=> {
+                if(r.rect){
+                    rect = computRect(rect, {
+                        x: Math.floor((r.rect.x - this.snapshotFullLayer.worldPosition[0])/this.snapshotFullLayer.worldScaling[0]),
+                        y: Math.floor((r.rect.y - this.snapshotFullLayer.worldPosition[1])/this.snapshotFullLayer.worldScaling[1]),
+                        w: Math.floor(r.rect.w / this.snapshotFullLayer.worldScaling[0]),
+                        h: Math.floor(r.rect.h / this.snapshotFullLayer.worldScaling[1]),
+                    });
+                    this.curNodeMap.delete(key);
+                }
+            })
+            if(rect){
+                SubWorkThreadEngineByWorker._self.postMessage({
+                    sp:[{
+                        type: EPostMessageType.BoundingBox,
+                        scenePath,
+                        rect,
+                    }]
+                });
+            }
+            this.localWork.fullLayer = this.drawLayer;
+            this.localWork.drawLayer = undefined;
+            this.snapshotFullLayer.removeAllChildren();
+            this.setCameraOpt(curCameraOpt as ICameraOpt, this.drawLayer);
         }
     }
 }

@@ -1,8 +1,9 @@
-import { BaseCollector, BaseCollectorReducerAction, Diff, DiffOne } from "../../collector";
+import { BaseCollectorReducerAction, Collector, Diff, DiffOne } from "../../collector";
 import { MainEngine, WorkThreadEngine } from "../base";
-import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IworkId, IUpdateNodeOpt } from "../types";
+import { IOffscreenCanvasOptionType, ICameraOpt, IActiveToolsDataType, IActiveWorkDataType, IWorkerMessage, ILayerOptionType, IworkId, IUpdateNodeOpt, IRectType } from "../types";
 import { ECanvasContextType, EPostMessageType } from "../enum";
-import { BezierPencilDisplayer, BezierPencilPluginOptions } from "../../plugin";
+import { BezierPencilPluginOptions } from "../../plugin";
+import { CursorManager } from "../../cursors";
 export declare class MainEngineForWorker extends MainEngine {
     protected dpr: number;
     protected threadEngine?: WorkThreadEngine;
@@ -35,12 +36,17 @@ export declare class MainEngineForWorker extends MainEngine {
     private reRenders;
     private bgCanvas;
     private floatCanvas;
-    maxLayerIndex: number;
     private methodBuilder?;
+    private zIndexNodeMethod?;
     private localEventTimerId?;
     private undoTickerId?;
     private snapshotMap;
-    constructor(displayer: BezierPencilDisplayer, collector: BaseCollector, options?: BezierPencilPluginOptions);
+    private boundingRectMap;
+    private cursor;
+    private cachePoint?;
+    private clearAllResolve?;
+    constructor(collector: Collector, cursor: CursorManager, options?: BezierPencilPluginOptions);
+    private sendCursorEvent;
     private internalMsgEmitterListener;
     private showFloatBar;
     private removeSelectorFromStore;
@@ -55,6 +61,7 @@ export declare class MainEngineForWorker extends MainEngine {
     updateCanvas(opt: IOffscreenCanvasOptionType): void;
     private pushPoint;
     transformToScenePoint(p: [number, number]): [number, number];
+    transformToOriginPoint(p: [number, number]): [number, number];
     getCameraOpt(): ICameraOpt;
     getDpr(): number;
     initSyncData(callBack?: (key: string, value: BaseCollectorReducerAction | undefined) => void): void;
@@ -78,4 +85,5 @@ export declare class MainEngineForWorker extends MainEngine {
     setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
     setCameraOpt(cameraOpt: ICameraOpt): void;
     getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
+    getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
 }

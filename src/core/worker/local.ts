@@ -2,7 +2,7 @@ import type  { Path, Node, Group, Layer } from "spritejs";
 import { transformToNormalData, transformToSerializableData } from "../../collector/utils";
 import { SubLocalWork } from "../base";
 import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import { BaseShapeOptions, BaseShapeTool, EraserShape, SelectorShape } from "../tools";
+import { BaseShapeOptions, BaseShapeTool, EraserShape, SelectorShape, ShapeStateInfo } from "../tools";
 import { IWorkerMessage, IMainMessage, IBatchMainMessage, IworkId, IUpdateNodeOpt, IRectType, BaseNodeMapItem } from "../types";
 import { computRect, rotatePoints, scalePoints } from "../utils";
 import { EStrokeType, EmitEventType } from "../../plugin/types";
@@ -139,13 +139,13 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             sp: res?.op && [res]
         });
     }
-    private drawPencilFull(res:IMainMessage, opt:BaseShapeOptions) {
+    private drawPencilFull(res:IMainMessage, opt:BaseShapeOptions, workShapeState?: ShapeStateInfo) {
         const _postData:IBatchMainMessage = {
             drawCount: Infinity,
             render: [{
                 rect: res.rect,
                 drawCanvas: ECanvasShowType.Bg,
-                isClear: (opt.opacity || 1) < 1,
+                isClear: workShapeState?.willClear || (opt.opacity || 1) < 1,
                 clearCanvas: ECanvasShowType.Bg,
                 isFullWork: true,
             }],
@@ -240,7 +240,6 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             this.combineTimerId = undefined;
         }
         const {workId, undoTickerId} = data;
-        // console.log('consumeDrawAll0', data)
         if (workId) {
             if (undoTickerId) {
                 setTimeout(()=>{
@@ -283,7 +282,8 @@ export class SubLocalWorkForWorker extends SubLocalWork {
             }
             if (toolsType === EToolsKey.Pencil) {
                 if (r?.rect) {
-                    this.drawPencilFull(r, workShapeNode.getWorkOptions());
+                    const workShapeState = this.workShapeState.get(workId);
+                    this.drawPencilFull(r, workShapeNode.getWorkOptions(), workShapeState);
                     this.drawCount = 0;
                 }
                 this.clearWorkShapeNodeCache(workId);
@@ -313,6 +313,7 @@ export class SubLocalWorkForWorker extends SubLocalWork {
         const res = workShapeNode?.updateSelector({
             updateSelectorOpt, 
             selectIds: workShapeNode.selectIds,
+            selectStore
         });
         let render: {
             rect?: IRectType;
@@ -513,11 +514,23 @@ export class SubLocalWorkForWorker extends SubLocalWork {
         }
 
     }
-    blurSelector(): void {
+    blurSelector(data?:IWorkerMessage): void {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
-        if (workShapeNode) {
-            const res = workShapeNode?.blurSelector(this.curNodeMap);
-            this.clearWorkShapeNodeCache(SelectorShape.selectorId);
+        const res = workShapeNode?.blurSelector(this.curNodeMap);
+        this.clearWorkShapeNodeCache(SelectorShape.selectorId);
+        (this.drawLayer?.parent as Layer).children.forEach(c=>{
+            if (c.name === SelectorShape.selectorId) {
+                c.remove();
+            }
+        });
+        if (res) {
+            const sp:IMainMessage[] = [res];
+            if (data?.undoTickerId) {
+                sp.push({
+                    type: EPostMessageType.None,
+                    undoTickerId: data.undoTickerId
+                })
+            }
             this._post({
                 render: res?.rect && [{
                     rect: res.rect,
@@ -526,7 +539,7 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                     clearCanvas: ECanvasShowType.Bg,
                     isFullWork: true,
                 }],
-                sp: [ res ]
+                sp
             });
         }
     }
@@ -610,13 +623,8 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                     itemOpt.pos = updateNodeOpt.pos;
                     p.setAttribute('pos',updateNodeOpt.pos)
                 }
-                if (updateNodeOpt.zIndexDistance || updateNodeOpt.zIndex) {
-                    if (updateNodeOpt.zIndexDistance) {
-                        const ZIndex = p.getAttribute('zIndex');
-                        itemOpt.zIndex = ZIndex + updateNodeOpt.zIndex;
-                    } else {
-                        itemOpt.zIndex = updateNodeOpt.zIndex
-                    }
+                if (updateNodeOpt.zIndex) {
+                    itemOpt.zIndex = updateNodeOpt.zIndex
                     p.setAttribute('zIndex',itemOpt.zIndex)
                 }
                 if (updateNodeOpt.color) {
@@ -757,7 +765,8 @@ export class SubLocalWorkForWorker extends SubLocalWork {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
         const {selectIds} = data;
         if (!selectIds?.length) {
-            this.blurSelector();
+            this.blurSelector(data);
+            return;
         }
         if (!workShapeNode) {
             this.setFullWork(data);
@@ -770,7 +779,6 @@ export class SubLocalWorkForWorker extends SubLocalWork {
                 render:[],
                 sp:[]
             }
-            // console.log('bgRect', bgRect)
             if (bgRect) {
                 _postData.render?.push({
                     rect: bgRect,

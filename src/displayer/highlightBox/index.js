@@ -1,10 +1,11 @@
-import { DisplayerContext } from "../../plugin/bezierPencilDisplayer";
+import { DisplayerContext } from "../../plugin/single/bezierPencilDisplayer";
 import React, { useContext, useEffect, useState } from "react";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { EvevtWorkState } from "../../core";
 import { Resizable } from "re-resizable";
 import throttle from "lodash/throttle";
+import { Storage_Selector_key } from "../../collector";
 export const HightLightBox = () => {
     const [curSize, setCurSize] = useState({ width: 0, height: 0 });
     const { floatBarData, InternalMsgEmitter, setSize } = useContext(DisplayerContext);
@@ -21,7 +22,7 @@ export const HightLightBox = () => {
         const size = { width, height, workState: EvevtWorkState.Start };
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Start });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], size, workState: EvevtWorkState.Start });
     };
     const onResize = throttle((e, _dir, ele) => {
         e.preventDefault();
@@ -32,7 +33,7 @@ export const HightLightBox = () => {
         if (size.width !== curSize.width || size.height !== curSize.height) {
             setSize(size);
             setCurSize(size);
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Doing });
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], size, workState: EvevtWorkState.Doing });
         }
     }, 100, { 'leading': false });
     const onResizeStop = (e, _dir, ele) => {
@@ -43,7 +44,7 @@ export const HightLightBox = () => {
         const size = { width, height, workState: EvevtWorkState.Done };
         setSize(size);
         setCurSize(size);
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: ['selector'], size, workState: EvevtWorkState.Done });
+        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], size, workState: EvevtWorkState.Done });
     };
     return (React.createElement(Resizable, { className: "bezier-pencil-plugin-hightlight-box", boundsByDirection: true, size: {
             width: curSize.width,

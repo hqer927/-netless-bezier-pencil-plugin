@@ -3,6 +3,7 @@ import { IconURL } from "../icons"
 import { DisplayerContext } from "../../plugin";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
+import { Storage_Selector_key } from "../../collector";
 
 export const Del = () => {
     const {InternalMsgEmitter} = useContext(DisplayerContext);
@@ -12,12 +13,12 @@ export const Del = () => {
             e.preventDefault();
             e.stopPropagation();
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.DeleteNode, {workIds: ['selector']})
+                EmitEventType.DeleteNode, {workIds: [Storage_Selector_key]})
         }}
         onTouchEnd={(e)=>{
             e.stopPropagation();
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.DeleteNode, {workIds: ['selector']})
+                EmitEventType.DeleteNode, {workIds: [Storage_Selector_key]})
         }}
         >
             <img alt="icon" src={IconURL('delete')}/>

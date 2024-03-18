@@ -62,6 +62,9 @@ export var EPostMessageType;
     EPostMessageType[EPostMessageType["None"] = 11] = "None";
     /** 获取指定场景快照 */
     EPostMessageType[EPostMessageType["Snapshot"] = 12] = "Snapshot";
+    /** 获取指定场所有元素的的包围盒 */
+    EPostMessageType[EPostMessageType["BoundingBox"] = 13] = "BoundingBox";
+    EPostMessageType[EPostMessageType["Cursor"] = 14] = "Cursor";
 })(EPostMessageType || (EPostMessageType = {}));
 export var EShapeDataTypeKey;
 (function (EShapeDataTypeKey) {
@@ -93,3 +96,13 @@ export var EScaleDirection;
     EScaleDirection["RB"] = "bottomRight";
     EScaleDirection["BC"] = "bottom";
 })(EScaleDirection || (EScaleDirection = {}));
+export var EventMessageType;
+(function (EventMessageType) {
+    /** cursor事件 */
+    EventMessageType[EventMessageType["Cursor"] = 1] = "Cursor";
+})(EventMessageType || (EventMessageType = {}));
+export var ElayerType;
+(function (ElayerType) {
+    ElayerType[ElayerType["Top"] = 1] = "Top";
+    ElayerType[ElayerType["Bottom"] = 2] = "Bottom";
+})(ElayerType || (ElayerType = {}));

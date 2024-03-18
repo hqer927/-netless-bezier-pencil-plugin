@@ -8,6 +8,7 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { EvevtWorkState } from "../../core";
 import { Point2d } from "../../core/utils/primitives/Point2d";
+import { Storage_Selector_key } from "../../collector";
 
 export const RotateBtn = (props:{
     className: string,
@@ -35,7 +36,7 @@ export const RotateBtn = (props:{
         setRotateState(true);
         // console.log('onDragStartHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Start})
+            EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Start})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
         pos: DraggableData ) => {
@@ -48,7 +49,7 @@ export const RotateBtn = (props:{
         setShowRotateBtn(false);
         // console.log('onDragEndHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Done})
+            EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Done})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -59,7 +60,7 @@ export const RotateBtn = (props:{
         setRotateState(true);
         // console.log('onDragHandler', a, originPoint.XY, centralPoint.XY, [pos.x, pos.y])
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.RotateNode, {workIds: ['selector'], angle:a, workState: EvevtWorkState.Doing})
+            EmitEventType.RotateNode, {workIds: [Storage_Selector_key], angle:a, workState: EvevtWorkState.Doing})
     }, 100, {'leading':false})
     return (
         <Draggable

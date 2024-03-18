@@ -145,6 +145,12 @@ export class SubLocalWork {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "workShapeState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
         Object.defineProperty(this, "effectWorkId", {
             enumerable: true,
             configurable: true,
@@ -204,11 +210,7 @@ export class SubLocalWork {
     }
     setToolsOpt(opt) {
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
-            if (this.tmpOpt?.toolsType === EToolsKey.Selector) {
-                this.blurSelector();
-            }
             if (this.tmpOpt?.toolsType) {
-                // console.log('firsthis.tmpOpt?.toolsTypet', this.tmpOpt?.toolsType, opt.toolsType)
                 this.clearAllWorkShapesCache();
             }
         }
@@ -218,10 +220,12 @@ export class SubLocalWork {
     clearWorkShapeNodeCache(workId) {
         this.getWorkShape(workId)?.clearTmpPoints();
         this.workShapes.delete(workId);
+        this.workShapeState.delete(workId);
     }
     clearAllWorkShapesCache() {
         this.workShapes.forEach(w => w.clearTmpPoints());
         this.workShapes.clear();
+        this.workShapeState.clear();
     }
     runEffectWork(callBack) {
         if (this.effectWorkId) {

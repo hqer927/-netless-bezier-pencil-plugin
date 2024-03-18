@@ -1,18 +1,19 @@
-import { BaseCollector } from "../collector";
+import { Collector } from "../collector";
 import { BaseCollectorReducerAction, DiffOne } from "../collector/types";
 import { EDataType, EToolsKey } from "./enum";
-import { BaseShapeOptions, BaseShapeTool } from "./tools";
+import { BaseShapeOptions, BaseShapeTool, ShapeStateInfo } from "./tools";
 import { BaseNodeMapItem, IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessage, IMainMessageRenderData, IOffscreenCanvasOptionType, IServiceWorkItem, IUpdateNodeOpt, IWorkerMessage, IworkId } from "./types";
 import { Group, Scene } from "spritejs";
 import { BezierPencilDisplayer } from "../plugin";
 import { SubServiceWorkForWorker } from "./worker/service";
+import { BezierPencilDisplayer as BezierPencilMultiDisplayer } from "../plugin/multi/bezierPencilMultiDisplayer";
 export declare abstract class MainEngine {
     /** 设备像素比 */
     protected abstract dpr: number;
     /** 数据收集器 */
-    protected collector: BaseCollector;
+    protected collector: Collector;
     /** view容器 */
-    displayer: BezierPencilDisplayer;
+    displayer: BezierPencilDisplayer | BezierPencilMultiDisplayer;
     /** 主线程还是工作线程 */
     /** 主线程和工作线程通信机 */
     protected abstract msgEmitter: Worker;
@@ -33,7 +34,7 @@ export declare abstract class MainEngine {
     protected abstract currentLocalWorkData: IActiveWorkDataType;
     /** 临时手动gc数据池 */
     dustbin: Set<unknown>;
-    protected constructor(displayer: BezierPencilDisplayer, collector: BaseCollector);
+    protected constructor(displayer: BezierPencilDisplayer | BezierPencilMultiDisplayer, collector: Collector);
     /** 设置当前选中的工具配置数据 */
     protected setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
     /** 设置当前绘制任务数据 */
@@ -92,6 +93,7 @@ export declare abstract class SubLocalWork {
     protected tmpWorkShapeNode?: BaseShapeTool;
     protected tmpOpt?: IActiveToolsDataType;
     protected abstract workShapes: Map<IworkId, BaseShapeTool>;
+    workShapeState: Map<IworkId, ShapeStateInfo>;
     protected effectWorkId?: number;
     constructor(curNodeMap: Map<string, BaseNodeMapItem>, fullLayer: Group, drawLayer?: Group);
     abstract _post: (msg: IBatchMainMessage) => Promise<void>;

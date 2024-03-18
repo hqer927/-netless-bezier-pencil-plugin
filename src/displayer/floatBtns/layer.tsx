@@ -4,6 +4,9 @@ import { IconURL } from "../icons";
 import { DisplayerContext } from "../../plugin";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
+import { Storage_Selector_key } from "../../collector";
+import { ElayerType } from "../../core";
+import isEqual from "lodash/isEqual";
 const SubBtn = (props: {
     icon:string;
     onClickHandler:(e: any)=>void;
@@ -19,6 +22,7 @@ const SubBtn = (props: {
 export const Layer = () => {
     const {InternalMsgEmitter, floatBarData} = useContext(DisplayerContext);
     const [showSubBtn, setShowSubBtn] = useState(false);
+    const [selectIds,setSelectIds] = useState<string[]>([]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
@@ -28,12 +32,12 @@ export const Layer = () => {
                             e.preventDefault();
                             e.stopPropagation();
                             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
+                                EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Top})
                         }}
                         onTouchEndHandler={(e) => {
                             e.stopPropagation();
                             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.ZIndexNode, {workIds:['selector'], num: +11})
+                                EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Top})
                         }}
                     />
                     <SubBtn icon={'to-bottom'} 
@@ -41,12 +45,12 @@ export const Layer = () => {
                             e.preventDefault();
                             e.stopPropagation();
                             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
+                                EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Bottom})
                         }}
                         onTouchEndHandler={(e) => {
                             e.stopPropagation();
                             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.ZIndexNode, {workIds:['selector'], num: -11})
+                                EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Bottom})
                         }}
                     />
                 </div>
@@ -59,27 +63,38 @@ export const Layer = () => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
-        setShowSubBtn(!showSubBtn)
-        InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ZIndexActive, {workId:'selector', isActive})
+        setShowSubBtn(isActive)
+        if (isActive) {
+            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
+                EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive})
+        }
     }
     const onTouchEndHandler = (e:any) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
-        setShowSubBtn(!showSubBtn)
+        setShowSubBtn(isActive)
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ZIndexActive, {workId:'selector', isActive})
+            EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive})
     }
+    useEffect(()=>{
+        if (!isEqual(floatBarData?.selectIds, selectIds)) {
+            // console.log('first2', floatBarData?.selectIds)
+            if (floatBarData?.selectIds && !isEqual(floatBarData?.selectIds, selectIds)) {
+                setSelectIds(floatBarData?.selectIds);
+                setShowSubBtn(false)
+            }
+        }
+    },[InternalMsgEmitter, showSubBtn, floatBarData, selectIds])
     useEffect(()=>{
         return ()=> {
             if (showSubBtn) {
-                //console.log('isActive111', showSubBtn)
+                // console.log('first3')
                 InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.ZIndexActive, {workId:'selector', isActive:false})
+                    EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive:false})
             }
         }
-    },[InternalMsgEmitter, showSubBtn, floatBarData?.x, floatBarData?.y])
+    },[InternalMsgEmitter, showSubBtn])
     return (
         <div className={`button normal-button ${showSubBtn && 'active'}`}
             onClick={onClickHandler}

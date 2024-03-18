@@ -1,7 +1,7 @@
 
 import { WorkThreadEngine } from "../base";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessageRenderData, IOffscreenCanvasOptionType, IRectType, IWorkerMessage } from "../types";
-import { ECanvasShowType, EDataType, EPostMessageType, EvevtWorkState } from "../enum";
+import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { SubLocalWorkForWorker } from "./local";
 import { SubServiceWorkForWorker } from "./service";
 import type { Scene, Layer, Group } from "spritejs";
@@ -9,6 +9,7 @@ import { MethodBuilderWorker } from "../msgEvent/forWorker";
 import { EmitEventType } from "../../plugin/types";
 import { SelectorShape } from "../tools";
 import cloneDeep from "lodash/cloneDeep";
+import { computRect, isIntersect } from "../utils";
 
 export class WorkThreadEngineByWorker extends WorkThreadEngine {
     protected cameraOpt?: Required<Pick<ICameraOpt, "scale" | "centerX" | "centerY">> | undefined;
@@ -111,8 +112,8 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     private clearAll() {
         const removeNodes:Group[] = [];
-        this.localWork.clearAllWorkShapesCache();
-        this.serviceWork.clearAllWorkShapesCache();
+        this.localWork?.clearAllWorkShapesCache();
+        this.serviceWork?.clearAllWorkShapesCache();
         (this.fullLayer.parent as Layer).children.forEach(c => {
             if (c.name !== 'viewport') {
                 removeNodes.push(c);
@@ -132,6 +133,11 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     }
     private setCameraOpt(cameraOpt:ICameraOpt) {
         this.cameraOpt = cameraOpt;
+        this.localWork.workShapes.forEach((w,k)=>{
+            if (w.toolsType === EToolsKey.Pencil) {
+                this.localWork.workShapeState.set(k, {willClear:true} );
+            }
+        })
         const {scale,centerX,centerY, width, height} = cameraOpt;
         if (width !== this.scene.width || height!== this.scene.height) {
             this.updateScene({width, height});
@@ -183,26 +189,46 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
         }
         return rect
     }
+    private getSceneRect():IRectType {
+        const {width, height} = this.scene;
+        return {
+            x: 0,
+            y: 0,
+            w: width,
+            h: height
+        }
+    }
+    private checkRightRectBoundingBox(rect:IRectType){
+        let _rect:IRectType = rect;
+        this.localWork.curNodeMap.forEach(v => {
+            if (isIntersect(_rect, v.rect)) {
+                _rect = computRect(_rect, v.rect) as IRectType;
+            }
+        })
+        return _rect;
+    }
     async post(msg: IBatchMainMessage): Promise<void> {
         const render = msg.render;
         const newRender:IMainMessageRenderData[] = []
         if (render?.length) {
             for (const renderData of render) {
+                if (renderData.isClearAll) {
+                    renderData.rect = this.getSceneRect();
+                    renderData.isClear = true;
+                    delete renderData.isClearAll;
+                }
+                if (renderData.isDrawAll) {
+                    renderData.rect = this.getSceneRect();
+                    delete renderData.isDrawAll;
+                }
                 if (renderData.drawCanvas) {
                     const renderLayer = renderData.isFullWork ? this.fullLayer : this.drawLayer;
                     (renderLayer.parent as Layer).render();
                 }
-                if (renderData.isClearAll) {
-                    renderData.rect = {
-                        x:0,
-                        y:0,
-                        w: this.scene.width,
-                        h: this.scene.height
-                    }
-                    renderData.isClear = true;
-                    delete renderData.isClearAll;
-                }
                 if (renderData.rect) {
+                    if (renderData.clearCanvas === renderData.drawCanvas && renderData.drawCanvas === ECanvasShowType.Bg) {
+                        renderData.rect = this.checkRightRectBoundingBox(renderData.rect);
+                    }
                     const oldRect = renderData.rect;
                     renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
                     if (!renderData.rect) {
@@ -232,6 +258,11 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
             msg.sp = rsp;
         }
         if (msg.drawCount || rsp?.length || newRender?.length) {
+            // console.log('post', this.fullLayer.children.map(c=>c.name), 
+            //     (this.fullLayer.parent as Layer)?.children?.map(c=>c.name), 
+            //     this.drawLayer?.children.map(c=>c.name),
+            //     (this.drawLayer?.parent as Layer)?.children?.map(c=>c.name), 
+            // )
             // console.log('post', msg);
             WorkThreadEngineByWorker._self.postMessage(msg);
             if (newRender.length) {
@@ -254,37 +285,50 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
                         this.init(dpr, offscreenCanvasOpt, layerOpt);
                     }
                 }
-                callBack(e.data.values());
                 const hasClearAll = e.data.has('ClearAll');
                 const updateCameraJob  = e.data.get('UpdateCamera');
-                let isFullRender: boolean = !!updateCameraJob;
+                const render:IMainMessageRenderData[] = [];
                 if (updateCameraJob) {
                     const {cameraOpt} = updateCameraJob;
                     cameraOpt && this.setCameraOpt(cameraOpt);
-                    if (this.fullLayer.children.length === 0) {
-                        isFullRender = false;
+                    render.push({
+                        isClearAll:true,
+                        clearCanvas: ECanvasShowType.Bg,
+                        isFullWork: true
+                    },{
+                        isClearAll: true,
+                        clearCanvas: ECanvasShowType.Float,
+                        isFullWork: false
+                    });
+                    if (this.fullLayer.children.length) {
+                        render.push({
+                            isDrawAll: true,
+                            drawCanvas: ECanvasShowType.Bg,
+                            isClear: false,
+                            isFullWork: true
+                        });
                     }
                 }
-                if (!hasClearAll && isFullRender) {
+                if (!hasClearAll && render.length) {
+                    this.post({ render })
+                } else if (hasClearAll) {
+                    this.clearAll();
                     this.post({
-                        render: [{
-                            rect: {
-                                x: 0,
-                                y: 0,
-                                w: this.scene.width,
-                                h: this.scene.height,
-                            },
-                            drawCanvas: ECanvasShowType.Bg,
+                        render:[{
+                            isClearAll:true,
                             clearCanvas: ECanvasShowType.Bg,
-                            isClear: true,
                             isFullWork: true
+                        },{
+                            isClearAll: true,
+                            clearCanvas: ECanvasShowType.Float,
+                            isFullWork: false
+                        }],
+                        sp:[{
+                            type: EPostMessageType.Clear
                         }]
                     })
-                   
                 }
-                if (hasClearAll) {
-                    this.clearAll();
-                }
+                callBack(e.data.values());
             }
         }
     }
@@ -313,7 +357,7 @@ export class WorkThreadEngineByWorker extends WorkThreadEngine {
     removeNode(data:IWorkerMessage){
         const {dataType, workId} = data;
         if (workId === SelectorShape.selectorId) {
-            this.localWork.blurSelector()
+            this.localWork.blurSelector(data)
         }
         if (dataType === EDataType.Service) {
             this.serviceWork.removeWork(data);

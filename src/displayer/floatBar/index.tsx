@@ -1,5 +1,5 @@
 import React, { useContext, useMemo } from "react"
-import { DisplayerContext } from "../../plugin/bezierPencilDisplayer"
+import { DisplayerContext } from "../../plugin/single/bezierPencilDisplayer"
 import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
 import Draggable from 'react-draggable'; 
@@ -8,6 +8,7 @@ import { FloatBtns } from "../floatBtns";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { HightLightBox } from "../highlightBox";
+import { Storage_Selector_key } from "../../collector";
 
 export const FloatBar = React.forwardRef((props:{
     className: string,
@@ -19,7 +20,7 @@ export const FloatBar = React.forwardRef((props:{
         e.stopPropagation();
         // console.log('onDragStartHandler', position)
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: ['selector'], position, workState: EvevtWorkState.Start})
+            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position, workState: EvevtWorkState.Start})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
         pos: DraggableData) => {
@@ -30,7 +31,7 @@ export const FloatBar = React.forwardRef((props:{
         setPosition(p)
         // console.log('onDragEndHandler', p)
         InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Done})
+            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Done})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -41,7 +42,7 @@ export const FloatBar = React.forwardRef((props:{
             setPosition(p)
             // console.log('onDragHandler', p)
             InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.TranslateNode, {workIds: ['selector'], position:p, workState: EvevtWorkState.Doing})
+                EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Doing})
         }
     }, 100, {'leading':false})
     const FloatBtnsUI = useMemo(()=>{

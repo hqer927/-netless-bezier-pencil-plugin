@@ -2,7 +2,9 @@ import { Group } from "spritejs";
 import { IRectType } from "../types";
 import { Point2d } from "./primitives/Point2d";
 import { Vec2d } from "./primitives/Vec2d";
+import type { Rectangle } from "white-web-sdk";
 export declare function computRect(rect1?: IRectType, rect2?: IRectType): IRectType | undefined;
+export declare function computRectangle(rect1?: Rectangle, rect2?: Rectangle): Rectangle | undefined;
 export declare function getRectFromPoints(points: (Point2d | Vec2d)[], offset?: number): {
     x: number;
     y: number;

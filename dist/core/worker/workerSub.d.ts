@@ -27,5 +27,6 @@ export declare class SubWorkThreadEngineByWorker extends WorkThreadEngine {
     consumeDraw(type: EDataType, data: IWorkerMessage): undefined;
     consumeDrawAll(_type: EDataType, data: IWorkerMessage): undefined;
     private getSnapshot;
+    private getBoundingRect;
 }
 export declare const worker: SubWorkThreadEngineByWorker;

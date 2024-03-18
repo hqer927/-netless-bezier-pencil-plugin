@@ -25,6 +25,8 @@ export declare class WorkThreadEngineByWorker extends WorkThreadEngine {
     private setCameraOpt;
     private getRectImageBitmap;
     private safariFixRect;
+    private getSceneRect;
+    private checkRightRectBoundingBox;
     post(msg: IBatchMainMessage): Promise<void>;
     on(callBack: (msg: IterableIterator<IWorkerMessage>) => void): void;
     consumeDraw(type: EDataType, data: IWorkerMessage): undefined;

@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import styles from './index.module.less';
-import { DisplayStateEnum, EmitEventType, InternalMsgEmitterType, } from "./types";
-import { FloatBar } from "../displayer/floatBar";
-import { EventEmitter2 } from "eventemitter2";
-import { EvevtWorkState } from "../core";
-import { RotateBtn } from "../displayer/rotate";
+import styles from '../index.module.less';
+import { DisplayStateEnum, EmitEventType, InternalMsgEmitterType } from "../types";
+import { FloatBar } from "../../displayer/floatBar";
+import { EvevtWorkState } from "../../core";
+import { RotateBtn } from "../../displayer/rotate";
+import { CursorManager } from "../../displayer/cursor";
+import throttle from "lodash/throttle";
+import { BezierPencilManager } from "./bezierPencilManager";
 export const DisplayerContext = React.createContext({
     floatBarColors: [],
     InternalMsgEmitter: undefined,
@@ -68,7 +70,7 @@ export class BezierPencilDisplayer extends React.Component {
             writable: true,
             value: (e) => {
                 if (e.button === 0) {
-                    BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
+                    BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
                 }
             }
         });
@@ -77,7 +79,7 @@ export class BezierPencilDisplayer extends React.Component {
             configurable: true,
             writable: true,
             value: (e) => {
-                BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
             }
         });
         Object.defineProperty(this, "mouseup", {
@@ -86,7 +88,7 @@ export class BezierPencilDisplayer extends React.Component {
             writable: true,
             value: (e) => {
                 if (e.button === 0) {
-                    BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
+                    BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
                 }
             }
         });
@@ -95,24 +97,40 @@ export class BezierPencilDisplayer extends React.Component {
             configurable: true,
             writable: true,
             value: (e) => {
-                BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y]);
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y]);
             }
         });
         Object.defineProperty(this, "touchmove", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: (e) => {
-                BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y]);
-            }
+            value: throttle((e) => {
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y]);
+            }, 20, { 'leading': false })
         });
         Object.defineProperty(this, "touchend", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: (e) => {
-                BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, [e.changedTouches[0].pageX - this.containerOffset.x, e.changedTouches[0].pageY - this.containerOffset.y]);
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, [e.changedTouches[0].pageX - this.containerOffset.x, e.changedTouches[0].pageY - this.containerOffset.y]);
             }
+        });
+        Object.defineProperty(this, "cursorMouseMove", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: throttle((e) => {
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y]);
+            }, 20, { 'leading': false })
+        });
+        Object.defineProperty(this, "cursorMouseLeave", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: throttle(() => {
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], [undefined, undefined]);
+            }, 20, { 'leading': false })
         });
         Object.defineProperty(this, "setPosition", {
             enumerable: true,
@@ -164,6 +182,7 @@ export class BezierPencilDisplayer extends React.Component {
             angle: 0,
             isRotating: false,
             showFloatBarBtn: false,
+            cursorInfo: undefined
         };
     }
     showFloatBar(show, value) {
@@ -192,10 +211,6 @@ export class BezierPencilDisplayer extends React.Component {
         }
     }
     setSize(scale) {
-        // if (this.floatBarCanvasRef?.current) {
-        //     this.floatBarCanvasRef.current.width = scale.width * this.state.dpr;
-        //     this.floatBarCanvasRef.current.height = scale.height * this.state.dpr;
-        // }
         this.state.floatBarData && this.setState({ floatBarData: { ...this.state.floatBarData, w: scale.width, h: scale.height } });
     }
     setFloatZIndex(zIndex) {
@@ -203,19 +218,23 @@ export class BezierPencilDisplayer extends React.Component {
     }
     componentDidMount() {
         BezierPencilDisplayer.instance = this;
-        BezierPencilDisplayer.InternalMsgEmitter.on(InternalMsgEmitterType.DisplayContainer, this.init.bind(this));
-        BezierPencilDisplayer.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
-        BezierPencilDisplayer.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
-        BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.mounted);
+        BezierPencilManager.InternalMsgEmitter.on(InternalMsgEmitterType.DisplayContainer, this.init.bind(this));
+        BezierPencilManager.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
+        BezierPencilManager.InternalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
+        BezierPencilManager.InternalMsgEmitter.on([InternalMsgEmitterType.Cursor, EmitEventType.ActiveCursor], this.setActiveCursor.bind(this));
+        BezierPencilManager.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.mounted);
     }
     componentWillUnmount() {
-        BezierPencilDisplayer.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.unmounted);
+        BezierPencilManager.InternalMsgEmitter.emit(InternalMsgEmitterType.DisplayState, DisplayStateEnum.unmounted);
         const div = BezierPencilDisplayer.instance?.containerRef;
         if (div) {
             const eventTraget = div.parentNode?.children[0];
-            this.removeDisplayerEvent(eventTraget);
+            BezierPencilDisplayer.isRoom && this.removeDisplayerEvent(eventTraget);
         }
-        BezierPencilDisplayer.InternalMsgEmitter.removeAllListeners();
+        BezierPencilManager.InternalMsgEmitter.removeAllListeners();
+    }
+    setActiveCursor(cursorInfo) {
+        this.setState({ cursorInfo });
     }
     getRatioWithContext(context) {
         const backingStoreRatio = context.webkitBackingStorePixelRatio ||
@@ -242,11 +261,13 @@ export class BezierPencilDisplayer extends React.Component {
                 floatCanvas.height = height * dpr;
                 bgCanvas.width = width * dpr;
                 bgCanvas.height = height * dpr;
-                BezierPencilDisplayer.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], div.offsetWidth, div.offsetHeight, dpr);
-                const eventTraget = div.parentNode?.children[0];
-                if (eventTraget) {
-                    this.containerOffset = this.getContainerOffset(div, this.containerOffset);
-                    this.bindDisplayerEvent(eventTraget);
+                BezierPencilManager.InternalMsgEmitter.emit([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], div.offsetWidth, div.offsetHeight, dpr);
+                if (BezierPencilDisplayer.isRoom) {
+                    const eventTraget = div.parentNode?.children[0];
+                    if (eventTraget) {
+                        this.containerOffset = this.getContainerOffset(div, this.containerOffset);
+                        this.bindDisplayerEvent(eventTraget);
+                    }
                 }
                 this.setState({ dpr });
             }
@@ -264,21 +285,25 @@ export class BezierPencilDisplayer extends React.Component {
     }
     bindDisplayerEvent(div) {
         div.addEventListener('mousedown', this.mousedown, false);
+        div.addEventListener('touchstart', this.touchstart, false);
+        window.addEventListener('mouseleave', this.mouseup, false);
         window.addEventListener('mousemove', this.mousemove, false);
         window.addEventListener('mouseup', this.mouseup, false);
-        window.addEventListener('mouseleave', this.mouseup, false);
-        div.addEventListener('touchstart', this.touchstart, false);
         window.addEventListener('touchmove', this.touchmove, false);
         window.addEventListener('touchend', this.touchend, false);
+        div.addEventListener('mousemove', this.cursorMouseMove, false);
+        div.addEventListener('mouseleave', this.cursorMouseLeave, false);
     }
     removeDisplayerEvent(div) {
         div.removeEventListener('mousedown', this.mousedown);
+        div.removeEventListener('touchstart', this.touchstart);
+        window.removeEventListener('mouseleave', this.mouseup);
         window.removeEventListener('mousemove', this.mousemove);
         window.removeEventListener('mouseup', this.mouseup);
-        window.removeEventListener('mouseleave', this.mouseup);
-        div.removeEventListener('touchstart', this.touchstart);
         window.removeEventListener('touchmove', this.touchmove);
         window.removeEventListener('touchend', this.touchend);
+        div.addEventListener('mousemove', this.cursorMouseMove);
+        div.addEventListener('mouseleave', this.cursorMouseLeave);
     }
     render() {
         return (React.createElement(React.Fragment, null,
@@ -293,7 +318,7 @@ export class BezierPencilDisplayer extends React.Component {
                     React.createElement("canvas", { id: "bezier-pencil-float-canvas", className: styles['FloatCanvas'], ref: (ref) => this.canvasFloatRef = ref }),
                     React.createElement("canvas", { id: "bezier-pencil-bg-canvas", ref: (ref) => this.canvasBgRef = ref })),
                 React.createElement(DisplayerContext.Provider, { value: {
-                        InternalMsgEmitter: BezierPencilDisplayer.InternalMsgEmitter,
+                        InternalMsgEmitter: BezierPencilManager.InternalMsgEmitter,
                         floatBarColors: BezierPencilDisplayer.floatBarColors,
                         floatBarData: this.state.floatBarData,
                         zIndex: this.state.zIndex,
@@ -310,14 +335,20 @@ export class BezierPencilDisplayer extends React.Component {
                         setShowFloatBarBtn: this.setShowFloatBarBtn.bind(this)
                     } },
                     this.state.showFloatBar && React.createElement(FloatBar, { className: styles['FloatBar'], ref: this.floatBarCanvasRef }),
-                    this.state.showFloatBarBtn && this.state.showRotateBtn && this.state.floatBarData?.selectIds?.length === 1 && React.createElement(RotateBtn, { className: styles['RotateBtn'] })))));
+                    this.state.showFloatBarBtn && this.state.showRotateBtn && this.state.floatBarData?.selectIds?.length === 1 && React.createElement(RotateBtn, { className: styles['RotateBtn'] })),
+                this.state.cursorInfo?.map((info) => {
+                    if (info.roomMember) {
+                        return React.createElement(CursorManager, { key: info.roomMember.memberId, className: styles['CursorBox'], info: info });
+                    }
+                    return null;
+                }))));
     }
 }
-Object.defineProperty(BezierPencilDisplayer, "InternalMsgEmitter", {
+Object.defineProperty(BezierPencilDisplayer, "isRoom", {
     enumerable: true,
     configurable: true,
     writable: true,
-    value: new EventEmitter2()
+    value: true
 });
 Object.defineProperty(BezierPencilDisplayer, "floatBarColors", {
     enumerable: true,

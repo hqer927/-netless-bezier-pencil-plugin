@@ -34,7 +34,7 @@ export declare class SubLocalWorkForWorker extends SubLocalWork {
         emitEventType?: EmitEventType;
         isSync?: boolean;
     }): Promise<IMainMessage | undefined>;
-    blurSelector(): void;
+    blurSelector(data?: IWorkerMessage): void;
     setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt' | 'toolsType'>): BaseShapeTool | undefined;
     consumeFull(data: IWorkerMessage): void;
     updateNode(param: {
