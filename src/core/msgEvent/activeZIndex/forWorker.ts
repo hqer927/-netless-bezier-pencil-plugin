@@ -64,6 +64,7 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                         clearCanvas: ECanvasShowType.Selector,
                         isClear: true,
                         isFullWork: false,
+                        viewId: this.localWork.viewId
                     }
                 ],
                 sp:[{

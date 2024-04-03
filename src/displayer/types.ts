@@ -23,3 +23,12 @@ export type ShowFloatBarMsgValue = {
     scaleType?: EScaleType;
     canRotate?: boolean;
 };
+export type SubButProps = {
+    open: boolean;
+    setOpen: (bol:boolean)=> void;
+  }
+  
+export type TextButProps = SubButProps & {
+    textOpt?:TextOptions;
+    workIds?: string[];
+}

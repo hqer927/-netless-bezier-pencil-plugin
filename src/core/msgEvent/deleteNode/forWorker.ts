@@ -27,7 +27,7 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         if (!this.localWork) {
             return;
         }
-        const {removeIds, willRefresh, willSyncService} = data;
+        const {removeIds, willRefresh, willSyncService, viewId} = data;
         if (!removeIds?.length) {
             return;
         }
@@ -79,6 +79,7 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
                 clearCanvas: ECanvasShowType.Bg,
                 isClear: true,
                 isFullWork: true,
+                viewId
             })
         }
         if(render.length || sp.length) {

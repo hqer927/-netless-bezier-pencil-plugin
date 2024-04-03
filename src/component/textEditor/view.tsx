@@ -2,8 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { FocusEventHandler, KeyboardEventHandler, useEffect, useRef, useState } from "react";
 import { TextEditorInfo, TextOptions } from "./types";
-import { TeachingAidsDisplayer, TeachingAidsManager } from "../../plugin";
-import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
+import { TeachingAidsViewManagerLike } from "../../plugin/types";
 import cloneDeep from "lodash/cloneDeep";
 import { FloatBtns } from "../../displayer/floatBtns";
 import { EvevtWorkState } from "../../core";
@@ -19,6 +18,7 @@ export interface TextEditorManagerProps {
         y: number,
     },
     textRef?:React.RefObject<HTMLDivElement>,
+    manager:TeachingAidsViewManagerLike
 }
 export interface TextViewProps{
     workId: string;
@@ -160,10 +160,10 @@ export const TextEditor = (props:TextEditorProps) =>{
                 return `${total}<div>${c}</div>`
             },'')
         }
-        console.log('useEffect', html)
+        // console.log('useEffect', html)
         setHtml(html);
         Promise.resolve().then(()=>{
-            console.log('componentDidUpdate1')
+            // console.log('componentDidUpdate1')
             if (ref.current) {
                 ref.current.click();
             }
@@ -194,7 +194,7 @@ export const TextEditor = (props:TextEditorProps) =>{
             ref.current.focus();
             const selection = window?.getSelection();
             const lastChildNode = ref.current.lastChild;
-            if(lastChildNode){
+            if(selection && lastChildNode){
                 const range = document.createRange();
                 const i = lastChildNode.textContent?.length || 0
                 if (lastChildNode?.nodeName === '#text') {
@@ -212,9 +212,9 @@ export const TextEditor = (props:TextEditorProps) =>{
         if (e.key === 'Backspace') {
             // 获取光标位置
             const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
+            const range = selection?.getRangeAt(0);
             // 检查是否有选区文本，如果有则正常删除
-            if (range.collapsed) {
+            if (range?.collapsed) {
                 e.preventDefault();
                 // 执行删除操作，这里可以根据具体需求调整删除逻辑
                 document.execCommand('delete', false);
@@ -286,8 +286,9 @@ export class TextViewInSelector extends React.Component<TextEditorManagerProps> 
                 ..._info.opt,
                 ...update
             };
-            this.props.editors?.set(activeTextId,_info);
-            TeachingAidsManager.InternalMsgEmitter.emit([InternalMsgEmitterType.TextEditor, EmitEventType.SetEditorData],activeTextId);
+            // this.props.manage?.set(activeTextId,_info);
+            this.props.manager.control.textEditorManager.updateForLocalEditor(activeTextId, _info);
+            // this.props.manager.internalMsgEmitter.emit([InternalMsgEmitterType.TextEditor, EmitEventType.SetEditorData],activeTextId);
         }
     }
     get editorUI(){
@@ -312,9 +313,9 @@ export class TextViewInSelector extends React.Component<TextEditorManagerProps> 
         return <div ref={this.props.textRef} onClick={(e)=>{
             e.stopPropagation();
             e.preventDefault();
-            const point = TeachingAidsDisplayer.instance.getPoint(e);
-            console.log('onClick-TextViewInSelector', point, e);
-            TeachingAidsDisplayer.control.textEditorManager?.computeTextActive(point)
+            const point = this.props.manager.getPoint(e);
+            // console.log('onClick-TextViewInSelector', point, e);
+            this.props.manager.control.textEditorManager.computeTextActive(point, this.props.manager.viewId)
         }}>
             {this.editorUI}
         </div>
@@ -326,7 +327,7 @@ export class TextEditorContainer extends TextViewInSelector {
     }
     handleKeyUp(e:any){
         const texts:string[] = this.getInnerText(e.nativeEvent.target);
-        console.log('handleKeyUp', texts)
+        // console.log('handleKeyUp', texts)
         const activeTextId = this.props.activeTextId;
         if(activeTextId) {
             this.updateOptInfo({
@@ -343,7 +344,7 @@ export class TextEditorContainer extends TextViewInSelector {
     handleFocus(e:any) {
         const activeTextId = this.props.activeTextId;
         if(activeTextId) {
-            console.log('handleFocus', activeTextId)
+            // console.log('handleFocus', activeTextId)
             this.updateOptInfo({
                 activeTextId,
                 update: {

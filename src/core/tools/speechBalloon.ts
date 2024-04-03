@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Rect, Group, Path, Polyline } from "spritejs";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
+import { Group, Path, Polyline } from "spritejs";
+import { IWorkerMessage, IMainMessage, IRectType } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { computRect, getRectFromPoints, getWHRatio } from "../utils";
+import { computRect, getRectFromPoints } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { SpeechBalloonPlacement } from "../../plugin/types";
 
 export interface SpeechBalloonOptions extends BaseShapeOptions {
@@ -16,6 +16,8 @@ export interface SpeechBalloonOptions extends BaseShapeOptions {
     fillColor: string;
 }
 export class SpeechBalloonShape extends BaseShapeTool{
+    readonly canRotate: boolean = false;
+    readonly scaleType: EScaleType = EScaleType.none;
     readonly toolsType: EToolsKey = EToolsKey.SpeechBalloon;
     protected tmpPoints:Array<Point2d> = [];
     protected workOptions: SpeechBalloonOptions;
@@ -175,7 +177,7 @@ export class SpeechBalloonShape extends BaseShapeTool{
         }
         return r;
     }
-    private computDrawPoints(thickness:number, placement:SpeechBalloonPlacement):{pos: [number,number], rect: IRectType, points:number[]} {
+    private computDrawPoints(thickness:number, _placement:SpeechBalloonPlacement):{pos: [number,number], rect: IRectType, points:number[]} {
         const r = getRectFromPoints(this.tmpPoints);
         const pos:[number,number] = [Math.floor(r.x + r.w / 2), Math.floor(r.y + r.h / 2)];
         // const scale = getWHRatio(r.w,r.h);

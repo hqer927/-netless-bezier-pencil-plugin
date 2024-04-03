@@ -43,10 +43,10 @@ export class MethodBuilderMain {
     getBuilder(type) {
         return this.builders.get(type);
     }
-    registerForMainEngine(emtType, main, serviceColloctor) {
+    registerForMainEngine(emtType, control) {
         this.builders.forEach(builder => {
             if (builder) {
-                builder.registerForMainEngine(emtType, main, serviceColloctor);
+                builder.registerForMainEngine(emtType, control);
             }
         });
         return this;

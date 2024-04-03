@@ -1,12 +1,12 @@
 import { EventMessageType } from "../core/enum";
-import type { Room } from "white-web-sdk";
 import { autorun } from "white-web-sdk";
 import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types";
 import { BaseCollector } from "./base";
-import { TeachingAidsPlugin } from "../plugin";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
 import isEqual from "lodash/isEqual";
+import { TeachingAidsPluginLike } from "../plugin/types";
+import cloneDeep from "lodash/cloneDeep";
 /**
  * 服务端事件/状态同步收集器
  */ 
@@ -15,21 +15,19 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
     static namespace: string = 'PluginEvent';
     serviceStorage: ISerializableEventData = {};
     storage: ISerializableEventData = {};
-    uid: string;
-    plugin?: TeachingAidsPlugin;
     private stateDisposer: (() => void) | undefined;
     private asyncClockTimer?:number;
     protected namespace!: string;
-    constructor(plugin: TeachingAidsPlugin, syncInterval?: number ){
-        super();
+    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number ){
+        super(plugin);
+        this.namespace = EventCollector.namespace;
         EventCollector.syncInterval = (syncInterval || EventCollector.syncInterval) * 0.5;
-        this.plugin = plugin;
-        this.uid = (plugin.displayer as Room).uid;
-        this.setNamespace(EventCollector.namespace);
+        this.serviceStorage = this.getNamespaceData();
+        this.storage = cloneDeep(this.serviceStorage);
     }
     addStorageStateListener(callBack:(event:Map<string,Array<BaseEventCollectorReducerAction | undefined>>)=>void){
         this.stateDisposer = autorun(async () => {
-            const storage = this.getNamespaceData(this.namespace);
+            const storage = this.getNamespaceData();
             const diffMap = this.getDiffMap(this.serviceStorage, storage);
             this.serviceStorage = storage;
             if (diffMap.size) {
@@ -62,13 +60,14 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
         return key === this.uid;
     }
     dispatch(action: BaseEventCollectorReducerAction): void {
-        const {type, op, isSync} = action
+        const {type, op, isSync, viewId} = action
         switch (type) {
             case EventMessageType.Cursor:
                 if (op) {
                     this.pushValue(this.uid, {
                         type: EventMessageType.Cursor,
-                        op
+                        op,
+                        viewId
                     }, { isSync });                 
                 }
                 break;
@@ -122,9 +121,7 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
     }
     destroy(){
         this.removeStorageStateListener();
-        this.plugin = undefined;
         this.storage = {};
         this.serviceStorage = {};
-        this.namespace = '';
     }
 }

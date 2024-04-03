@@ -6,7 +6,7 @@ import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints, getWHRatio } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { ShapeNodes } from "./utils";
 
 export interface StarOptions extends BaseShapeOptions {
@@ -160,7 +160,7 @@ export class StarShape extends BaseShapeTool{
                 anchor: [0.5, 0.5],
                 size: [r.w, r.h]
             });
-            console.log('attr', attr)
+            // console.log('attr', attr)
             const node = new Polyline({
                 ...attr,
                 pos:[0, 0]

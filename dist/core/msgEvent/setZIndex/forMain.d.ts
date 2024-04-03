@@ -5,6 +5,7 @@ import { ElayerType } from "../../enum";
 export type ZIndexNodeEmtData = {
     workIds: IworkId[];
     layer: ElayerType;
+    viewId: string;
 };
 export declare class ZIndexNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;

@@ -1,2 +1,5 @@
 import React from "react";
-export declare const Duplicate: () => React.JSX.Element;
+export declare const Duplicate: (props: {
+    workIds?: string[];
+    viewId: string;
+}) => React.JSX.Element;

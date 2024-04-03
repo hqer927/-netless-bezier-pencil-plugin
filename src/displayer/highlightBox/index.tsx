@@ -1,5 +1,6 @@
-import { DisplayerContext } from "../../plugin/single/teachingAidsDisplayer"
+
 import React, { useContext } from "react"
+import { DisplayerContext } from "../../plugin/displayerView";
 
 export const HightLightBox = () => {
     const {floatBarData} = useContext(DisplayerContext);

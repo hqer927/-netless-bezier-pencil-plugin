@@ -1,6 +1,7 @@
 import { Box2d } from './primitives/Box2d';
 import { Vec2d, VecLike } from './primitives/Vec2d';
 export * from "./math";
+export * from "./spriteNode";
 /** @public */
 export declare function precise(A: VecLike): string;
 /** @public */
@@ -360,3 +361,4 @@ export declare function toFixed(v: number): number;
  */
 export declare const isSafeFloat: (n: number) => boolean;
 export declare const requestAsyncCallBack: (callBack: () => void, timeout: number) => Promise<void>;
+export declare const getRatioWithContext: (context: CanvasRenderingContext2D) => number;

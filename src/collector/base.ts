@@ -1,23 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Room } from "white-web-sdk";
 import { toJS } from "white-web-sdk";
-import { TeachingAidsPlugin } from "../plugin";
 import { IworkId } from "../core";
-import cloneDeep from "lodash/cloneDeep";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
+import { TeachingAidsPluginLike } from "../plugin/types";
 
 export abstract class BaseCollector<T> {
-    public abstract uid:string;
+    public plugin: TeachingAidsPluginLike;
+    public uid:string;
     public abstract serviceStorage: T;
-    public abstract plugin?: TeachingAidsPlugin;
     public abstract storage: T;
     protected abstract namespace: string;
-    public setNamespace(namespace: string){
-        this.namespace = namespace;
-        this.serviceStorage = this.getNamespaceData(namespace);
-        this.storage = cloneDeep(this.serviceStorage);
+    constructor(plugin: TeachingAidsPluginLike){
+        this.plugin = plugin;
+        this.uid = (plugin.displayer as Room).uid;
     }
-    public getNamespaceData(namespace?: string): T {
-        return toJS(this.plugin?.attributes[namespace || this.namespace]) || {};
+    public getNamespaceData(): T {
+         return (toJS(this.plugin?.attributes[this.namespace]) || {}) as T;
     }
     public getUidFromKey(key:string): string {
         return key.split(Storage_Splitter).length === 2 && key.split(Storage_Splitter)[0] || this.uid;
@@ -27,9 +26,6 @@ export abstract class BaseCollector<T> {
     }
     public getLocalId(key:string): string {
         return key.split(Storage_Splitter)[1];
-    }
-    public hasSelector(){
-        return !!(this.storage && Object.keys(this.storage).find(key=>this.isOwn(key) && this.getLocalId(key) === Storage_Selector_key));
     }
     public isSelector(key:string): boolean {
         return this.getLocalId(key) === Storage_Selector_key;

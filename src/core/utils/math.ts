@@ -5,6 +5,25 @@ import { Vec2d } from "./primitives/Vec2d";
 import type { Rectangle } from "white-web-sdk";
 import { BaseShapeTool, ShapeNodes } from "../tools";
 
+
+export function outerRect(rect: IRectType, offset: number){
+  return {
+    x:rect.x - offset,
+    y:rect.y - offset,
+    w:rect.w + offset * 2,
+    h:rect.h + offset * 2,
+  }
+}
+export function interRect(rect: IRectType, offset: number){
+  return {
+    x:rect.x + offset,
+    y:rect.y + offset,
+    w:rect.w - offset * 2,
+    h:rect.h - offset * 2,
+  }
+}
+
+
 export function computRect(rect1?: IRectType, rect2?: IRectType){
     if(rect1 && rect2){
       const x = Math.min(rect1.x,rect2.x);

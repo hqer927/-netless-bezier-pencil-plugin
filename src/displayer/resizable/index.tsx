@@ -1,4 +1,4 @@
-import { DisplayerContext, TeachingAidsDisplayer } from "../../plugin/single/teachingAidsDisplayer"
+import { DisplayerContext } from "../../plugin/displayerView";
 import React, { useContext, useEffect, useState } from "react"
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
@@ -14,7 +14,7 @@ export const ResizableBox = (props:{
     }) => {
     const {className}= props;
     const [curSize, setCurSize] =  useState<{x:number,y:number,w:number,h:number}>({x: 0, y: 0, h: 0, w: 0});
-    const {floatBarData, setSize, position, setPosition} = useContext(DisplayerContext);
+    const {floatBarData, setSize, position, setPosition, maranger} = useContext(DisplayerContext);
     useEffect(()=>{
         if(floatBarData){
             setCurSize({x: floatBarData.x, y:floatBarData.y, w: floatBarData.w, h: floatBarData.h});
@@ -33,11 +33,11 @@ export const ResizableBox = (props:{
             setSize({width:box.w, height:box.h, workState: EvevtWorkState.Start});
             setCurSize(box);
             // console.log('Start_dir', box)
-            if (TeachingAidsDisplayer.control.room) {
-                TeachingAidsDisplayer.control.room.disableDeviceInputs = true;
+            if (maranger?.control.room) {
+                maranger.control.room.disableDeviceInputs = true;
             }
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Start})
+                EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Start, viewId:maranger?.viewId})
         }
 
     }
@@ -75,7 +75,7 @@ export const ResizableBox = (props:{
             // setCurSize(box);
             // console.log('Doing_dir', box)
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Doing})
+                EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
         }
     }, 100, {'leading':false})
     const onResizeStop = (e: MouseEvent | TouchEvent, _dir: Direction, _ele: HTMLElement, delta: NumberSize) => {
@@ -107,11 +107,11 @@ export const ResizableBox = (props:{
         }
         setSize({width:box.w, height:box.h, workState: EvevtWorkState.Done});
         setPosition({x:box.x, y:box.y});
-        if (TeachingAidsDisplayer.control.room) {
-            TeachingAidsDisplayer.control.room.disableDeviceInputs = false;
+        if (maranger?.control.room) {
+            maranger.control.room.disableDeviceInputs = false;
         }
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Done})
+            EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
     }
     return (
         <Resizable className={`${className}`} 

@@ -1,15 +1,14 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
-import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
-import { UndoRedoMethod } from "../../../undo";
 import { Storage_Selector_key } from "../../../collector";
 
 export type TranslateNodeEmtData = {
     workIds: IworkId[],
     position: {x:number,y:number},
-    workState: EvevtWorkState
+    workState: EvevtWorkState,
+    viewId: string
 }
 export class TranslateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.TranslateNode;
@@ -25,17 +24,22 @@ export class TranslateNodeMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workIds, position, workState} = data;
+        const {workIds, position, workState, viewId} = data;
+        const view =  this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return ;
+        }
+        const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor?.storage;
         const localMsgs: IWorkerMessage[] = [];
-        const bgRect = this.mainEngine.displayer?.canvasBgRef?.getBoundingClientRect();
-        const floatBarRect = this.mainEngine.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
+        const bgRect = view.displayer.canvasBgRef.current?.getBoundingClientRect();
+        const floatBarRect = view.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
         let willRefreshSelector = false;
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
             this.undoTickerId = undoTickerId;
-            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         }
         if (bgRect && floatBarRect && this.oldRect) {
             if (this.oldRect.x < bgRect.x && floatBarRect.x > this.oldRect.x) {
@@ -58,13 +62,13 @@ export class TranslateNodeMethod extends BaseMsgMethod {
             const curKey = keys.pop();
             if (!curKey) continue;
             const curKeyStr = curKey.toString()
-            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
+            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr) as boolean;
             const key = isLocalId && this.serviceColloctor.transformKey(curKey) || curKeyStr;
-            const curStore = cloneDeep(store[key]);
             let localWorkId:string | undefined = curKeyStr ;
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
+            const curStore = store[viewId][scenePath][key];
             if (curStore && localWorkId === Storage_Selector_key) {
                 if (curStore.selectIds) {
                     if (workState === EvevtWorkState.Start) {
@@ -83,6 +87,7 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             willRefreshSelector,
                             willSyncService: true,
                             textUpdateForWoker: false,
+                            viewId,
                         };
                         if (workState === EvevtWorkState.Done) {
                             taskData.textUpdateForWoker = true;

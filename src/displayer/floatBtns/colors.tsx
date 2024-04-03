@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, TouchEventHandler, useContext, useEffect, useMemo, useState } from "react";
-import { DisplayerContext } from "../../plugin";
+import { DisplayerContext } from "../../plugin/displayerView";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { colorRGBA2Hex, hexToRgba, rgbToHex } from "../../collector/utils/color";
 import { MethodBuilderMain } from "../../core/msgEvent";
@@ -7,8 +7,8 @@ import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
 import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
 import { Storage_Selector_key } from "../../collector";
-import { SubButProps, TextButProps } from ".";
 import { IconURL } from "../icons";
+import { SubButProps, TextButProps } from "../types";
 
 const HighlightSvg = () => (
     <svg style={{marginLeft: '2px'}} viewBox="0 0 1025 1024" width="14" height="14">
@@ -108,7 +108,7 @@ const OpacityBtn = (props: {
 }
 export const StrokeColors = (props:SubButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn} = props;
-    const {floatBarData, floatBarColors} = useContext(DisplayerContext);
+    const {floatBarData, floatBarColors, maranger, position} = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(open);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
@@ -122,16 +122,24 @@ export const StrokeColors = (props:SubButProps) => {
     }, [floatBarData])
     const SubOpacityBtn = useMemo(()=>{
         return <OpacityBtn key={'strokeColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
+            if (workState === EvevtWorkState.Start && maranger?.control.room) {
+                maranger.control.room.disableDeviceInputs = true;
+            }
+            if (workState === EvevtWorkState.Done && maranger?.control.room) {
+                maranger.control.room.disableDeviceInputs = false;
+            }
             setOpacity(curOpacity);
-            console.log('curOpacity1', curOpacity)
+            // console.log('curOpacity1', curOpacity)
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: activeColor && hexToRgba(curColor,curOpacity), workState})
+                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: activeColor && hexToRgba(curColor,curOpacity), workState, viewId:maranger?.viewId})
         }} />
-    },[activeColor, opacity])
+    },[activeColor, opacity, maranger])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" 
+                <div className="font-colors-menu" style={ position && position.y < 80 ? {
+                    top: 'inherit', bottom: '50px'
+                  } : undefined }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -151,14 +159,14 @@ export const StrokeColors = (props:SubButProps) => {
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor,opacity), viewId:maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor,opacity), viewId:maranger?.viewId})
                                     }}
                                 />
                             )
@@ -169,7 +177,7 @@ export const StrokeColors = (props:SubButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger])
     const RingBar = useMemo(() => {
         if (activeColor) {
             return (
@@ -201,7 +209,7 @@ export const StrokeColors = (props:SubButProps) => {
 }
 export const FillColors = (props:SubButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn} = props;
-    const { floatBarData, floatBarColors} = useContext(DisplayerContext);
+    const { floatBarData, floatBarColors, maranger, position} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
@@ -214,17 +222,25 @@ export const FillColors = (props:SubButProps) => {
     const SubOpacityBtn = useMemo(()=>{
         if( activeColor && activeColor !== 'transparent'){
             return <OpacityBtn key={'fillColors'} opacity={opacity || 0} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
+                if (workState === EvevtWorkState.Start && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = true;
+                }
+                if (workState === EvevtWorkState.Done && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = false;
+                }
                 setOpacity(curOpacity);
                 MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: activeColor && hexToRgba(curColor, curOpacity), workState})
+                    EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: activeColor && hexToRgba(curColor, curOpacity), workState, viewId:maranger?.viewId})
             }} />
         }
         return null
-    },[activeColor, opacity])
+    },[activeColor, opacity, maranger])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" 
+                <div className="font-colors-menu" style={ position && position.y < 80 ? {
+                    top: 'inherit', bottom: '50px'
+                  } : undefined }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -240,14 +256,14 @@ export const FillColors = (props:SubButProps) => {
                             e.stopPropagation();
                             setColor('transparent');
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: 'transparent'})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: 'transparent', viewId:maranger?.viewId})
                         }}
                         onClickHandler={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor('transparent');
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: 'transparent'})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: 'transparent', viewId:maranger?.viewId})
                         }}
                     />
                     {
@@ -259,14 +275,14 @@ export const FillColors = (props:SubButProps) => {
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor,opacity), viewId:maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor,opacity), viewId:maranger?.viewId})
                                     }}
                                 />
                             )
@@ -277,7 +293,7 @@ export const FillColors = (props:SubButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, position])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (
@@ -308,7 +324,8 @@ export const FillColors = (props:SubButProps) => {
 
 
 export const TextColors = (props:TextButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, floatBarColors, workIds} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds} = props;
+    const { floatBarColors, maranger, position} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
@@ -322,17 +339,32 @@ export const TextColors = (props:TextButProps) => {
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
             return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
+                if (workState === EvevtWorkState.Start && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = true;
+                }
+                if (workState === EvevtWorkState.Done && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = false;
+                }
                 setOpacity(curOpacity);
-                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor: activeColor && hexToRgba(curColor,curOpacity), workState})
+                MethodBuilderMain.emitMethod(
+                    InternalMsgEmitterType.MainEngine, 
+                    EmitEventType.SetColorNode, {
+                        workIds: workIds || [Storage_Selector_key], 
+                        fontColor: activeColor && hexToRgba(curColor,curOpacity), 
+                        workState, 
+                        viewId:maranger?.viewId
+                    }
+                )
             }} />
         }
         return null;
-    },[activeColor, opacity, workIds])
+    },[activeColor, opacity, workIds, maranger])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" 
+                <div className="font-colors-menu"  style={ position && position.y < 80 ? {
+                    top: 'inherit', bottom: '50px'
+                  } : undefined }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -352,14 +384,14 @@ export const TextColors = (props:TextButProps) => {
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                 />
                             )
@@ -370,7 +402,7 @@ export const TextColors = (props:TextButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, workIds])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, workIds, maranger, position])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (
@@ -400,7 +432,8 @@ export const TextColors = (props:TextButProps) => {
     )
 }
 export const TextBgColors = (props:TextButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, floatBarColors} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt} = props;
+    const { floatBarColors, maranger, position} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
@@ -414,17 +447,25 @@ export const TextBgColors = (props:TextButProps) => {
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
             return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
+                if (workState === EvevtWorkState.Start && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = true;
+                }
+                if (workState === EvevtWorkState.Done && maranger?.control.room) {
+                    maranger.control.room.disableDeviceInputs = false;
+                }
                 setOpacity(curOpacity);
                 MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: activeColor && hexToRgba(curColor,curOpacity), workState})
+                    EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: activeColor && hexToRgba(curColor,curOpacity), workState, viewId:maranger?.viewId})
             }} />
         }
         return null
-    },[activeColor, opacity])
+    },[activeColor, opacity, maranger])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" 
+                <div className="font-colors-menu" style={ position && position.y < 80 ? {
+                    top: 'inherit', bottom: '50px'
+                  } : undefined }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -440,14 +481,14 @@ export const TextBgColors = (props:TextButProps) => {
                             e.stopPropagation();
                             setColor('transparent');
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent'})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent', viewId: maranger?.viewId})
                         }}
                         onClickHandler={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor('transparent');
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent'})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent', viewId: maranger?.viewId})
                         }}
                     />
                     {
@@ -459,14 +500,14 @@ export const TextBgColors = (props:TextButProps) => {
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         setColor(curColor);
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity)})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                 />
                             )
@@ -477,7 +518,7 @@ export const TextBgColors = (props:TextButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, position])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (

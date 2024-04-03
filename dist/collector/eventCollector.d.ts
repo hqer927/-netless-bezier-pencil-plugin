@@ -1,6 +1,6 @@
 import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types";
 import { BaseCollector } from "./base";
-import { BezierPencilPlugin } from "../plugin";
+import { TeachingAidsPluginLike } from "../plugin/types";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -9,12 +9,10 @@ export declare class EventCollector extends BaseCollector<ISerializableEventData
     static namespace: string;
     serviceStorage: ISerializableEventData;
     storage: ISerializableEventData;
-    uid: string;
-    plugin?: BezierPencilPlugin;
     private stateDisposer;
     private asyncClockTimer?;
     protected namespace: string;
-    constructor(plugin: BezierPencilPlugin, syncInterval?: number);
+    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number);
     addStorageStateListener(callBack: (event: Map<string, Array<BaseEventCollectorReducerAction | undefined>>) => void): void;
     private getDiffMap;
     removeStorageStateListener(): void;

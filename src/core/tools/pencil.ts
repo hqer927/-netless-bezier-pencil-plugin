@@ -9,8 +9,8 @@ import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
 import { transformToSerializableData } from "../../collector/utils";
 import { computRect, getRectFromPoints, isSealedGroup } from "../utils";
 import { EStrokeType } from "../../plugin/types";
-import { VNodeManager } from "../threadEngine";
 import { ShapeNodes } from "./utils";
+import { VNodeManager } from "../worker/vNodeManager";
 
 export interface PencilOptions extends BaseShapeOptions {
     thickness: number;
@@ -38,6 +38,7 @@ export class PencilShape extends BaseShapeTool {
     /** 批量合并消费本地数据,返回绘制结果 */
     combineConsume(): IMainMessage | undefined {
       const workId = this.workId?.toString();
+      // console.log('post-combineConsume', workId)
       const tasks = this.transformDataAll(true);
       const attrs = {
         name: workId,
@@ -83,8 +84,10 @@ export class PencilShape extends BaseShapeTool {
             this.syncTimestamp = tasks[0].taskId;
             this.syncIndex = this.tmpPoints.length;
           }
-          const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-          rect = this.draw({attrs, tasks, effects, layer, isClearAll});
+          if (isSubWorker) {
+            const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+            rect = this.draw({attrs, tasks, effects, layer, isClearAll});
+          }
         }
         if(isSubWorker){
           if (consumeIndex > 10) {
@@ -231,6 +234,7 @@ export class PencilShape extends BaseShapeTool {
           this.fullLayer.getElementsByName(replaceId+'').map(o=>o.remove());
           this.drawLayer?.getElementsByName(replaceId+'').map(o=>o.remove());
         }
+        // console.log('post-0', replaceId, this.fullLayer.getElementsByName(replaceId+'').length)
         if (effects?.size) {
             effects.forEach(id=>{
               layer.getElementById(id+'')?.remove()
@@ -252,7 +256,7 @@ export class PencilShape extends BaseShapeTool {
             } else {
               d = getSvgPathFromPoints(ps, false);
             }
-            console.log('getRectFromLayer-pencil', rect)
+            // console.log('getRectFromLayer-pencil', rect)
             const attr:any = {
               pos,
               d,
@@ -268,7 +272,7 @@ export class PencilShape extends BaseShapeTool {
               w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding),
               h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding)
             });
-            console.log('getRectFromLayer-pencil', r)
+            // console.log('getRectFromLayer-pencil', r)
             // todo 渲染材质
             // const {vertex, fragment} = this.workOptions;
             // if (vertex && fragment) {

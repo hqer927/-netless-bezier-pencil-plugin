@@ -1,18 +1,17 @@
-import React, { useContext } from "react";
+import React from "react";
 import { IconURL } from "../icons";
-import { DisplayerContext } from "../../plugin";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { Storage_Selector_key } from "../../collector";
-export const Duplicate = () => {
-    const { InternalMsgEmitter } = useContext(DisplayerContext);
+export const Duplicate = (props) => {
+    const { workIds, viewId } = props;
     return (React.createElement("div", { className: "button normal-button", onClick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: [Storage_Selector_key] });
+            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: workIds || [Storage_Selector_key], viewId });
         }, onTouchEnd: (e) => {
             e.stopPropagation();
-            InternalMsgEmitter && MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: [Storage_Selector_key] });
+            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.CopyNode, { workIds: workIds || [Storage_Selector_key], viewId });
         } },
         React.createElement("img", { alt: "icon", src: IconURL('duplicate') })));
 };

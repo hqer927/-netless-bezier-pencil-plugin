@@ -1,15 +1,24 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { toJS } from "white-web-sdk";
-import cloneDeep from "lodash/cloneDeep";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
 export class BaseCollector {
-    setNamespace(namespace) {
-        this.namespace = namespace;
-        this.serviceStorage = this.getNamespaceData(namespace);
-        this.storage = cloneDeep(this.serviceStorage);
+    constructor(plugin) {
+        Object.defineProperty(this, "plugin", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "uid", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.plugin = plugin;
+        this.uid = plugin.displayer.uid;
     }
-    getNamespaceData(namespace) {
-        return toJS(this.plugin?.attributes[namespace || this.namespace]) || {};
+    getNamespaceData() {
+        return (toJS(this.plugin?.attributes[this.namespace]) || {});
     }
     getUidFromKey(key) {
         return key.split(Storage_Splitter).length === 2 && key.split(Storage_Splitter)[0] || this.uid;
@@ -19,9 +28,6 @@ export class BaseCollector {
     }
     getLocalId(key) {
         return key.split(Storage_Splitter)[1];
-    }
-    hasSelector() {
-        return !!(this.storage && Object.keys(this.storage).find(key => this.isOwn(key) && this.getLocalId(key) === Storage_Selector_key));
     }
     isSelector(key) {
         return this.getLocalId(key) === Storage_Selector_key;

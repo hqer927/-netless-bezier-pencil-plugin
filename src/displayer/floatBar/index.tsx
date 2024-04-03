@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useContext, useMemo, useRef, useState } from "react"
-import { DisplayerContext, TeachingAidsDisplayer } from "../../plugin/single/teachingAidsDisplayer"
+import { DisplayerContext } from "../../plugin/displayerView";
 import throttle from "lodash/throttle";
 import { EScaleType, EvevtWorkState } from "../../core";
 import Draggable from 'react-draggable'; 
@@ -21,8 +21,7 @@ export const FloatBar = React.forwardRef((props:{
     editors?: Map<string, TextEditorInfo>,
     activeTextId?: string,
 }, ref: React.Ref<HTMLCanvasElement>) => {
-    const {floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType,
-    } = useContext(DisplayerContext);
+    const {floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType, maranger} = useContext(DisplayerContext);
     const { className, editors, activeTextId} = props;
     const textRef = useRef<HTMLDivElement>(null);
     const [workState,setWorkState] = useState<EvevtWorkState>(EvevtWorkState.Pending);
@@ -32,11 +31,11 @@ export const FloatBar = React.forwardRef((props:{
 
         setOperationType(EmitEventType.TranslateNode);
         setWorkState(EvevtWorkState.Start);
-        if (TeachingAidsDisplayer.control.room) {
-            TeachingAidsDisplayer.control.room.disableDeviceInputs = true;
+        if (maranger?.control.room) {
+            maranger.control.room.disableDeviceInputs = true;
         }
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position, workState: EvevtWorkState.Start})
+            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position, workState: EvevtWorkState.Start, viewId:maranger?.viewId})
     }
     const onDragEndHandler = throttle((e: DraggableEvent,
         pos: DraggableData) => {
@@ -46,11 +45,11 @@ export const FloatBar = React.forwardRef((props:{
         setPosition(p)
         setOperationType(EmitEventType.None);
         setWorkState(EvevtWorkState.Done);
-        if (TeachingAidsDisplayer.control.room) {
-            TeachingAidsDisplayer.control.room.disableDeviceInputs = false;
+        if (maranger?.control.room) {
+            maranger.control.room.disableDeviceInputs = false;
         }
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Done})
+            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
     }, 100, {'leading':false})
     const onDragHandler = throttle((e, pos) => {
         e.preventDefault();
@@ -60,7 +59,7 @@ export const FloatBar = React.forwardRef((props:{
             setPosition(p);
             setWorkState(EvevtWorkState.Doing);
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Doing})
+                EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
         }
     }, 100, {'leading':false})
     const FloatBtnsUI = useMemo(()=>{
@@ -71,6 +70,7 @@ export const FloatBar = React.forwardRef((props:{
     },[operationType, floatBarData, position])
     // console.log('editors', editors)
     const HighLightUI = useMemo(()=>{
+        console.log('HighLightUI', operationType, floatBarData?.scaleType)
         if ( 
             floatBarData?.scaleType !== EScaleType.all ||
             operationType === EmitEventType.RotateNode
@@ -114,13 +114,14 @@ export const FloatBar = React.forwardRef((props:{
                 </div>
                 { HighLightUI }
                 {
-                    editors?.size && <TextViewInSelector 
+                    editors?.size && maranger && <TextViewInSelector
+                        manager={maranger}
                         textRef={textRef}
                         selectIds={floatBarData?.selectIds || []}
                         position={position}
                         activeTextId={activeTextId}
                         editors={editors}
-                    />
+                    /> || null
                 }
             </div>
         </Draggable>

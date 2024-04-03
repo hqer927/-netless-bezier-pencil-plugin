@@ -8,6 +8,8 @@ import { EEventDataKey } from "./enum";
 export declare type DiffOne<T> = {
     oldValue: T;
     newValue: T;
+    viewId: string;
+    scenePath: string;
 };
 export declare type Diff<T> = {
     [K in keyof T]?: DiffOne<T[K]>;
@@ -44,6 +46,8 @@ export interface INormalPushMsg {
     /** 是否垂直同步 */
     isSync?:boolean;
     undoTickerId?:number;
+    viewId?: string;
+    scenePath?:string;
 }
 
 export interface INormalStorageData {
@@ -63,10 +67,17 @@ export interface BaseEventCollectorReducerAction {
     op?: Array<number|undefined>;
     isHide?: boolean;
     isSync?: boolean;
+    viewId?: string;
 }
 export interface ISerializableEventData {
     [key: string]: Array<BaseEventCollectorReducerAction | undefined> | undefined;
 }
 
+export interface ISerializableStorageViewData {
+    [key: string]: ISerializableStoragescenePathData
+}
+export interface ISerializableStoragescenePathData {
+    [key: string]: ISerializableStorageData
+}
 
 

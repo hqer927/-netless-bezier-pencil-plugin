@@ -11,7 +11,7 @@ import { StraightOptions, StraightShape } from "./straight";
 import { EllipseOptions, EllipseShape } from "./ellipse";
 import { PolygonOptions, PolygonShape } from "./polygon";
 import { RectangleOptions, RectangleShape } from "./rectangle";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { TextShape } from "./text";
 import { TextOptions } from "../../component/textEditor";
 // import { TextOptions } from "../../component/textEditor";

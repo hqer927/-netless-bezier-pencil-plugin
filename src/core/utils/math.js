@@ -1,5 +1,21 @@
 import { Vec2d } from "./primitives/Vec2d";
-import { EStrokeType } from "../../plugin/types";
+import { BaseShapeTool } from "../tools";
+export function outerRect(rect, offset) {
+    return {
+        x: rect.x - offset,
+        y: rect.y - offset,
+        w: rect.w + offset * 2,
+        h: rect.h + offset * 2,
+    };
+}
+export function interRect(rect, offset) {
+    return {
+        x: rect.x + offset,
+        y: rect.y + offset,
+        w: rect.w - offset * 2,
+        h: rect.h - offset * 2,
+    };
+}
 export function computRect(rect1, rect2) {
     if (rect1 && rect2) {
         const x = Math.min(rect1.x, rect2.x);
@@ -55,6 +71,14 @@ export function getSafetyRect(oldRect, tolerance = 10) {
         y: Math.floor(oldRect.y - tolerance),
         w: Math.floor(oldRect.w + tolerance * 2),
         h: Math.floor(oldRect.h + tolerance * 2)
+    };
+}
+export function getRectTranslated(rect, translate) {
+    return {
+        x: rect.x + translate[0],
+        y: rect.y + translate[1],
+        w: rect.w,
+        h: rect.h,
     };
 }
 export function getRectRotated(rect, angle) {
@@ -113,12 +137,13 @@ export function scalePoints(points, originPos, scale) {
         points[i + 1] = np.y;
     }
 }
-export function getNodeRect(key, layer) {
+export function getNodeRect(key, layer, safeBorderPadding = BaseShapeTool.SafeBorderPadding) {
     let rect;
     layer?.getElementsByName(key).forEach(f => {
-        if (f.tagName === "PATH") {
-            const r = f?.getBoundingClientRect();
-            if (r) {
+        const r = f?.getBoundingClientRect();
+        // console.log('getNodeRect', r)
+        if (r) {
+            if (f.tagName === 'GROUP') {
                 rect = computRect(rect, {
                     x: Math.floor(r.x),
                     y: Math.floor(r.y),
@@ -126,33 +151,12 @@ export function getNodeRect(key, layer) {
                     h: Math.round(r.height),
                 });
             }
-        }
-        else if (f.tagName === 'GROUP') {
-            const other = f.className.split(',');
-            if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
-                const r = f?.getBoundingClientRect();
-                if (r) {
-                    rect = computRect(rect, {
-                        x: Math.floor(r.x),
-                        y: Math.floor(r.y),
-                        w: Math.round(r.width),
-                        h: Math.round(r.height),
-                    });
-                }
-            }
             else {
-                f.children.forEach(c => {
-                    if (c.tagName === "PATH") {
-                        const r = c?.getBoundingClientRect();
-                        if (r) {
-                            rect = computRect(rect, {
-                                x: Math.floor(r.x),
-                                y: Math.floor(r.y),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                            });
-                        }
-                    }
+                rect = computRect(rect, {
+                    x: Math.floor(r.x - safeBorderPadding),
+                    y: Math.floor(r.y - safeBorderPadding),
+                    w: Math.round(r.width + safeBorderPadding * 2),
+                    h: Math.round(r.height + safeBorderPadding * 2),
                 });
             }
         }
@@ -198,3 +202,8 @@ export const getLineSegIntersection = (p1, p2, p3, p4) => {
     }
     return null;
 };
+export function getWHRatio(w, h) {
+    const wRatio = w <= h ? 1 : w / h;
+    const hRatio = h <= w ? 1 : h / w;
+    return [wRatio, hRatio];
+}

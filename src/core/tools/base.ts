@@ -3,7 +3,7 @@ import { Point2d } from "../utils/primitives/Point2d";
 import { EScaleType, EToolsKey } from "../enum";
 import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt, IWorkerMessage } from "../types";
 import { Group} from "spritejs";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { computRect, getRectFromPoints, getRectRotated, getRectTranslated, rotatePoints, scalePoints } from "../utils";
 import { ShapeNodes, ShapeOptions } from "./utils";
 import isNumber from "lodash/isNumber";
@@ -87,10 +87,12 @@ export abstract class BaseShapeTool {
     updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined {
         let rect:IRectType|undefined;
         const name = this.workId?.toString();
-        // todo 是否有必要了
-        // console.log('updataOptService', opt)
         if(name && opt){
-            const path = (this.fullLayer.getElementsByName(name) as ShapeNodes[])[0];
+            const paths = (this.fullLayer.getElementsByName(name) as ShapeNodes[]) || (this.drawLayer && this.drawLayer.getElementsByName(name) as ShapeNodes[]) || []
+            if(paths.length !== 1){
+                return;
+            }
+            const path = paths[0];
             const { pos, zIndex, scale, angle, translate } = opt;
             const attr:any = {};
             if (typeof zIndex === 'number') {
@@ -178,7 +180,7 @@ export abstract class BaseShapeTool {
             node.setAttribute('translate', _translate);
             nodeOpt.opt.translate = _translate;
             if (targetNode) {
-                rect = getRectTranslated(nodeOpt.rect, _translate);
+                rect = getRectTranslated(nodeOpt.rect, translate);
                 nodeOpt.rect = rect;
             }
 

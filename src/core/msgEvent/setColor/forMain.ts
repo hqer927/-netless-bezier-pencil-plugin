@@ -4,7 +4,6 @@ import { BaseMsgMethod } from "../base";
 import { IUpdateNodeOpt, IWorkerMessage, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../enum";
-import { UndoRedoMethod } from "../../../undo";
 import { colorRGBA2Array } from "../../../collector/utils/color";
 import { TextOptions } from "../../../component/textEditor";
 import { BaseCollectorReducerAction } from "../../../collector";
@@ -15,11 +14,12 @@ export type SetColorNodeEmtData = {
     fillColor?: string,
     fontColor?: string,
     fontBgColor?: string,
-    workState?: EvevtWorkState
+    workState?: EvevtWorkState;
+    viewId: string;
 }
 export class SetColorNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.SetColorNode;
-    private setTextColor(key: string, curStore:BaseCollectorReducerAction, updateNodeOpt: IUpdateNodeOpt){
+    private setTextColor(key: string, curStore:BaseCollectorReducerAction, updateNodeOpt: IUpdateNodeOpt, viewId:string){
         const {fontColor, fontBgColor}= updateNodeOpt;
         if (curStore.opt) {
             if (fontColor) {
@@ -28,9 +28,10 @@ export class SetColorNodeMethod extends BaseMsgMethod {
             if (fontBgColor) {
                 curStore.opt.fontColor = fontBgColor;
             }
-            this.mainEngine?.textEditorManager.updateTextForMain({
+            this.control.textEditorManager.updateTextForMasterController({
                 workId: key,
-                opt: curStore.opt as TextOptions
+                opt: curStore.opt as TextOptions,
+                viewId
             })
         }
     }
@@ -38,7 +39,12 @@ export class SetColorNodeMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workIds, strokeColor, fillColor, fontColor, fontBgColor} = data;
+        const {workIds, strokeColor, fillColor, fontColor, fontBgColor, viewId} = data;
+        const view =  this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return ;
+        }
+        const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
         const localMsgs: IWorkerMessage[] = [];
@@ -49,28 +55,28 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                 continue;
             }
             const curKeyStr = curKey.toString()
-            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
+            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr) as boolean;
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
-            const curStore = cloneDeep(store[key]);
             let localWorkId:string | undefined = curKeyStr ;
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
+            const curStore = store[viewId][scenePath][key] || undefined;
             if (curStore) {
                 const updateNodeOpt = curStore.updateNodeOpt || {}
                 if (fontColor || fontBgColor) {
                     if (fontColor) {
                         updateNodeOpt.fontColor = fontColor;
                         const [r,g,b,a] = colorRGBA2Array(fontColor); 
-                        this.mainEngine.room?.setMemberState({textColor:[r,g,b], textOpacity:a} as any)
+                        this.control.room?.setMemberState({textColor:[r,g,b], textOpacity:a} as any)
                     }
                     if (fontBgColor) {
                         updateNodeOpt.fontBgColor = fontBgColor;
                         const [r,g,b,a] = colorRGBA2Array(fontBgColor); 
-                        this.mainEngine.room?.setMemberState({textBgColor:[r,g,b], textOpacity:a} as any)
+                        this.control.room?.setMemberState({textBgColor:[r,g,b], textOpacity:a} as any)
                     }
                     if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
-                        this.setTextColor(localWorkId, curStore, updateNodeOpt)
+                        this.setTextColor(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId)
                         continue;
                     }
                 }
@@ -90,12 +96,13 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     willRefreshSelector: true,
                     willSyncService: true,
                     textUpdateForWoker: true,
-                    undoTickerId
+                    undoTickerId,
+                    viewId
                 };
                 localMsgs.push(taskData);
             }
         }
-        UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }

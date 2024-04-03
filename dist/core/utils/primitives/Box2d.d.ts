@@ -83,9 +83,9 @@ export declare class Box2d {
     static ZeroFix(other: Box2d | Box2dModel): Box2d;
 }
 /** @public */
-export declare function flipSelectionHandleY(handle: SelectionHandle): "left" | "top" | "right" | "bottom" | "top_left" | "top_right" | "bottom_right" | "bottom_left";
+export declare function flipSelectionHandleY(handle: SelectionHandle): "top" | "bottom" | "left" | "right" | "top_left" | "top_right" | "bottom_right" | "bottom_left";
 /** @public */
-export declare function flipSelectionHandleX(handle: SelectionHandle): "left" | "top" | "right" | "bottom" | "top_left" | "top_right" | "bottom_right" | "bottom_left";
+export declare function flipSelectionHandleX(handle: SelectionHandle): "top" | "bottom" | "left" | "right" | "top_left" | "top_right" | "bottom_right" | "bottom_left";
 /** @public */
 export declare function rotateSelectionHandle(handle: SelectionHandle, rotation: number): SelectionHandle;
 /** @public */

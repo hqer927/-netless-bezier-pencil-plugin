@@ -8,7 +8,6 @@ export type InterceptorsType<T,K> = {
     delete(key:T): void;
     clear():void;
     size():number;
-
 }
 export class ProxyMap<T,K>{
     static proxyToRaw = new WeakMap();
@@ -54,4 +53,3 @@ export class ProxyMap<T,K>{
         return proxy;
     }
 }
-

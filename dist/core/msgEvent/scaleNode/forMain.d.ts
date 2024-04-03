@@ -5,10 +5,13 @@ import { EvevtWorkState } from "../../enum";
 export type ScaleNodeEmtData = {
     workIds: IworkId[];
     workState: EvevtWorkState;
-    size: {
-        width: number;
-        height: number;
+    box: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
     };
+    viewId: string;
 };
 export declare class ScaleNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;

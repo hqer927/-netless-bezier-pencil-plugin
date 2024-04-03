@@ -1,7 +1,6 @@
-// export * from './types';
-export * from './single/teachingAidsPlugin';
-export * from './single/teachingAidsManager';
-export * from './single/teachingAidsDisplayer';
-
-// export {TeachingAidsPlugin as TeachingAidsMultiPlugin } from './multi/teachingAidsPlugin';
-// export {TeachingAidsManager as TeachingAidsMultiManager} from './multi/teachingAidsMultiManager';
+import { TeachingAidsAdaptor as Adaptor, TeachingAidsPluginOptions as Options } from "./types";
+export type TeachingAidsAdaptor = Adaptor;
+export type TeachingAidsPluginOptions = Options;
+export {TeachingAidsSigleWrapper} from "../plugin/single/teachingAidsDisplayer";
+export {TeachingAidsPlugin} from "./teachingAidsPlugin";
+export {ECanvasContextType} from "../core/enum";

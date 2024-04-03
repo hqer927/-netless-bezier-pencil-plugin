@@ -88,6 +88,8 @@ export enum EPostMessageType {
     TextUpdate,
     /**  */
     GetTextActive,
+    /** 批量队列化处理 */
+    TasksQueue
 }
 export enum ECanvasContextType {
     Webgl2 = 'webgl2',

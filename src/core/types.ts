@@ -6,6 +6,14 @@ import { BaseShapeOptions, BaseShapeTool, ShapeOptions } from './tools';
 
 export type IworkId = string | number; 
 
+export type ViewWorkerOptions = {
+    offscreenCanvasOpt: IOffscreenCanvasOptionType;
+    layerOpt: ILayerOptionType;
+    dpr: number;
+    originalPoint: [number, number],
+    cameraOpt: ICameraOpt;
+}
+
 export interface ICanvasSceneType {
     /** canvas 上下文 */
     // ctx: CanvasRenderingContext2D;
@@ -35,8 +43,8 @@ export interface ILayerOptionType {
     offscreen?:boolean,
     handleEvent?: boolean,
     depth?: boolean,
-    width?: number;
-    height?: number;
+    width: number;
+    height: number;
     bufferSize?: number;
 }
 export interface IUpdateNodeOpt {
@@ -69,8 +77,10 @@ export interface IUpdateNodeOpt {
 }
 
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
+    viewId:string;
     msgType: EPostMessageType;
     dataType: EDataType;
+    scenePath?:string;
     workState?: EvevtWorkState;
     op?: number[];
     offscreenCanvasOpt?: IOffscreenCanvasOptionType;
@@ -102,11 +112,11 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
     isRunSubWork?:boolean;
     // isSafari?:boolean;
     undoTickerId?:number;
-    scenePath?:string;
     scenes?:ISerializableStorageData;
     textType?:ETextEditorType;
     mainTasksqueueCount?:number;
     textUpdateForWoker?:boolean;
+    tasksqueue?:Map<string,IWorkerMessage>;
 }
 export interface IRectType {
     x:number;
@@ -150,9 +160,10 @@ export interface IMainMessage extends INormalPushMsg {
     canRotate?:boolean;
     scaleType?: EScaleType;
     textOpt?:TextOptions;
-    
+    viewId?:string;
 }
 export interface IMainMessageRenderData {
+    viewId: string
     rect?: IRectType,
     imageBitmap?: ImageBitmap;
     
@@ -168,9 +179,9 @@ export interface IMainMessageRenderData {
     offset?: {
         x:number,
         y:number,
-    }
+    },
+    translate?:[number,number];
 }
-
 export interface IBatchMainMessage {
     /** 绘制数据 */
     render?: Array<IMainMessageRenderData>;
@@ -195,7 +206,7 @@ export interface IActiveToolsDataType {
 }
 
 export interface IActiveWorkDataType {
-    workId: IworkId | undefined;
+    workId?: IworkId;
     workState: EvevtWorkState;
     toolsOpt?: ShapeOptions;
 }

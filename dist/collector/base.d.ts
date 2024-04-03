@@ -1,17 +1,16 @@
-import { BezierPencilPlugin } from "../plugin";
 import { IworkId } from "../core";
+import { TeachingAidsPluginLike } from "../plugin/types";
 export declare abstract class BaseCollector<T> {
-    abstract uid: string;
+    plugin: TeachingAidsPluginLike;
+    uid: string;
     abstract serviceStorage: T;
-    abstract plugin?: BezierPencilPlugin;
     abstract storage: T;
     protected abstract namespace: string;
-    setNamespace(namespace: string): void;
-    getNamespaceData(namespace?: string): T;
+    constructor(plugin: TeachingAidsPluginLike);
+    getNamespaceData(): T;
     getUidFromKey(key: string): string;
     isLocalId(key: string): boolean;
     getLocalId(key: string): string;
-    hasSelector(): boolean;
     isSelector(key: string): boolean;
     abstract transformKey(key: IworkId): string;
     abstract isOwn(key: IworkId): boolean;

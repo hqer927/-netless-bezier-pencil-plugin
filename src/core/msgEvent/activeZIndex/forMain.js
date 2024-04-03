@@ -1,7 +1,7 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { EDataType, EPostMessageType } from "../../enum";
-import { SelectorShape } from "../../tools";
+import { Storage_Selector_key } from "../../../collector";
 export class ZIndexActiveMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -16,11 +16,14 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const { workId, isActive } = data;
-        // console.log('ZIndexActiveEmtData', isActive)
+        const { workId, isActive, viewId } = data;
+        const view = this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return;
+        }
         const localMsgs = [];
         const serviceMsgs = [];
-        if (workId === SelectorShape.selectorId) {
+        if (workId === Storage_Selector_key) {
             localMsgs.push({
                 workId,
                 msgType: EPostMessageType.UpdateNode,
@@ -28,7 +31,8 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
                 isActiveZIndex: isActive,
                 emitEventType: this.emitEventType,
                 willRefreshSelector: true,
-                willSyncService: false
+                willSyncService: false,
+                viewId
             });
         }
         if (localMsgs.length) {

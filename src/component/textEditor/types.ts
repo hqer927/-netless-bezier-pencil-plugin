@@ -29,17 +29,20 @@ export enum ETextEditorType {
     workState?: EvevtWorkState;
  }
  export type TextEditorInfo = {
-     x: number;
-     y: number;
-     w?: number;
-     h?: number;
-     scale?: number;
-     isSelect?: boolean;
-     isActive?: boolean;
-     opt: TextOptions;
-     type: ETextEditorType;
-     canWorker?: boolean;
-     canSync?: boolean;
-     dataType?:EDataType;
-     translate?:[number,number];
+    x: number;
+    y: number;
+    opt: TextOptions;
+    type: ETextEditorType;
+    viewId: string;
+    scenePath: string;
+    w?: number;
+    h?: number;
+    scale?: number;
+    isSelect?: boolean;
+    isActive?: boolean;
+    canWorker?: boolean;
+    canSync?: boolean;
+    dataType?:EDataType;
+    translate?:[number,number];
+    justLocal?:boolean;
  }

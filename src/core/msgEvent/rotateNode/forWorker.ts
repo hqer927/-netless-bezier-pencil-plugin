@@ -26,11 +26,9 @@ export class RotateNodeMethodForWorker extends BaseMsgMethodForWorker {
         }        
     }
     consumeForLocalWorker(data: IWorkerMessage): void {
-        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willRefresh, willSerializeData, emitEventType} = data;
+        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, emitEventType} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
             this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, emitEventType, isSync:true}) 
-        } else if (workId && updateNodeOpt) {
-            this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
         }
     }
 }

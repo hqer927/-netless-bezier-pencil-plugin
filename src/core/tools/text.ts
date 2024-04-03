@@ -6,9 +6,9 @@ import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeTool, BaseShapeToolProps } from "./base";
 import { TextOptions } from "../../component/textEditor";
 import { ShapeNodes } from "./utils";
-import { VNodeManager } from "../threadEngine";
 import cloneDeep from "lodash/cloneDeep";
 import { getRectScaleed, getRectTranslated } from "../utils";
+import { VNodeManager } from "../worker/vNodeManager";
 
 export class TextShape extends BaseShapeTool {
     readonly canRotate: boolean = false;
@@ -59,7 +59,7 @@ export class TextShape extends BaseShapeTool {
             w: boxSize[0],
             h: boxSize[1]
         }
-        console.log('boxSize', boxSize, rect)
+        // console.log('boxSize', boxSize, rect)
         const node = new Rect({
             normalize: true,
             pos: [0, 0],
@@ -99,7 +99,7 @@ export class TextShape extends BaseShapeTool {
         return rect
     }
     updataOptService(updateNodeOpt: IUpdateNodeOpt): IRectType | undefined {
-        console.log('updataOptService-text', updateNodeOpt)
+        // console.log('updataOptService-text', updateNodeOpt)
         if(!this.workId){
             return;
         }

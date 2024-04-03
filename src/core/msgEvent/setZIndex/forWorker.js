@@ -22,12 +22,12 @@ export class ZIndexNodeMethodForWorker extends BaseMsgMethodForWorker {
         }
     }
     consumeForLocalWorker(data) {
-        const { workId, updateNodeOpt, willRefreshSelector, willSyncService, willRefresh, selectStore, willSerializeData } = data;
+        const { workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData } = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, selectStore, willSerializeData });
+            this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData });
         }
-        else if (workId && updateNodeOpt) {
-            this.localWork?.updateNode({ workId, updateNodeOpt, willRefresh, willSyncService });
-        }
+        // else if (workId && updateNodeOpt) {
+        //     this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
+        // }
     }
 }

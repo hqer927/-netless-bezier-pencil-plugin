@@ -7,7 +7,7 @@ import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints } from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { ShapeNodes } from "./utils";
 
 export interface ArrowOptions extends BaseShapeOptions {

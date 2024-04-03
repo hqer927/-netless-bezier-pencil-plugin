@@ -12,8 +12,33 @@ export var EStrokeType;
     EStrokeType[EStrokeType["Dotted"] = 2] = "Dotted";
     EStrokeType[EStrokeType["LongDotted"] = 3] = "LongDotted";
 })(EStrokeType || (EStrokeType = {}));
+export var ShapeType;
+(function (ShapeType) {
+    /**
+     * 三角形
+     */
+    ShapeType["Triangle"] = "triangle";
+    /**
+     * 菱形
+     */
+    ShapeType["Rhombus"] = "rhombus";
+    /**
+     * 五角星
+     */
+    ShapeType["Pentagram"] = "pentagram";
+    /**
+     * 说话泡泡
+     */
+    ShapeType["SpeechBalloon"] = "speechBalloon";
+    /** 星形 */
+    ShapeType["Star"] = "star";
+    /** 多边形 */
+    ShapeType["Polygon"] = "polygon";
+})(ShapeType || (ShapeType = {}));
 export var EmitEventType;
 (function (EmitEventType) {
+    /** 无 */
+    EmitEventType["None"] = "None";
     /** 显示悬浮栏 */
     EmitEventType["ShowFloatBar"] = "ShowFloatBar";
     /** 设置悬浮栏层级 */
@@ -37,11 +62,15 @@ export var EmitEventType;
     /** 原始事件 */
     EmitEventType["OriginalEvent"] = "OriginalEvent";
     /** 创建canvas */
-    EmitEventType["CreateScene"] = "createScene";
+    EmitEventType["CreateScene"] = "CreateScene";
     /** 激活cursor */
     EmitEventType["ActiveCursor"] = "ActiveCursor";
     /** 移动cursor */
     EmitEventType["MoveCursor"] = "MoveCursor";
+    /** 控制editor */
+    EmitEventType["CommandEditor"] = "CommandEditor";
+    /** 设置editor */
+    EmitEventType["SetEditorData"] = "SetEditorData";
 })(EmitEventType || (EmitEventType = {}));
 export var InternalMsgEmitterType;
 (function (InternalMsgEmitterType) {
@@ -51,4 +80,14 @@ export var InternalMsgEmitterType;
     InternalMsgEmitterType["MainEngine"] = "MainEngine";
     InternalMsgEmitterType["DisplayContainer"] = "DisplayContainer";
     InternalMsgEmitterType["Cursor"] = "Cursor";
+    InternalMsgEmitterType["TextEditor"] = "TextEditor";
+    InternalMsgEmitterType["BindMainView"] = "BindMainView";
+    InternalMsgEmitterType["MountMainView"] = "MountMainView";
+    InternalMsgEmitterType["MountAppView"] = "MountAppView";
 })(InternalMsgEmitterType || (InternalMsgEmitterType = {}));
+export var ActiveContainerType;
+(function (ActiveContainerType) {
+    ActiveContainerType[ActiveContainerType["MainView"] = 0] = "MainView";
+    ActiveContainerType[ActiveContainerType["Plugin"] = 1] = "Plugin";
+    ActiveContainerType[ActiveContainerType["Both"] = 2] = "Both";
+})(ActiveContainerType || (ActiveContainerType = {}));

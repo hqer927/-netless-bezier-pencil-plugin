@@ -25,11 +25,9 @@ export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
         }        
     }
     consumeForLocalWorker(data: IWorkerMessage): void {
-        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willRefresh, willSerializeData, textUpdateForWoker} = data;
+        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker, emitEventType} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, isSync:true, textUpdateForWoker})
-        } else if (workId && updateNodeOpt) {
-            this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
+            this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, isSync:true, textUpdateForWoker, emitEventType})
         }
     }
 }

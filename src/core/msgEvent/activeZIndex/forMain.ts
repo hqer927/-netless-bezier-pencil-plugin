@@ -8,6 +8,7 @@ import { Storage_Selector_key } from "../../../collector";
 export type ZIndexActiveEmtData = {
     workId: IworkId,
     isActive: boolean;
+    viewId: string;
 }
 export class ZIndexActiveMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.ZIndexActive;
@@ -15,8 +16,11 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workId, isActive} = data;
-        // console.log('ZIndexActiveEmtData', isActive)
+        const {workId, isActive, viewId} = data;
+        const view =  this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return ;
+        }
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         if (workId === Storage_Selector_key) {
@@ -27,7 +31,8 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
                 isActiveZIndex: isActive,
                 emitEventType: this.emitEventType,
                 willRefreshSelector: true,
-                willSyncService: false
+                willSyncService: false,
+                viewId
             })
         }
         if (localMsgs.length) {

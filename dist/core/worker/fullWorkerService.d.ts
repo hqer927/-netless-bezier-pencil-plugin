@@ -1,0 +1,37 @@
+import { Group } from "spritejs";
+import { ISubWorkerInitOption, ServiceWork } from "./base";
+import { VNodeManager } from "./vNodeManager";
+import { IBatchMainMessage, IServiceWorkItem, IWorkerMessage } from "../types";
+import { EToolsKey } from "../enum";
+import { BaseShapeOptions } from "../tools";
+export declare class ServiceWorkForFullWorker implements ServiceWork {
+    viewId: string;
+    vNodes: VNodeManager;
+    fullLayer: Group;
+    drawLayer: Group;
+    protected workShapes: Map<string, IServiceWorkItem>;
+    protected animationId?: number | undefined;
+    selectorWorkShapes: Map<string, IServiceWorkItem>;
+    private willRunEffectSelectorIds;
+    private runEffectId?;
+    private noAnimationRect;
+    post: (msg: IBatchMainMessage, transfer?: Transferable[]) => Promise<void>;
+    constructor(opt: ISubWorkerInitOption);
+    destroy(): void;
+    consumeDraw(data: IWorkerMessage): void;
+    consumeFull(data: IWorkerMessage): void;
+    clearAllWorkShapesCache(): void;
+    runSelectWork(data: IWorkerMessage): void;
+    setNodeKey(workShape: IServiceWorkItem, tools: EToolsKey, opt: BaseShapeOptions): IServiceWorkItem;
+    runReverseSelectWork(selectIds: string[]): void;
+    removeWork(data: IWorkerMessage): void;
+    removeSelectWork(data: IWorkerMessage): void;
+    private removeNode;
+    private activeWorkShape;
+    private animationDraw;
+    private runAnimation;
+    private computNextAnimationIndex;
+    private runEffect;
+    private effectRunSelector;
+    private activeSelectorShape;
+}

@@ -6,12 +6,12 @@ import { CopyNodeMethodForWorker } from './copyNode/forWorker';
 import { SetColorNodeMethodForWorker } from './setColor/forWorker';
 import { ZIndexNodeMethodForWorker } from './setZIndex/forWorker';
 import { TranslateNodeMethodForWorker } from './translateNode/forWorker';
-import { SubLocalWorkForWorker } from '../worker/local';
-import { SubServiceWorkForWorker } from '../worker/service';
 import { DeleteNodeMethodForWorker } from './deleteNode/forWorker';
 import { IWorkerMessage } from '../types';
 import { ScaleNodeMethodForWorker } from './scaleNode/forWorker';
 import { RotateNodeMethodForWorker } from './rotateNode/forWorker';
+import { LocalWorkForFullWorker } from '../worker/fullWorkerLocal';
+import { ServiceWorkForFullWorker } from '../worker/fullWorkerService';
 
 export type MsgMethodForWorker<T extends BaseMsgMethodForWorker> = T;
 export class MethodBuilderWorker {
@@ -40,7 +40,7 @@ export class MethodBuilderWorker {
        }
        return undefined
     }
-    registerForWorker(localWork: SubLocalWorkForWorker, serviceWork?: SubServiceWorkForWorker) {
+    registerForWorker(localWork: LocalWorkForFullWorker, serviceWork?: ServiceWorkForFullWorker) {
         this.builders.forEach(builder=>{
             if (builder) {
                 builder.registerForWorker(localWork, serviceWork)

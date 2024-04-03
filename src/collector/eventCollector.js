@@ -4,12 +4,13 @@ import { BaseCollector } from "./base";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
 import isEqual from "lodash/isEqual";
+import cloneDeep from "lodash/cloneDeep";
 /**
  * 服务端事件/状态同步收集器
  */
 export class EventCollector extends BaseCollector {
     constructor(plugin, syncInterval) {
-        super();
+        super(plugin);
         Object.defineProperty(this, "serviceStorage", {
             enumerable: true,
             configurable: true,
@@ -21,18 +22,6 @@ export class EventCollector extends BaseCollector {
             configurable: true,
             writable: true,
             value: {}
-        });
-        Object.defineProperty(this, "uid", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "plugin", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
         });
         Object.defineProperty(this, "stateDisposer", {
             enumerable: true,
@@ -52,14 +41,14 @@ export class EventCollector extends BaseCollector {
             writable: true,
             value: void 0
         });
+        this.namespace = EventCollector.namespace;
         EventCollector.syncInterval = (syncInterval || EventCollector.syncInterval) * 0.5;
-        this.plugin = plugin;
-        this.uid = plugin.displayer.uid;
-        this.setNamespace(EventCollector.namespace);
+        this.serviceStorage = this.getNamespaceData();
+        this.storage = cloneDeep(this.serviceStorage);
     }
     addStorageStateListener(callBack) {
         this.stateDisposer = autorun(async () => {
-            const storage = this.getNamespaceData(this.namespace);
+            const storage = this.getNamespaceData();
             const diffMap = this.getDiffMap(this.serviceStorage, storage);
             this.serviceStorage = storage;
             if (diffMap.size) {
@@ -92,13 +81,14 @@ export class EventCollector extends BaseCollector {
         return key === this.uid;
     }
     dispatch(action) {
-        const { type, op, isSync } = action;
+        const { type, op, isSync, viewId } = action;
         switch (type) {
             case EventMessageType.Cursor:
                 if (op) {
                     this.pushValue(this.uid, {
                         type: EventMessageType.Cursor,
-                        op
+                        op,
+                        viewId
                     }, { isSync });
                 }
                 break;
@@ -150,10 +140,8 @@ export class EventCollector extends BaseCollector {
     }
     destroy() {
         this.removeStorageStateListener();
-        this.plugin = undefined;
         this.storage = {};
         this.serviceStorage = {};
-        this.namespace = '';
     }
 }
 Object.defineProperty(EventCollector, "syncInterval", {

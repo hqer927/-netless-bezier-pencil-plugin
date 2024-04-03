@@ -25,11 +25,9 @@ export class ScaleNodeMethodForWorker extends BaseMsgMethodForWorker {
         }        
     }
     consumeForLocalWorker(data: IWorkerMessage): void {
-        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willRefresh, willSerializeData, textUpdateForWoker} = data;
+        const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
             this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, emitEventType: this.emitEventType, willSerializeData, isSync:true, textUpdateForWoker})
-        } else if (workId && updateNodeOpt) {
-            this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
         }
     }
 }

@@ -4,5 +4,6 @@ declare global {
     interface Window {
       room: any;
       syncedStore:any;
+      pluginRoom:any;
     }
 }

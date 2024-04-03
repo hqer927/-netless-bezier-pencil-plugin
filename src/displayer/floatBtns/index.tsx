@@ -4,7 +4,7 @@ import { Del } from "./del"
 import { Duplicate } from "./duplicate"
 import { Layer } from "./layer"
 import { FillColors, StrokeColors, TextColors } from "./colors"
-import { DisplayerContext } from "../../plugin"
+import { DisplayerContext } from "../../plugin/displayerView";
 import { TextOptions } from "../../component/textEditor"
 
 enum EOpenType {
@@ -16,17 +16,6 @@ enum EOpenType {
   TextBgColor
 }
 
-export type SubButProps = {
-  open: boolean;
-  setOpen: (bol:boolean)=> void;
-}
-
-export type TextButProps = SubButProps & {
-  textOpt?:TextOptions;
-  floatBarColors:[number, number, number][];
-  workIds?: string[];
-}
-
 export const FloatBtns = React.memo((props:{
     position?: {
       x: number;
@@ -34,10 +23,10 @@ export const FloatBtns = React.memo((props:{
     }
     textOpt?: TextOptions, 
     workIds?: string[], 
-    noLayer?: boolean
+    noLayer?: boolean,
   }) => {
   const {textOpt, workIds, noLayer, position} = props;
-  const {floatBarData, floatBarColors} = useContext(DisplayerContext);
+  const {floatBarData, maranger} = useContext(DisplayerContext);
   const [openType, setOpenType] = React.useState<EOpenType>(EOpenType.none)
   const useFillColors = useMemo(()=>{
     if(floatBarData?.fillColor) {
@@ -64,17 +53,17 @@ export const FloatBtns = React.memo((props:{
     return null;
   }, [floatBarData?.strokeColor, openType])
   const useTextColors = useMemo(()=>{
-    if(textOpt?.fontColor) {
+    if(textOpt?.fontColor && maranger?.viewId) {
       return <TextColors open={openType === EOpenType.TextColor} setOpen={(bol: boolean) => {
         if (bol === true) {
           setOpenType(EOpenType.TextColor)
         } else {
           setOpenType(EOpenType.none)
         }
-      } } floatBarColors={floatBarColors} textOpt={textOpt} workIds={workIds}/>
+      } } textOpt={textOpt} workIds={workIds}/>
     }
     return null;
-  }, [textOpt, openType, floatBarColors, workIds])
+  }, [textOpt, openType, workIds, maranger])
   // const useTextBgColors = useMemo(()=>{
   //   if(textOpt?.fontBgColor) {
   //     return <TextBgColors open={openType === EOpenType.TextBgColor} setOpen={(bol: boolean) => {
@@ -105,9 +94,9 @@ export const FloatBtns = React.memo((props:{
         bottom: '-120px'
       } : undefined }
     >
-      <Del workIds={workIds}/>
+      {maranger && <Del workIds={workIds} maranger={maranger}/>}
       {useLayer}
-      <Duplicate workIds={workIds}/>
+      {!!maranger?.viewId && <Duplicate workIds={workIds} viewId={maranger.viewId}/>}
       {useTextColors}
       {/* {useTextBgColors} */}
       {useStrokeColors}

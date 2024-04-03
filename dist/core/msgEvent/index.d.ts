@@ -1,8 +1,7 @@
 import { EmitEventType, InternalMsgEmitterType } from '../../plugin/types';
 import { BaseMsgMethod } from './base';
 import { ZIndexNodeMethod } from './setZIndex/forMain';
-import { MainEngineForWorker } from '../worker/main';
-import { Collector } from '../../collector';
+import { BaseTeachingAidsManager } from '../../plugin/baseTeachingAidsManager';
 export { ZIndexNodeMethod };
 export type MsgMethod<T extends BaseMsgMethod> = T;
 export declare class MethodBuilderMain {
@@ -10,7 +9,7 @@ export declare class MethodBuilderMain {
     constructor(emitTypes: EmitEventType[]);
     build(type: EmitEventType): MsgMethod<BaseMsgMethod> | undefined;
     getBuilder(type: EmitEventType): BaseMsgMethod | undefined;
-    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: Collector): this;
+    registerForMainEngine(emtType: InternalMsgEmitterType, control: BaseTeachingAidsManager): this;
     destroy(): void;
     static emitMethod(emtType: InternalMsgEmitterType, type: EmitEventType, data: unknown): undefined;
 }

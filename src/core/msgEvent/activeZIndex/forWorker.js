@@ -1,8 +1,8 @@
-import { EStrokeType, EmitEventType } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
 import { ECanvasShowType, EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
-import { isIntersect } from "../../utils";
+import { isIntersect, isSealedGroup } from "../../utils";
 export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
     constructor() {
         super(...arguments);
@@ -34,7 +34,7 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
         const rect = workShapeNode.oldSelectRect;
         if (isActiveZIndex && rect && this.localWork) {
             const sealToDrawIds = new Set();
-            this.localWork.curNodeMap.forEach((value, key) => {
+            this.localWork.vNodes.curNodeMap.forEach((value, key) => {
                 if (isIntersect(rect, value.rect)) {
                     sealToDrawIds.add(key);
                 }
@@ -44,11 +44,8 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                 sealToDrawIds.forEach(name => {
                     this.localWork?.fullLayer.getElementsByName(name).forEach(c => {
                         const cloneP = c.cloneNode(true);
-                        if (cloneP.tagName === 'GROUP') {
-                            const other = c.className.split(',');
-                            if (other.length === 3 && Number(other[2]) === EStrokeType.Stroke) {
-                                cloneP.seal();
-                            }
+                        if (isSealedGroup(c)) {
+                            cloneP.seal();
                         }
                         if (!this.localWork?.drawLayer?.getElementsByName(name).length) {
                             sealToDrawNodes.push(cloneP);
@@ -73,15 +70,16 @@ export class ZIndexActiveMethodForWorker extends BaseMsgMethodForWorker {
                         clearCanvas: ECanvasShowType.Selector,
                         isClear: true,
                         isFullWork: false,
+                        viewId: this.localWork.viewId
                     }
                 ],
                 sp: [{
                         type: EPostMessageType.Select,
                         selectIds: workShapeNode.selectIds,
                         opt: workShapeNode.getWorkOptions(),
-                        padding: SelectorShape.SelectBorderPadding,
                         selectRect: rect,
-                        nodeColor: workShapeNode.nodeColor,
+                        strokeColor: workShapeNode.strokeColor,
+                        fillColor: workShapeNode.fillColor,
                         willSyncService: false,
                         isSync: true
                     }]

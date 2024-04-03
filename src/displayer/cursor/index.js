@@ -1,6 +1,8 @@
 import * as React from "react";
 import { ApplianceNames, } from "white-web-sdk";
 import pencilCursor from "@netless/cursor-tool/src/image/pencil-cursor.png";
+import shapeCursor from "@netless/cursor-tool/src/image/shape-cursor.svg";
+import textCursor from "@netless/cursor-tool/src/image/text-cursor.svg";
 import "@netless/cursor-tool/src/index.less";
 class CursorComponent extends React.Component {
     constructor(props) {
@@ -162,6 +164,40 @@ class CursorComponent extends React.Component {
                                 this.renderTag(roomMember))),
                         React.createElement("div", null,
                             React.createElement("img", { className: "cursor-pencil-image", src: pencilCursor, alt: "pencilCursor" })))));
+            }
+            case ApplianceNames.text: {
+                return (React.createElement("div", { className: "cursor-box" },
+                    React.createElement("div", { className: "cursor-mid cursor-pencil-offset", style: { transform: `translate(-50%, -65%)`, marginLeft: '0px' } },
+                        React.createElement("div", { className: "cursor-name" },
+                            React.createElement("div", { style: {
+                                    opacity: this.getOpacity(roomMember),
+                                    backgroundColor: this.getCursorBackgroundColor(roomMember),
+                                    color: this.getCursorTextColor(roomMember),
+                                }, className: this.getThemeClass(roomMember) },
+                                this.renderAvatar(roomMember),
+                                cursorName,
+                                this.renderTag(roomMember))),
+                        React.createElement("div", null,
+                            React.createElement("img", { className: "cursor-arrow-image", src: textCursor, alt: "textCursor" })))));
+            }
+            case ApplianceNames.rectangle:
+            case ApplianceNames.arrow:
+            case ApplianceNames.straight:
+            case ApplianceNames.shape:
+            case ApplianceNames.ellipse: {
+                return (React.createElement("div", { className: "cursor-box" },
+                    React.createElement("div", { className: "cursor-mid cursor-pencil-offset", style: { transform: `translate(-50%, -65%)`, marginLeft: '0px' } },
+                        React.createElement("div", { className: "cursor-name" },
+                            React.createElement("div", { style: {
+                                    opacity: this.getOpacity(roomMember),
+                                    backgroundColor: this.getCursorBackgroundColor(roomMember),
+                                    color: this.getCursorTextColor(roomMember),
+                                }, className: this.getThemeClass(roomMember) },
+                                this.renderAvatar(roomMember),
+                                cursorName,
+                                this.renderTag(roomMember))),
+                        React.createElement("div", null,
+                            React.createElement("img", { className: "cursor-arrow-image", src: shapeCursor, alt: "shapeCursor" })))));
             }
             default:
                 return null;

@@ -1,8 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ISerializableEventData, ISerializableStorageData } from "../collector/types";
+import { ISerializableEventData, ISerializableStorageViewData } from "../collector/types";
 import type { Callbacks, Camera, Color, Displayer, Rectangle, RenderEngine, MemberState as _MemberState} from "white-web-sdk";
 import { ECanvasContextType } from "../core/enum";
+import type EventEmitter2 from "eventemitter2";
+import type { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
+import type { TeachingAidsMultiManager } from "./multi/teachingAidsMultiManager";
+import type { BaseTeachingAidsManager } from "./baseTeachingAidsManager";
+import type { AppViewDisplayerManager, MainViewDisplayerManager } from "./baseViewContainerManager";
+import type { TeachingAidsPlugin } from "./teachingAidsPlugin";
+import type { CursorTool } from "@netless/cursor-tool";
 
+export type TeachingAidsPluginLike = TeachingAidsPlugin;
+export type TeachingAidsManagerLike = TeachingAidsMultiManager | TeachingAidsSingleManager | BaseTeachingAidsManager;
+export type TeachingAidsViewManagerLike = AppViewDisplayerManager | MainViewDisplayerManager;
+export interface BaseSubWorkModuleProps {
+    control: TeachingAidsManagerLike;
+    internalMsgEmitter: EventEmitter2;
+}
+export type TeachingAidsAdaptor = {
+    logger?: Logger;
+    options?: TeachingAidsPluginOptions;
+    cursorAdapter?: CursorTool;
+}
 export interface DisplayerForPlugin {
     readonly displayer: Displayer,
     /**
@@ -29,36 +48,35 @@ export interface DisplayerForPlugin {
     cleanCurrentScene(retainPpt?: boolean):void;
     callbacks: Callbacks<any>;
 }
-
 export type Logger = {
     readonly info: (...messages: any[]) => void;
     readonly warn: (...messages: any[]) => void;
     readonly error: (...messages: any[]) => void;
 }
 export type TeachingAidsPluginOptions = {
+    /** 同步数据配置项 */
     syncOpt?: SyncOpt;
+    /** 画布配置项 */
     canvasOpt?: CanvasOpt;
+    /** 是否开启多窗口 */
+    useMultiViews?: boolean;
 }
-
 /** attributes 会被实时同步 */
 export interface TeachingAidsPluginAttributes {
-    [key: string]: ISerializableStorageData | ISerializableEventData;
+    [key: string]: ISerializableStorageViewData | ISerializableEventData;
 }
-
 export enum DisplayStateEnum {
     pedding = 0,
     mounted = 1,
     update = 2,
     unmounted = 3,
 }
-
 export enum EStrokeType {
     Normal = 0,
     Stroke,
     Dotted,
     LongDotted
 }
-
 export enum ShapeType {
     /**
      * 三角形 
@@ -81,7 +99,6 @@ export enum ShapeType {
     /** 多边形 */
     Polygon = "polygon"
 }
-
 export type MemberState = _MemberState & {
     /** 是否开启笔锋 */
     strokeType?: EStrokeType;
@@ -175,7 +192,10 @@ export enum InternalMsgEmitterType {
     MainEngine = 'MainEngine',
     DisplayContainer = 'DisplayContainer',
     Cursor = 'Cursor',
-    TextEditor = 'TextEditor'
+    TextEditor = 'TextEditor',
+    BindMainView ='BindMainView',
+    MountMainView ='MountMainView',
+    MountAppView ='MountAppView',
 }
 
 export type InternalEventValue = {
@@ -189,3 +209,5 @@ export enum ActiveContainerType {
     Both
 }
 export type SpeechBalloonPlacement = 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
+
+export type TeleBoxState = "normal" | "minimized" | "maximized"

@@ -1,11 +1,11 @@
 import { EmitEventType } from "../../plugin/types";
 import { IWorkerMessage } from "../types";
-import type { SubLocalWorkForWorker } from "../worker/local";
-import type { SubServiceWorkForWorker } from "../worker/service";
+import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
+import { ServiceWorkForFullWorker } from "../worker/fullWorkerService";
 export declare abstract class BaseMsgMethodForWorker {
     abstract readonly emitEventType: EmitEventType;
-    localWork: SubLocalWorkForWorker | undefined;
-    serviceWork: SubServiceWorkForWorker | undefined;
-    registerForWorker(localWork: SubLocalWorkForWorker, serviceWork?: SubServiceWorkForWorker): this;
+    localWork: LocalWorkForFullWorker | undefined;
+    serviceWork: ServiceWorkForFullWorker | undefined;
+    registerForWorker(localWork: LocalWorkForFullWorker, serviceWork?: ServiceWorkForFullWorker): this;
     abstract consume(data: IWorkerMessage): boolean | undefined;
 }

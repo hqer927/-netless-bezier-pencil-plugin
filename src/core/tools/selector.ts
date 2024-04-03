@@ -5,11 +5,11 @@ import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkIt
 import { computRect, getRectFromPoints, isSameArray, isSealedGroup } from "../utils";
 import { Point2d } from "../utils/primitives/Point2d";
 import { Storage_Selector_key } from "../../collector/const";
-import { VNodeManager } from "../threadEngine";
+import { VNodeManager } from "../worker/vNodeManager";
 import { ShapeNodes, getShapeTools } from ".";
-import { SubLocalWorkForWorker } from "../worker/local";
 import { isNumber } from "lodash";
 import { TextOptions } from "../../component/textEditor/types";
+import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
 export interface SelectorOptions extends BaseShapeOptions {
 }
 type ComputSelectorResult = {
@@ -290,7 +290,7 @@ export class SelectorShape extends BaseShapeTool {
         vNodes: VNodeManager,
         selectIds?: string[],
         willSerializeData?: boolean,
-        worker?: SubLocalWorkForWorker,
+        worker?: LocalWorkForFullWorker,
     }): IMainMessage | undefined {
         const {updateSelectorOpt, selectIds, vNodes, willSerializeData, worker} = param;
         const layer = this.drawLayer;
@@ -447,6 +447,7 @@ export class SelectorShape extends BaseShapeTool {
             subNodeMap,
             selectIds: this.selectIds || []
         });
+        this.getSelecteorInfo(subNodeMap);
         this.oldSelectRect = intersectRect;
         return intersectRect;
     }

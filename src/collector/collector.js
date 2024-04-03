@@ -3,9 +3,8 @@
 import { EPostMessageType, EToolsKey } from "../core/enum";
 import { autorun } from "white-web-sdk";
 import { BaseCollector } from "./base";
-import { plainObjectKeys, transformToNormalData, transformToSerializableData } from "./utils";
+import { plainObjectKeys } from "./utils";
 import isEqual from "lodash/isEqual";
-import { SelectorShape } from "../core/tools";
 import cloneDeep from "lodash/cloneDeep";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
@@ -14,7 +13,13 @@ import { Storage_Selector_key, Storage_Splitter } from "./const";
  */
 export class Collector extends BaseCollector {
     constructor(plugin, syncInterval) {
-        super();
+        super(plugin);
+        Object.defineProperty(this, "namespace", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "serviceStorage", {
             enumerable: true,
             configurable: true,
@@ -26,24 +31,6 @@ export class Collector extends BaseCollector {
             configurable: true,
             writable: true,
             value: {}
-        });
-        Object.defineProperty(this, "uid", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "plugin", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "namespace", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: ''
         });
         Object.defineProperty(this, "stateDisposer", {
             enumerable: true,
@@ -58,22 +45,60 @@ export class Collector extends BaseCollector {
             value: false
         });
         Collector.syncInterval = (syncInterval || Collector.syncInterval) * 0.5;
-        this.plugin = plugin;
-        this.uid = plugin.displayer.uid;
-        const namespace = plugin.displayer.state.sceneState.scenePath;
-        this.setNamespace(namespace);
+        this.namespace = Collector.namespace;
+        this.serviceStorage = this.getNamespaceData();
+        this.storage = cloneDeep(this.serviceStorage);
+    }
+    getViewIdBySecenPath(scenePath) {
+        const storage = this.getNamespaceData();
+        for (const [viewId, viewData] of Object.entries(storage)) {
+            for (const key of Object.keys(viewData)) {
+                if (key === scenePath) {
+                    return viewId;
+                }
+            }
+        }
+    }
+    getScenePathData(scenePath) {
+        const storage = this.getNamespaceData();
+        for (const viewData of Object.values(storage)) {
+            for (const key of Object.keys(viewData)) {
+                if (key === scenePath) {
+                    return cloneDeep(viewData[key]);
+                }
+            }
+        }
+    }
+    getStorageData(viewId, scenePath) {
+        const storage = this.getNamespaceData();
+        return storage[viewId] && cloneDeep(storage[viewId][scenePath]) || undefined;
+    }
+    hasSelector(viewId, scenePath) {
+        const sceneData = this.storage && this.storage[viewId] && this.storage[viewId][scenePath];
+        return !!(sceneData && Object.keys(sceneData).find(key => this.isOwn(key) && this.getLocalId(key) === Storage_Selector_key));
     }
     addStorageStateListener(callBack) {
         this.stateDisposer = autorun(async () => {
-            const storage = this.getNamespaceData(this.namespace);
-            const diff = this.diffFun(this.serviceStorage, storage);
-            this.serviceStorage = storage;
+            const newStorage = this.getNamespaceData();
+            const diff = this.diffFun(this.serviceStorage, newStorage);
+            // console.log('addStorageStateListener', newStorage, this.serviceStorage, diff)
+            this.serviceStorage = newStorage;
             for (const [key, value] of Object.entries(diff)) {
-                if (value?.newValue === undefined) {
-                    delete this.storage[key];
+                if (value && value.newValue === undefined) {
+                    const { viewId, scenePath } = value;
+                    if (viewId && scenePath && this.storage[viewId]) {
+                        delete this.storage[viewId][scenePath][key];
+                    }
                 }
-                else {
-                    this.storage[key] = cloneDeep(value?.newValue);
+                else if (value && value.newValue) {
+                    const { viewId, scenePath } = value;
+                    if (!this.storage[viewId]) {
+                        this.storage[viewId] = {};
+                    }
+                    if (!this.storage[viewId][scenePath]) {
+                        this.storage[viewId][scenePath] = {};
+                    }
+                    this.storage[viewId][scenePath][key] = cloneDeep(value.newValue);
                 }
             }
             if (Object.keys(diff).length > 0) {
@@ -91,26 +116,70 @@ export class Collector extends BaseCollector {
         const newKeys = plainObjectKeys(_new);
         const diff = {};
         for (const key of oldKeys) {
+            if (isEqual(_old[key], _new[key])) {
+                continue;
+            }
+            const _diff = this.diffFunByscenePath(_old[key] || {}, _new[key] || {}, key);
+            Object.assign(diff, _diff);
+        }
+        for (const key of newKeys) {
+            if (!oldKeys.includes(key)) {
+                const _diff = this.diffFunByscenePath(_old[key] || {}, _new[key] || {}, key);
+                Object.assign(diff, _diff);
+            }
+        }
+        return diff;
+    }
+    diffFunByscenePath(_old, _new, viewId) {
+        const oldKeys = plainObjectKeys(_old);
+        const newKeys = plainObjectKeys(_new);
+        const diff = {};
+        for (const key of oldKeys) {
+            if (isEqual(_old[key], _new[key])) {
+                continue;
+            }
+            const _diff = this.diffFunByKeys(_old[key] || {}, _new[key] || {}, key, viewId);
+            Object.assign(diff, _diff);
+        }
+        for (const key of newKeys) {
+            if (!oldKeys.includes(key)) {
+                const _diff = this.diffFunByKeys(_old[key] || {}, _new[key] || {}, key, viewId);
+                Object.assign(diff, _diff);
+            }
+        }
+        return diff;
+    }
+    diffFunByKeys(_old, _new, scenePath, viewId) {
+        const oldKeys = plainObjectKeys(_old);
+        const newKeys = plainObjectKeys(_new);
+        const diff = {};
+        for (const key of oldKeys) {
             if (newKeys.includes(key)) {
                 if (isEqual(_old[key], _new[key])) {
                     continue;
                 }
                 diff[key] = {
                     oldValue: _old[key],
-                    newValue: _new[key]
+                    newValue: _new[key],
+                    viewId,
+                    scenePath
                 };
                 continue;
             }
             diff[key] = {
                 oldValue: _old[key],
-                newValue: undefined
+                newValue: undefined,
+                viewId,
+                scenePath
             };
         }
         for (const key of newKeys) {
             if (!oldKeys.includes(key)) {
                 diff[key] = {
                     oldValue: undefined,
-                    newValue: _new[key]
+                    newValue: _new[key],
+                    viewId,
+                    scenePath
                 };
             }
         }
@@ -123,31 +192,38 @@ export class Collector extends BaseCollector {
         return key.split(Storage_Splitter)[0] === this.uid;
     }
     dispatch(action) {
-        //console.log('dispatch', action)
-        const { type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds, isSync } = action;
+        // console.log('dispatch', action)
+        const { type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds, isSync, scenePath, viewId } = action;
+        if (!viewId) {
+            return;
+        }
         switch (type) {
             case EPostMessageType.Clear:
                 const state = {};
-                Object.keys(this.storage).map(key => {
-                    state[key] = undefined;
-                });
-                this.setState(state, { isSync });
+                if (scenePath && this.storage[viewId] && this.storage[viewId][scenePath]) {
+                    delete this.storage[viewId][scenePath];
+                    this.setState(state, { isSync, viewId, scenePath });
+                }
+                else if (this.storage[viewId]) {
+                    delete this.storage[viewId];
+                    this.setState(state, { isSync, viewId, scenePath: '' });
+                }
                 break;
             case EPostMessageType.CreateWork:
-                if (workId && toolsType && opt) {
+                if (scenePath && workId && toolsType && opt) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     this.updateValue(key.toString(), {
                         type: EPostMessageType.CreateWork,
                         workId,
                         toolsType,
                         opt
-                    }, { isSync });
+                    }, { isSync, viewId, scenePath });
                 }
                 break;
             case EPostMessageType.DrawWork:
-                if (workId && typeof index === 'number' && op?.length) {
+                if (scenePath && workId && typeof index === 'number' && op?.length) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[key];
+                    const old = this.storage[viewId][scenePath][key];
                     const _op = (old?.op || []).slice(0, index).concat(op);
                     if (old && _op) {
                         this.updateValue(key.toString(), {
@@ -155,19 +231,19 @@ export class Collector extends BaseCollector {
                             type: EPostMessageType.DrawWork,
                             op: _op,
                             index
-                        }, { isSync });
+                        }, { isSync, viewId, scenePath });
                     }
                 }
                 break;
             case EPostMessageType.FullWork:
-                if (workId) {
+                if (scenePath && workId) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[key];
+                    const old = this.storage[viewId][scenePath][key];
                     const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
                     const _toolsType = toolsType || old?.toolsType;
                     const _opt = opt || old?.opt;
                     const _ops = ops || old?.ops;
-                    if (_toolsType && _opt && _ops) {
+                    if (_toolsType && _opt) {
                         this.updateValue(key.toString(), {
                             type: EPostMessageType.FullWork,
                             updateNodeOpt: _updateNodeOpt,
@@ -175,49 +251,50 @@ export class Collector extends BaseCollector {
                             toolsType: _toolsType,
                             opt: _opt,
                             ops: _ops
-                        }, { isSync });
+                        }, { isSync, viewId, scenePath });
                     }
                 }
                 break;
             case EPostMessageType.RemoveNode:
-                if (removeIds?.length) {
-                    // const state1: ISerializableStorageData = {};
+                if (scenePath && removeIds?.length) {
                     const _removeIds = removeIds.map(id => {
                         if (this.isLocalId(id + '')) {
                             return this.transformKey(id);
                         }
                         return id;
                     });
-                    Object.keys(this.storage).map(key => {
-                        if (_removeIds?.includes(key)) {
-                            // state1[key] = undefined;
-                            this.updateValue(key, undefined, { isSync });
-                        }
-                    });
+                    if (this.storage[viewId] && this.storage[viewId][scenePath]) {
+                        Object.keys(this.storage[viewId][scenePath]).map(key => {
+                            if (_removeIds?.includes(key)) {
+                                this.updateValue(key, undefined, { isSync, viewId, scenePath });
+                            }
+                        });
+                    }
                 }
                 break;
             case EPostMessageType.UpdateNode:
-                if (workId && (updateNodeOpt || ops || opt)) {
+                if (scenePath && workId && (updateNodeOpt || ops || opt)) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[key];
+                    const old = this.storage[viewId][scenePath][key];
                     if (old) {
-                        // old.type = type;
                         old.updateNodeOpt = updateNodeOpt;
-                        if (ops) {
+                        if (ops || op) {
                             old.ops = ops;
-                        }
-                        if (updateNodeOpt) {
-                            old.updateNodeOpt = updateNodeOpt;
+                            old.op = op;
                         }
                         if (opt) {
                             old.opt = opt;
                         }
+                        old.type = EPostMessageType.FullWork;
                         //console.log('dispatch---111',key, old)
-                        this.updateValue(key.toString(), old, { isSync });
+                        this.updateValue(key.toString(), old, { isSync, viewId, scenePath });
                     }
                 }
                 break;
             case EPostMessageType.Select:
+                if (!scenePath) {
+                    return;
+                }
                 let _selectIds;
                 if (selectIds?.length) {
                     _selectIds = selectIds.map(id => {
@@ -227,25 +304,26 @@ export class Collector extends BaseCollector {
                         return id;
                     });
                 }
-                const key = this.transformKey(SelectorShape.selectorId);
-                const old = this.storage[key];
+                const key = this.transformKey(Storage_Selector_key);
+                const old = this.storage[viewId][scenePath][key];
                 const _opt = opt || old?.opt;
-                _selectIds && this.checkOtherSelector(key, _selectIds, { isSync });
+                _selectIds && this.checkOtherSelector(key, _selectIds, { isSync, viewId, scenePath });
                 this.updateValue(key, _selectIds && {
                     type: EPostMessageType.Select,
                     toolsType: EToolsKey.Selector,
                     opt: _opt,
                     selectIds: _selectIds
-                }, { isSync });
+                }, { isSync, viewId, scenePath });
                 break;
             default:
                 break;
         }
     }
     checkOtherSelector(key, selectIds, options) {
-        for (const k of Object.keys(this.storage)) {
+        const { viewId, scenePath } = options;
+        for (const k of Object.keys(this.storage[viewId][scenePath])) {
             if (k !== key && this.getLocalId(k) === Storage_Selector_key) {
-                const value = this.storage[k];
+                const value = this.storage[viewId][scenePath][k];
                 if (value && value.selectIds) {
                     const ids = value.selectIds.filter(id => !selectIds.includes(id));
                     if (ids.length > 0) {
@@ -258,25 +336,39 @@ export class Collector extends BaseCollector {
         }
     }
     setState(state, options) {
+        const { viewId, scenePath } = options;
         const keys = plainObjectKeys(state);
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
             const value = state[key];
             if (typeof value !== 'undefined') {
-                this.storage[key] = value;
+                if (!this.storage[viewId]) {
+                    this.storage[viewId] = {};
+                }
+                if (!this.storage[viewId][scenePath]) {
+                    this.storage[viewId][scenePath] = {};
+                }
+                this.storage[viewId][scenePath][key] = value;
             }
             else {
-                delete this.storage[key];
+                delete this.storage[viewId][scenePath][key];
             }
         }
         this.runSyncService(options);
     }
     updateValue(key, value, options) {
+        const { viewId, scenePath } = options;
         if (value === undefined) {
-            delete this.storage[key];
+            delete this.storage[viewId][scenePath][key];
         }
         else {
-            this.storage[key] = value;
+            if (!this.storage[viewId]) {
+                this.storage[viewId] = {};
+            }
+            if (!this.storage[viewId][scenePath]) {
+                this.storage[viewId][scenePath] = {};
+            }
+            this.storage[viewId][scenePath][key] = value;
         }
         this.runSyncService(options);
     }
@@ -284,82 +376,175 @@ export class Collector extends BaseCollector {
         if (!this.asyncClockState) {
             this.asyncClockState = true;
             setTimeout(() => {
-                if (options?.isSync) {
+                if (options.isSync) {
                     this.asyncClockState = false;
-                    this.syncSerivice(options?.isAfterUpdate);
+                    this.syncSerivice(options.isAfterUpdate);
                 }
                 else {
                     requestAsyncCallBack(() => {
                         this.asyncClockState = false;
-                        this.syncSerivice(options?.isAfterUpdate);
+                        this.syncSerivice(options.isAfterUpdate);
                     }, Collector.syncInterval);
                 }
             }, options?.isSync ? 0 : Collector.syncInterval);
         }
     }
     syncSerivice(isAfterUpdate = false) {
-        const oldKeys = plainObjectKeys(this.serviceStorage);
-        const newKeys = plainObjectKeys(this.storage);
-        const willSyncMap = new Map();
-        let willSyncCount = 0;
-        for (const key of oldKeys) {
-            const _old = this.serviceStorage[key];
-            const _new = this.storage[key];
-            if (newKeys.includes(key)) {
-                if (isEqual(_old, _new)) {
-                    continue;
-                }
-                willSyncMap.set(key, _new);
-                willSyncCount++;
+        const oldViewIds = plainObjectKeys(this.serviceStorage);
+        const newViewIds = plainObjectKeys(this.storage);
+        const willSyncViewMap = new Map();
+        for (const viewId of oldViewIds) {
+            if (!newViewIds.includes(viewId)) {
+                willSyncViewMap.set(viewId, undefined);
                 continue;
             }
-            willSyncMap.set(key, undefined);
+            if (isEqual(this.serviceStorage[viewId], this.storage[viewId])) {
+                continue;
+            }
+            this.syncViewData(viewId, isAfterUpdate);
         }
-        for (const key of newKeys) {
-            const _new = this.storage[key];
-            if (!oldKeys.includes(key)) {
-                willSyncMap.set(key, _new);
-                willSyncCount++;
+        for (const viewId of newViewIds) {
+            if (!oldViewIds.includes(viewId)) {
+                willSyncViewMap.set(viewId, this.storage[viewId]);
             }
         }
-        // willSyncCount > 5 只是一个预估值
-        if (willSyncCount > 5) {
-            this.syncStorage(this.storage, isAfterUpdate);
+        if (willSyncViewMap.size > 5) {
+            this.syncStorageView(this.storage, isAfterUpdate);
         }
-        else if (willSyncMap.size > 0) {
-            for (const [key, value] of willSyncMap.entries()) {
-                this.syncUpdata(key, value, isAfterUpdate);
+        else {
+            for (const [viewId, value] of willSyncViewMap.entries()) {
+                this.syncUpdataView(viewId, value, isAfterUpdate);
             }
         }
     }
-    syncUpdata(key, value, isAfterUpdate = false) {
+    syncViewData(viewId, isAfterUpdate = false) {
+        const oldScenePaths = plainObjectKeys(this.serviceStorage[viewId]);
+        const newScenePaths = plainObjectKeys(this.storage[viewId]);
+        const willSyncMap = new Map();
+        for (const scenePath of oldScenePaths) {
+            if (!newScenePaths.includes(scenePath)) {
+                willSyncMap.set(scenePath, undefined);
+                continue;
+            }
+            if (isEqual(this.serviceStorage[viewId][scenePath], this.storage[viewId][scenePath])) {
+                continue;
+            }
+            this.syncScenePathData(viewId, scenePath, isAfterUpdate);
+        }
+        for (const scenePath of newScenePaths) {
+            if (!oldScenePaths.includes(scenePath)) {
+                willSyncMap.set(scenePath, this.storage[viewId][scenePath]);
+            }
+        }
+        if (willSyncMap.size > 5) {
+            this.syncStorageScenePath(viewId, this.storage[viewId], isAfterUpdate);
+        }
+        else {
+            for (const [scenePath, value] of willSyncMap.entries()) {
+                this.syncUpdataScenePath(viewId, scenePath, value, isAfterUpdate);
+            }
+        }
+    }
+    syncScenePathData(viewId, scenePath, isAfterUpdate = false) {
+        const oldKeys = plainObjectKeys(this.serviceStorage[viewId][scenePath]);
+        const newKeys = plainObjectKeys(this.storage[viewId][scenePath]);
+        const willSyncMap = new Map();
+        for (const key of oldKeys) {
+            if (!newKeys.includes(key)) {
+                willSyncMap.set(key, undefined);
+                continue;
+            }
+            if (isEqual(this.serviceStorage[viewId][scenePath][key], this.storage[viewId][scenePath][key])) {
+                continue;
+            }
+            willSyncMap.set(key, this.storage[viewId][scenePath][key]);
+        }
+        for (const key of newKeys) {
+            if (!oldKeys.includes(key)) {
+                willSyncMap.set(key, this.storage[viewId][scenePath][key]);
+            }
+        }
+        if (willSyncMap.size > 5) {
+            this.syncStorageKey(viewId, scenePath, this.storage[viewId][scenePath], isAfterUpdate);
+        }
+        else {
+            for (const [key, value] of willSyncMap.entries()) {
+                this.syncUpdataKey(viewId, scenePath, key, value, isAfterUpdate);
+            }
+        }
+    }
+    syncUpdataView(viewId, value, isAfterUpdate = false) {
         const length = Object.keys(this.serviceStorage).length;
         if (!length) {
-            this.syncStorage(this.storage, isAfterUpdate);
+            this.syncStorageView(this.storage, isAfterUpdate);
         }
         else {
             if (!isAfterUpdate) {
                 if (value === undefined) {
-                    delete this.serviceStorage[key];
+                    delete this.serviceStorage[viewId];
                 }
                 else {
-                    this.serviceStorage[key] = value;
+                    this.serviceStorage[viewId] = cloneDeep(value);
                 }
             }
-            this.plugin?.updateAttributes([this.namespace, key], value);
+            this.plugin?.updateAttributes([this.namespace, viewId], value);
         }
     }
-    syncStorage(state, isAfterUpdate = false) {
+    syncStorageView(state, isAfterUpdate = false) {
         if (!isAfterUpdate) {
-            this.serviceStorage = cloneDeep(state);
+            if (state) {
+                this.serviceStorage = cloneDeep(state);
+            }
         }
-        this.plugin?.updateAttributes(this.namespace, state);
+        this.plugin?.updateAttributes([this.namespace], state);
     }
-    transformToSerializableData(data) {
-        return transformToSerializableData(data);
+    syncUpdataScenePath(viewId, scenePath, value, isAfterUpdate = false) {
+        const length = Object.keys(this.serviceStorage[viewId]).length;
+        if (!length) {
+            this.syncStorageScenePath(viewId, this.storage[viewId], isAfterUpdate);
+        }
+        else {
+            if (!isAfterUpdate) {
+                if (value === undefined) {
+                    delete this.serviceStorage[viewId][scenePath];
+                }
+                else {
+                    this.serviceStorage[viewId][scenePath] = value;
+                }
+            }
+            this.plugin?.updateAttributes([this.namespace, viewId, scenePath], value);
+        }
     }
-    transformToNormalData(str) {
-        return transformToNormalData(str);
+    syncStorageScenePath(viewId, state, isAfterUpdate = false) {
+        if (!isAfterUpdate) {
+            if (state) {
+                this.serviceStorage[viewId] = state;
+            }
+        }
+        this.plugin?.updateAttributes([this.namespace, viewId], state);
+    }
+    syncUpdataKey(viewId, scenePath, key, value, isAfterUpdate = false) {
+        const length = Object.keys(this.serviceStorage[viewId][scenePath]).length;
+        if (!length) {
+            this.syncStorageKey(viewId, scenePath, this.storage, isAfterUpdate);
+        }
+        else {
+            if (!isAfterUpdate) {
+                if (value === undefined) {
+                    delete this.serviceStorage[viewId][scenePath][key];
+                }
+                else {
+                    this.serviceStorage[viewId][scenePath][key] = value;
+                }
+            }
+            this.plugin?.updateAttributes([this.namespace, viewId, scenePath, key], value);
+        }
+    }
+    syncStorageKey(viewId, scenePath, state, isAfterUpdate = false) {
+        if (!isAfterUpdate) {
+            this.serviceStorage[viewId][scenePath] = state;
+        }
+        this.plugin?.updateAttributes([this.namespace, viewId, scenePath], state);
     }
     keyTransformWorkId(key) {
         const list = key.split(Storage_Splitter);
@@ -367,12 +552,16 @@ export class Collector extends BaseCollector {
     }
     destroy() {
         this.removeStorageStateListener();
-        this.plugin = undefined;
         this.serviceStorage = {};
         this.storage = {};
-        this.namespace = '';
     }
 }
+Object.defineProperty(Collector, "namespace", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: 'PluginState'
+});
 Object.defineProperty(Collector, "syncInterval", {
     enumerable: true,
     configurable: true,

@@ -1,16 +1,14 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
-import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
-import { BaseCollectorReducerAction } from "../../../collector/types";
-import { UndoRedoMethod } from "../../../undo";
 import { Storage_Selector_key } from "../../../collector";
 
 export type RotateNodeEmtData = {
     workIds: IworkId[],
     angle: number,
-    workState: EvevtWorkState
+    workState: EvevtWorkState,
+    viewId: string
 }
 export class RotateNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.RotateNode;
@@ -20,16 +18,21 @@ export class RotateNodeMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workIds, angle, workState} = data;
+        const {workIds, angle, workState, viewId} = data;
+        const view =  this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return ;
+        }
+        const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor?.storage;
         const localMsgs: IWorkerMessage[] = [];
-        const serviceMsgs: BaseCollectorReducerAction[] = [];
+        // const serviceMsgs: BaseCollectorReducerAction[] = [];
         const selectIds: string[] = [];
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
             this.undoTickerId = undoTickerId;
-            UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         }
         while (keys.length) {
             const curKey = keys.pop();
@@ -37,13 +40,13 @@ export class RotateNodeMethod extends BaseMsgMethod {
                 continue;
             }
             const curKeyStr = curKey.toString()
-            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
+            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr) as boolean;
             const key = isLocalId && this.serviceColloctor.transformKey(curKey) || curKeyStr;
-            const curStore = cloneDeep(store[key]);
             let localWorkId:string | undefined = curKeyStr ;
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
+            const curStore = store[viewId][scenePath][key];
             if (curStore && localWorkId === Storage_Selector_key) {
                 if (curStore.selectIds?.length === 1) {
                     const id = curStore.selectIds[0];
@@ -51,7 +54,7 @@ export class RotateNodeMethod extends BaseMsgMethod {
                     if (workState === EvevtWorkState.Start) {
                         const isLocalId = this.serviceColloctor?.isLocalId(id);
                         const key = isLocalId && this.serviceColloctor?.transformKey(id) || id;
-                        const curSubStore = store[key];
+                        const curSubStore = store[viewId][scenePath][key];
                         this.cacheOriginRotate = curSubStore?.opt?.rotate || 0
                     }
                     const updateNodeOpt = curStore.updateNodeOpt || {}
@@ -64,7 +67,8 @@ export class RotateNodeMethod extends BaseMsgMethod {
                         updateNodeOpt,
                         emitEventType: this.emitEventType,
                         willRefreshSelector: false,
-                        willSyncService: true
+                        willSyncService: true,
+                        viewId
                     };
                     if (workState === EvevtWorkState.Done) {
                         taskData.willRefreshSelector = true;
@@ -76,42 +80,42 @@ export class RotateNodeMethod extends BaseMsgMethod {
                 }
                 continue;
             }
-            if (curStore) {
-                const opt = curStore.opt;
-                const updateNodeOpt = curStore.updateNodeOpt || {};
-                // let pos = updateNodeOpt.pos || 0;
-                if (opt) {
-                    updateNodeOpt.angle = angle;
-                    serviceMsgs.push({
-                        ...curStore,
-                        type: EPostMessageType.UpdateNode,
-                        updateNodeOpt
-                    });
-                    if (!selectIds.includes(curKeyStr)) {
-                        let localWorkId:string | undefined = curKeyStr;
-                        if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-                            localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-                        }
-                        localMsgs.push({
-                            workId: localWorkId,
-                            msgType: EPostMessageType.UpdateNode,
-                            dataType: EDataType.Local,
-                            updateNodeOpt,
-                            emitEventType: this.emitEventType,
-                            willSyncService: false,
-                            willRefresh: true
-                        })
-                    }
-                }
-            }
+            // if (curStore) {
+            //     const opt = curStore.opt;
+            //     const updateNodeOpt = curStore.updateNodeOpt || {};
+            //     // let pos = updateNodeOpt.pos || 0;
+            //     if (opt) {
+            //         updateNodeOpt.angle = angle;
+            //         serviceMsgs.push({
+            //             ...curStore,
+            //             type: EPostMessageType.UpdateNode,
+            //             updateNodeOpt
+            //         });
+            //         if (!selectIds.includes(curKeyStr)) {
+            //             let localWorkId:string | undefined = curKeyStr;
+            //             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
+            //                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
+            //             }
+            //             localMsgs.push({
+            //                 workId: localWorkId,
+            //                 msgType: EPostMessageType.UpdateNode,
+            //                 dataType: EDataType.Local,
+            //                 updateNodeOpt,
+            //                 emitEventType: this.emitEventType,
+            //                 willSyncService: false,
+            //                 willRefresh: true
+            //             })
+            //         }
+            //     }
+            // }
         }
         if (localMsgs.length) {
             // console.log('localMsgs', localMsgs)
             this.collectForLocalWorker(localMsgs);
         }
-        if (serviceMsgs.length) {
-            // console.log('serviceMsgs', serviceMsgs)
-            this.collectForServiceWorker(serviceMsgs);
-        }
+        // if (serviceMsgs.length) {
+        //     // console.log('serviceMsgs', serviceMsgs)
+        //     this.collectForServiceWorker(serviceMsgs);
+        // }
     }
 }

@@ -25,4 +25,6 @@ export declare function hslToRgb(h: number, s: number, l: number): number[];
 export declare function rgbToHex(r: number, g: number, b: number): string;
 /** 十六进制转rgba */
 export declare function hexToRgba(hex: string, opacity?: number): string;
+export declare function rgbToRgba(r: number, g: number, b: number, opacity?: number): string;
 export declare function colorRGBA2Hex(color: string): [string, number];
+export declare function colorRGBA2Array(color: string): [number, number, number, number];

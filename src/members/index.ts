@@ -5,14 +5,14 @@ export type MemberDiff = {
     offline: string[];
 }
 
-export class RoomMemberManager {
+export class RoomMemberManager  {
     private roomMembers:readonly RoomMember[] = [];
     private onChangeHooks: Set<(diff:MemberDiff)=>void> = new Set();
     setRoomMembers(roomMembers:readonly RoomMember[]){
         this.executChangeUidHook(this.roomMembers, roomMembers);
         this.roomMembers = roomMembers;
     }
-    executChangeUidHook(_old:readonly RoomMember[], _new:readonly RoomMember[]){
+    private executChangeUidHook(_old:readonly RoomMember[], _new:readonly RoomMember[]){
         const diff = {
             online: _new.map(m=>m.payload?.uid || m.session),
             offline: _old.map(m=>m.payload?.uid || m.session)
