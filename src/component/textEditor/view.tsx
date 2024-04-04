@@ -314,8 +314,7 @@ export class TextViewInSelector extends React.Component<TextEditorManagerProps> 
             e.stopPropagation();
             e.preventDefault();
             const point = this.props.manager.getPoint(e);
-            // console.log('onClick-TextViewInSelector', point, e);
-            this.props.manager.control.textEditorManager.computeTextActive(point, this.props.manager.viewId)
+            point && this.props.manager.control.textEditorManager.computeTextActive(point, this.props.manager.viewId)
         }}>
             {this.editorUI}
         </div>

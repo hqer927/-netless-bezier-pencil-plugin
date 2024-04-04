@@ -5,7 +5,7 @@ import { computRect, getRectFromPoints, isSameArray, isSealedGroup } from "../ut
 import { Point2d } from "../utils/primitives/Point2d";
 import { Storage_Selector_key } from "../../collector/const";
 import { getShapeTools } from ".";
-import { isNumber } from "lodash";
+import isNumber from "lodash/isNumber";
 export class SelectorShape extends BaseShapeTool {
     constructor(props) {
         super(props);

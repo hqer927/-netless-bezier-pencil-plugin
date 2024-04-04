@@ -1,5 +1,5 @@
 import { ViewContainerManager, ViewInfo } from "../baseViewContainerManager";
-import type { CameraState } from "white-web-sdk";
+import type { CameraState, View } from "white-web-sdk";
 import { BaseSubWorkModuleProps } from "../types";
 import { TeachingAidsMultiManager } from "./teachingAidsMultiManager";
 import { IMainMessageRenderData } from "../../core/types";
@@ -15,6 +15,6 @@ export declare class ViewContainerMultiManager extends ViewContainerManager {
     transformToOriginPoint(p: [number, number], viewId: string): [number, number];
     transformToScenePoint(p: [number, number], viewId: string): [number, number];
     render(renderData: IMainMessageRenderData[]): void;
-    private onMainViewMounted;
+    onMainViewMounted: (bindMainView: View) => void;
     private onAppViewMounted;
 }

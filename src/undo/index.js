@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import EventEmitter2 from "eventemitter2";
 import { Storage_Selector_key } from "../collector";
-import { cloneDeep, debounce, isEqual } from "lodash";
+import cloneDeep from "lodash/cloneDeep";
+import debounce from "lodash/debounce";
+import isEqual from "lodash/isEqual";
 export var EUndoType;
 (function (EUndoType) {
     EUndoType[EUndoType["sdk"] = 1] = "sdk";

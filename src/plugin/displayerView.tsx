@@ -2,7 +2,7 @@
 import styles from './index.module.less';
 import React, { ReactNode } from "react";
 import type { RoomMember } from "white-web-sdk";
-import { EmitEventType, InternalMsgEmitterType, TeachingAidsViewManagerLike } from "./types";
+import { EmitEventType, TeachingAidsViewManagerLike } from "./types";
 import { TextEditorInfo } from "../component/textEditor";
 import { EScaleType, EvevtWorkState } from "../core";
 import { ShowFloatBarMsgValue } from "../displayer/types";
@@ -154,7 +154,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                         e.stopPropagation();
                     }}
                     onMouseMove={(e)=>{
-                        this.props.maranger.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], this.props.maranger.getPoint(e));
+                        this.props.maranger.cursorMouseMove(e as unknown as MouseEvent);
                     }}
                 >
                     <div className={styles['CanvasBox']}>
@@ -205,7 +205,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                         }
                     </DisplayerContext.Provider>
                     {
-                        this.state.cursorInfo?.map((info)=>{
+                        !!this.state.cursorInfo?.length && this.state.cursorInfo.map((info)=>{
                             if (info.roomMember) {
                                 return <CursorManager key={info.roomMember.memberId} className={styles['CursorBox']} info={info}/>
                             }

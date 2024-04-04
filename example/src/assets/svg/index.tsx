@@ -60,6 +60,91 @@ const SelectorSvg = () => (
     </svg>
 )
 
+const StraightSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="currentColor"  fillRule="evenodd" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="6" y1="18" x2="18" y2="6"></line>
+        </g>
+    </svg>
+)
+const EllipseSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="6"></rect>
+        </g>
+    </svg>    
+)
+const RectangleSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <rect id="矩形" x="6" y="6" width="12" height="12" rx="2"></rect>
+        </g>
+    </svg>    
+)
+const StarSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <path d="M11.8220813,5.53069562 C12.3696773,5.62507662 12.4625734,5.72554557 12.5206245,5.84774318 L12.5206245,5.84774318 L14.2189736,9.42277042 L17.9920285,9.99234378 C18.1520889,10.0165062 18.2857395,10.1091286 18.3751462,10.2348609 C18.4719375,10.3709779 18.5180744,10.5461839 18.4934299,10.727512 C18.4738012,10.8719348 18.4101452,11.0060802 18.3101095,11.107382 L18.3101095,11.107382 L15.6017319,13.8500424 L16.2437398,17.738772 C16.273578,17.9195063 16.2322362,18.0963001 16.1392467,18.2355891 C16.0531778,18.3645118 15.9218276,18.4616905 15.7619923,18.4909999 C15.6401188,18.5133481 15.5148269,18.4923492 15.4051219,18.4324315 L15.4051219,18.4324315 L11.9999312,16.5726127 L8.59474046,18.4324315 C8.45624603,18.5080732 8.30173213,18.5180361 8.16377893,18.4719016 C8.01822109,18.4232239 7.89275102,18.3137981 7.81733557,18.160431 C7.75356476,18.0307448 7.73238084,17.8825791 7.75612261,17.738772 L7.75612261,17.738772 L8.39813049,13.8500424 L5.68975282,11.107382 C5.56536722,10.981422 5.50330824,10.813681 5.50012823,10.6457587 C5.49693852,10.4773242 5.55293545,10.306672 5.67278368,10.1752191 C5.76224575,10.0770947 5.87963871,10.0116959 6.00783388,9.99234378 L6.00783388,9.99234378 L9.78088874,9.42277042 L11.4792378,5.84774318 C11.5527358,5.69302981 11.6769476,5.58159072 11.8220813,5.53069562 Z"></path>
+        </g>
+    </svg>    
+)
+const TriangleSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <path d="M11.8735432,6.51639519 L18.4433604,16.8729099 C18.5014646,16.9705991 18.513552,17.0816789 18.4849451,17.1824518 C18.4637477,17.2571235 18.4207741,17.3254323 18.3599622,17.3797162 L18.3599622,17.3797162 L5.9619473,17.5 C5.83202254,17.5 5.71357665,17.4508256 5.62815063,17.3687543 C5.5756394,17.3183052 5.53576798,17.2551406 5.51530514,17.1841993 L5.51530514,17.1841993 L11.5944453,6.72141053 C11.6575042,6.61539105 11.7604689,6.5460226 11.8735432,6.51639519 L11.8735432,6.51639519 Z"></path>
+        </g>
+    </svg>    
+)
+const RhombusSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <path d="M12,5.5 C12.3399741,5.5 12.6799483,5.62969577 12.9393398,5.8890873 L12.9393398,5.8890873 L18.1109127,11.0606602 C18.3703042,11.3200517 18.5,11.6600259 18.5,12 C18.5,12.3399741 18.3703042,12.6799483 18.1109127,12.9393398 L18.1109127,12.9393398 L12.9393398,18.1109127 C12.6799483,18.3703042 12.3399741,18.5 12,18.5 C11.6600259,18.5 11.3200517,18.3703042 11.0606602,18.1109127 L11.0606602,18.1109127 L5.8890873,12.9393398 C5.62969577,12.6799483 5.5,12.3399741 5.5,12 C5.5,11.6600259 5.62969577,11.3200517 5.8890873,11.0606602 L5.8890873,11.0606602 L11.0606602,5.8890873 C11.3200517,5.62969577 11.6600259,5.5 12,5.5 Z"></path>
+        </g>
+    </svg>    
+)
+const SpeechBalloonSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <path d="M16.5,6 C16.9142136,6 17.2892136,6.16789322 17.5606602,6.43933983 C17.8321068,6.71078644 18,7.08578644 18,7.5 L18,7.5 L18,13.7142857 C18,14.1284993 17.8321068,14.5034993 17.5606602,14.7749459 C17.2892136,15.0463925 16.9142136,15.2142857 16.5000418,15.2142857 L16.5000418,15.2142857 L12.862101,15.2139816 L10.4309693,17.8655011 L9.7122759,15.2139169 L7.5,15.2142857 C7.08578644,15.2142857 6.71078644,15.0463925 6.43933983,14.7749459 C6.16789322,14.5034993 6,14.1284993 6,13.7142857 L6,13.7142857 L6,7.5 C6,7.08578644 6.16789322,6.71078644 6.43933983,6.43933983 C6.71078644,6.16789322 7.08578644,6 7.5,6 L7.5,6 Z"></path>
+        </g>
+    </svg>    
+)
+const TextSvg = () => (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
+        <g stroke="currentColor" strokeWidth="1" fill="none" fillRule="evenodd" strokeLinejoin="round">
+            <polyline points="6 6 18 6 18 8"></polyline>
+            <line x1="12" y1="6" x2="12" y2="16"></line>
+            <line x1="6" y1="6" x2="6" y2="8"></line>
+            <line x1="10" y1="18" x2="14" y2="18"></line>
+        </g>
+    </svg>    
+)
+export const TextIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={TextSvg} {...props} />
+);
+export const SpeechBalloonIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={SpeechBalloonSvg} {...props} />
+);
+export const RhombusIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={RhombusSvg} {...props} />
+);
+export const TriangleIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={TriangleSvg} {...props} />
+);
+export const StarIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={StarSvg} {...props} />
+);
+export const RectangleIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={RectangleSvg} {...props} />
+);
+export const EllipseIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={EllipseSvg} {...props} />
+);
+
+export const StraightIcon = (props: Partial<CustomIconComponentProps>) => (
+    <Icon component={StraightSvg} {...props} />
+);
+
 export const SelectorIcon = (props: Partial<CustomIconComponentProps>) => (
     <Icon component={SelectorSvg} {...props} />
 );

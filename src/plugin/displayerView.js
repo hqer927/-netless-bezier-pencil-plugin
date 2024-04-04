@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styles from './index.module.less';
 import React from "react";
-import { EmitEventType, InternalMsgEmitterType } from "./types";
+import { EmitEventType } from "./types";
 import { EScaleType, EvevtWorkState } from "../core";
 import { TextEditorContainer } from "../component/textEditor/view";
 import { FloatBar } from "../displayer/floatBar";
@@ -133,7 +133,7 @@ export class BaseViewDisplayer extends React.Component {
                 }, onTouchStart: (e) => {
                     e.stopPropagation();
                 }, onMouseMove: (e) => {
-                    this.props.maranger.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], this.props.maranger.getPoint(e));
+                    this.props.maranger.cursorMouseMove(e);
                 } },
                 React.createElement("div", { className: styles['CanvasBox'] },
                     React.createElement("canvas", { className: styles['FloatCanvas'], ref: this.props.refs.canvasFloatRef }),
@@ -163,7 +163,7 @@ export class BaseViewDisplayer extends React.Component {
                     this.state.floatBarData?.scaleType === EScaleType.all && this.state.showFloatBar &&
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.ScaleNode) &&
                         React.createElement(ResizableBox, { className: styles['ResizeBtn'] })),
-                this.state.cursorInfo?.map((info) => {
+                !!this.state.cursorInfo?.length && this.state.cursorInfo.map((info) => {
                     if (info.roomMember) {
                         return React.createElement(CursorManager, { key: info.roomMember.memberId, className: styles['CursorBox'], info: info });
                     }

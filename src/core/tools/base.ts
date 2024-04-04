@@ -7,7 +7,7 @@ import { VNodeManager } from "../worker/vNodeManager";
 import { computRect, getRectFromPoints, getRectRotated, getRectTranslated, rotatePoints, scalePoints } from "../utils";
 import { ShapeNodes, ShapeOptions } from "./utils";
 import isNumber from "lodash/isNumber";
-import { cloneDeep } from "lodash";
+import cloneDeep from "lodash/cloneDeep";
 import { TextOptions } from "../../component/textEditor/types";
 
 export interface BaseShapeOptions {

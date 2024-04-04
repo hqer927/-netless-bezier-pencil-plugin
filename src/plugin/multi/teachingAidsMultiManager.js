@@ -82,6 +82,9 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     }
     setWindowManager(windowManager) {
         this.windowManager = windowManager;
+        if (this.windowManager?.mainView) {
+            this.viewContainerManager.onMainViewMounted(this.windowManager.mainView);
+        }
         this.viewContainerManager.listenerWindowManager(this.windowManager);
     }
 }

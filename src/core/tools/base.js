@@ -2,7 +2,7 @@
 import { Point2d } from "../utils/primitives/Point2d";
 import { computRect, getRectFromPoints, getRectRotated, getRectTranslated, rotatePoints, scalePoints } from "../utils";
 import isNumber from "lodash/isNumber";
-import { cloneDeep } from "lodash";
+import cloneDeep from "lodash/cloneDeep";
 export class BaseShapeTool {
     constructor(props) {
         Object.defineProperty(this, "syncUnitTime", {

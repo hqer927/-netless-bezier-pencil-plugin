@@ -15,7 +15,7 @@ export const ZoomController = () => {
         setScale(100);
     }
     useEffect(() => {
-        // console.log('scale', scale)
+        //console.log('scale', scale)
         window.room?.moveCamera({
             centerX: 0,
             centerY: 0,

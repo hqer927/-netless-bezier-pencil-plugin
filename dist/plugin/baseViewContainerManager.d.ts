@@ -91,6 +91,7 @@ export declare abstract class AppViewDisplayerManager {
         y: number;
     };
     private cachePoint?;
+    private cacheCursorPoint?;
     constructor(viewId: string, control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
@@ -99,7 +100,7 @@ export declare abstract class AppViewDisplayerManager {
     updateSize(): void;
     setViewId(viewId: string): void;
     destroy(): void;
-    getPoint(e: any): [number, number];
+    getPoint(e: any): [number, number] | undefined;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;
@@ -114,7 +115,7 @@ export declare abstract class AppViewDisplayerManager {
     protected touchstart: (e: TouchEvent) => void;
     protected touchmove: import("lodash").DebouncedFunc<(e: TouchEvent) => void>;
     protected touchend: (e: TouchEvent) => void;
-    protected cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
+    cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;
     protected bindDisplayerEvent(div: HTMLDivElement): void;
     protected removeDisplayerEvent(div: HTMLDivElement): void;
@@ -140,6 +141,7 @@ export declare abstract class MainViewDisplayerManager {
         y: number;
     };
     private cachePoint?;
+    private cacheCursorPoint?;
     constructor(control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
@@ -147,7 +149,7 @@ export declare abstract class MainViewDisplayerManager {
     updateSize(): void;
     reflashContainerOffset(): void;
     destroy(): void;
-    getPoint(e: any): [number, number];
+    getPoint(e: any): [number, number] | undefined;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;
@@ -162,7 +164,7 @@ export declare abstract class MainViewDisplayerManager {
     protected touchstart: (e: TouchEvent) => void;
     protected touchmove: import("lodash").DebouncedFunc<(e: TouchEvent) => void>;
     protected touchend: (e: TouchEvent) => void;
-    protected cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
+    cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;
     protected bindDisplayerEvent(div: HTMLDivElement): void;
     protected removeDisplayerEvent(div: HTMLDivElement): void;

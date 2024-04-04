@@ -36,7 +36,10 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     return;
                 }
                 const displayer = new MainViewMultiDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
-                const { width, height, dpr } = displayer;
+                // const {width, height, dpr} = displayer;
+                const width = bindMainView.size.width || displayer.width;
+                const height = bindMainView.size.height || displayer.height;
+                const dpr = displayer.dpr;
                 const opt = {
                     dpr,
                     originalPoint: [width / 2, height / 2],
@@ -63,7 +66,7 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     scale: scale === Infinity ? 1 : scale
                 };
                 this.focuedViewId = MainViewMultiDisplayerManager.viewId;
-                // console.log('ContainerManager - bindMainView', bindMainView, opt, bindMainView.focusScenePath)
+                // console.log('ContainerManager - bindMainView', bindMainView.size, opt, bindMainView.focusScenePath)
                 this.createMianView({
                     id: MainViewMultiDisplayerManager.viewId,
                     container,

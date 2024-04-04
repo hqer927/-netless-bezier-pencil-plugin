@@ -6,14 +6,15 @@ import {useContext, useMemo, useState, useEffect} from 'react';
 //     DeleteOutlined
 // } from '@ant-design/icons';
 import { StrokePencilIcon, NormPencilIcon, DottedPencilIcon, DottedPencilLongIcon } from '../../assets/svg';
-import { ColorPicker, Divider, Popover, Button, Slider } from 'antd';
+import { ColorPicker, Divider, Popover, Button, Slider, Switch } from 'antd';
 import type { Color } from 'antd/es/color-picker';
 import { AppContext } from "../../App";
-import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core/enum';
+import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
 import { EStrokeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
 export const PencilTools = () => {
     const {toolsKey} = useContext(AppContext);
     const [strokeType, setStrokeType] = useState<EStrokeType>(EStrokeType.Stroke);
+    const [useNewPencil, setUseNewPencil] = useState<boolean>(true);
     useEffect(()=>{
         const _strokeType = window.room.state.memberState.strokeType;
         setStrokeType(_strokeType);
@@ -25,7 +26,7 @@ export const PencilTools = () => {
             const defaultValue: any = {a: opacity, b: defaultColor[2], g: defaultColor[1], r: defaultColor[0]};
             const setColorRgb = (color: Color) => {
                 const rgba = color.toRgb();
-                // console.log('color', rgba)
+                //console.log('color', rgba)
                 window.room.setMemberState({strokeColor:[rgba.r,rgba.g,rgba.b], strokeOpacity:rgba.a});
             }
             return (
@@ -37,20 +38,10 @@ export const PencilTools = () => {
                             width: 280,
                         }
                     }}
-                    presets={[
+                    presets={window.room.floatBarOptions && [
                         {
                             label:'颜色',
-                            colors:[
-                                '#000000',
-                                '#FF0000',
-                                '#00FF00',
-                                '#0000FF',
-                                '#FFFF00',
-                                '#FF00FF',
-                                '#00FFFF',
-                                '#C0C0C0',
-                                '#808080'
-                            ]
+                            colors: window.room.floatBarOptions?.colors.map((c: [number,number,number])=>({a:opacity, r:c[0],g:c[1],b:c[2]}))
                         }]}
                     panelRender={(_, { components: { Picker, Presets } }) => (
                         <div
@@ -93,16 +84,28 @@ export const PencilTools = () => {
         if(toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen){
             const defaultWidth:number = window.room.state.memberState.strokeWidth;
             const setWidth = (value: number)=>{
-                // console.log('value', value)
+                //console.log('value', value)
                 window.room.setMemberState({strokeWidth: value});
+            }
+            const onTurn = (checked: boolean)=>{
+                setUseNewPencil(checked);
+                window.room.setMemberState({useNewPencil: checked});
             }
             return (
                 <Popover
                     placement="rightTop"
                     title={()=>{
                         return (
+                            <Switch checkedChildren="开启" unCheckedChildren="关闭" onChange={onTurn} size="small" defaultChecked />
+                        )
+                    }}
+                    content={()=>{
+                        if (!useNewPencil) {
+                            return null;
+                        }
+                        return (
                             <>
-                              <Button.Group size="middle">
+                                <Button.Group size="middle">
                                     {toolsKey === EToolsKey.Pencil && <Button icon={<StrokePencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Stroke)}}/>}
                                     <Button icon={<NormPencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Normal)}}/>
                                     <Button icon={<DottedPencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Dotted)}}/>
@@ -126,7 +129,7 @@ export const PencilTools = () => {
             )
         }
         return null;
-    }, [toolsKey, strokeType])
+    }, [toolsKey, strokeType, useNewPencil])
 
     useEffect(() => {
         window.room.setMemberState({strokeType});

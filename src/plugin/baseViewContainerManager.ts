@@ -10,6 +10,7 @@ import isEqual from "lodash/isEqual";
 import clone from "lodash/clone";
 import { UndoRedoMethod, UndoRedoMethodProps } from "../undo";
 import { BaseViewDisplayer } from "./displayerView";
+import isNumber from "lodash/isNumber";
 
 export interface ViewInfo {
     id: string;
@@ -269,7 +270,8 @@ export abstract class AppViewDisplayerManager {
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
     abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: { x: number; y: number };
-    private cachePoint?:[number|undefined,number|undefined];
+    private cachePoint?:[number,number];
+    private cacheCursorPoint?:[number|undefined,number|undefined];
     constructor(viewId:string, control: TeachingAidsManagerLike, internalMsgEmitter:EventEmitter2) {
         this.viewId = viewId;
         this.control = control;
@@ -291,7 +293,6 @@ export abstract class AppViewDisplayerManager {
     mountView(): void {
         this.setCanvassStyle();
         this.control.viewContainerManager.mountView(this.viewId);
-        // this.bindToolsClass();
     }
     reflashContainerOffset(){
         if(this.eventTragetElement){
@@ -310,26 +311,21 @@ export abstract class AppViewDisplayerManager {
             this.removeDisplayerEvent(this.eventTragetElement)
         } 
     }
-    getPoint(e:any):[number,number]{
-        
-        // if (!(e instanceof MouseEvent || e instanceof TouchEvent)) {
-        //     console.log('getPoint', e)
-        // }
-        if (e instanceof TouchEvent) {
-            return [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-        } else {
-            return [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
+    getPoint(e:any):[number,number]|undefined{
+        if (e instanceof TouchEvent && e.targetTouches[0]) {
+            const point:[number,number] = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
+            return point;
         }
-        // const x = e.pageX || e.targetTouches[0].pageX;
-        // const y = e.pageY || e.targetTouches[0].pageY;
-        // return [x - this.containerOffset.x,y - this.containerOffset.y];
+        if(isNumber(e.pageX) && isNumber(e.pageY)) {
+            const point:[number,number] = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
+            return point;
+        }
     }
     private getTranslate(element:any) {
         const transformMatrix = element.style["WebkitTransform"] || getComputedStyle(element, '').getPropertyValue("-webkit-transform") || element.style["transform"] ||  getComputedStyle(element, '').getPropertyValue("transform");
         const matrix = transformMatrix.match(/-?[0-9]+\.?[0-9]*/g);
         const x = matrix && parseInt(matrix[0]) || 0; //translate x
         const y = matrix && parseInt(matrix[1]) || 0; //translate y
-        // console.log('getTranslate', matrix, x, y)
         return [x, y]
     }
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: { x: number; y: number })  {
@@ -338,63 +334,66 @@ export abstract class AppViewDisplayerManager {
             x: offset.x + eventTraget.offsetLeft + translate[0],
             y: offset.y + eventTraget.offsetTop + translate[1]
         };
-        // console.log('getContainerOffset', eventTraget, translate)
         if (eventTraget.offsetParent?.nodeName && eventTraget.offsetParent.nodeName !== 'BODY') {
             newOffset = this.getContainerOffset(eventTraget.offsetParent as HTMLDivElement, newOffset);
         }
-        // console.log('ContainerManager - on - getContainerOffset', translate, newOffset, eventTraget)
         return newOffset;
     }
     protected mousedown = (e:MouseEvent) =>{
         if (e.button === 0 && this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Start, this.getPoint(e),this.viewId)
-            // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent, ], EvevtWorkState.Start, this.getPoint(e), MainViewDisplayerManager.viewId);
+            const point = this.getPoint(e);
+            this.cachePoint = point;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
         }
     }
     protected mousemove = (e:MouseEvent) =>{
         if (this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Doing, this.getPoint(e),this.viewId)
+            const point = this.getPoint(e);
+            this.cachePoint = point;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Doing, point,this.viewId)
         }
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, this.getPoint(e), MainViewDisplayerManager.viewId);
     }
     protected mouseup = (e:MouseEvent) =>{
         if (e.button === 0 && this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Done, this.getPoint(e),this.viewId)
-            // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, this.getPoint(e), MainViewDisplayerManager.viewId);
+            const point = this.getPoint(e) || this.cachePoint;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Done, point,this.viewId)
+            this.cachePoint = undefined;
         }
     }
     protected touchstart = (e:TouchEvent) =>{
         if (this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Start, this.getPoint(e),this.viewId)
+            const point = this.getPoint(e);
+            this.cachePoint = point;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
         }
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, this.getPoint(e), MainViewDisplayerManager.viewId);
     }
     protected touchmove = throttle((e:TouchEvent) =>{
         if (this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Doing, this.getPoint(e), this.viewId)
+            const point = this.getPoint(e);
+            this.cachePoint = point;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Doing, point, this.viewId)
         }
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, this.getPoint(e), MainViewDisplayerManager.viewId);
     }, 20, {'leading':false})
     protected touchend = (e:TouchEvent) =>{
         if (this.viewId) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Done, this.getPoint(e),this.viewId)  
+            const point = this.getPoint(e) || this.cachePoint;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Done, point,this.viewId)
+            this.cachePoint = undefined;
         }
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, this.getPoint(e), MainViewDisplayerManager.viewId);
     }
-    protected cursorMouseMove = throttle((e:MouseEvent) => {
+    cursorMouseMove = throttle((e:MouseEvent) => {
         const curPoint = this.getPoint(e);
-        if ( this.cachePoint && isEqual(curPoint, this.cachePoint) || !this.viewId) {
+        if ( this.cacheCursorPoint && isEqual(curPoint, this.cacheCursorPoint) || !this.viewId) {
             return;
         }
-        this.cachePoint = this.getPoint(e);
-        this.control.worker.sendCursorEvent(curPoint,this.viewId);
+        this.cacheCursorPoint = curPoint;
+        curPoint && this.control.worker.sendCursorEvent(curPoint,this.viewId);
     }, 30, {'leading':false})
     protected cursorMouseLeave = throttle(() =>{
         if (this.viewId) {
-            this.cachePoint = [undefined,undefined];
-            this.control.worker.sendCursorEvent(this.cachePoint,this.viewId);
+            this.cacheCursorPoint = [undefined,undefined];
+            this.control.worker.sendCursorEvent(this.cacheCursorPoint,this.viewId);
         }
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], [undefined,undefined], MainViewDisplayerManager.viewId);
     }, 30, {'leading':false})
     protected bindDisplayerEvent(div:HTMLDivElement) {
         div.addEventListener('mousedown',this.mousedown, false);
@@ -442,7 +441,8 @@ export abstract class MainViewDisplayerManager {
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
     abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: { x: number; y: number };
-    private cachePoint?:[number|undefined,number|undefined];
+    private cachePoint?:[number,number];
+    private cacheCursorPoint?:[number|undefined,number|undefined];
     constructor(control: TeachingAidsManagerLike, internalMsgEmitter:EventEmitter2) {
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
@@ -463,7 +463,6 @@ export abstract class MainViewDisplayerManager {
     mountView(): void {
         this.setCanvassStyle();
         this.control.viewContainerManager.mountView(this.viewId);
-        // this.bindToolsClass();
     }
     updateSize(){
         this.setCanvassStyle();
@@ -479,25 +478,21 @@ export abstract class MainViewDisplayerManager {
             this.removeDisplayerEvent(this.eventTragetElement)
         } 
     }
-    getPoint(e:any):[number,number]{
-        // if (!(e instanceof MouseEvent || e instanceof TouchEvent)) {
-        //     console.log('getPoint', e)
-        // }
-        if (e instanceof TouchEvent) {
-            return [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-        } else {
-            return [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
+    getPoint(e:any):[number,number]|undefined{
+        if (e instanceof TouchEvent && e.targetTouches[0]) {
+            const point:[number,number] = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
+            return point;
         }
-        // const x = e.pageX || e.targetTouches[0].pageX;
-        // const y = e.pageY || e.targetTouches[0].pageY;
-        // return [x - this.containerOffset.x,y - this.containerOffset.y];
+        if(isNumber(e.pageX) && isNumber(e.pageY)) {
+            const point:[number,number] = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
+            return point;
+        }
     }
     private getTranslate(element:any) {
         const transformMatrix = element.style["WebkitTransform"] || getComputedStyle(element, '').getPropertyValue("-webkit-transform") || element.style["transform"] ||  getComputedStyle(element, '').getPropertyValue("transform");
         const matrix = transformMatrix.match(/-?[0-9]+\.?[0-9]*/g);
         const x = matrix && parseInt(matrix[0]) || 0; //translate x
         const y = matrix && parseInt(matrix[1]) || 0; //translate y
-        // console.log('getTranslate', matrix, x, y)
         return [x, y]
     }
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: { x: number; y: number })  {
@@ -506,53 +501,56 @@ export abstract class MainViewDisplayerManager {
             x: offset.x + eventTraget.offsetLeft + translate[0],
             y: offset.y + eventTraget.offsetTop + translate[1]
         };
-        // console.log('getContainerOffset', eventTraget, translate)
         if (eventTraget.offsetParent?.nodeName && eventTraget.offsetParent.nodeName !== 'BODY') {
             newOffset = this.getContainerOffset(eventTraget.offsetParent as HTMLDivElement, newOffset);
         }
-        // console.log('ContainerManager - on - getContainerOffset', newOffset)
         return newOffset;
     }
     protected mousedown = (e:MouseEvent) =>{
         if (e.button === 0) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Start, this.getPoint(e),this.viewId)
-            // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent, ], EvevtWorkState.Start, this.getPoint(e), MainViewDisplayerManager.viewId);
+            const point = this.getPoint(e);
+            this.cachePoint = point;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
         }
     }
     protected mousemove = (e:MouseEvent) =>{
-        this.control.worker.originalEventLintener(EvevtWorkState.Doing, this.getPoint(e),this.viewId)
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, this.getPoint(e), MainViewDisplayerManager.viewId);
+        const point = this.getPoint(e);
+        this.cachePoint = point;
+        point && this.control.worker.originalEventLintener(EvevtWorkState.Doing, point,this.viewId)
     }
     protected mouseup = (e:MouseEvent) =>{
         if (e.button === 0) {
-            this.control.worker.originalEventLintener(EvevtWorkState.Done, this.getPoint(e),this.viewId)
-            // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, this.getPoint(e), MainViewDisplayerManager.viewId);
+            const point = this.getPoint(e) || this.cachePoint;
+            point && this.control.worker.originalEventLintener(EvevtWorkState.Done, point,this.viewId)
+            this.cachePoint = undefined
         }
     }
     protected touchstart = (e:TouchEvent) =>{
-        this.control.worker.originalEventLintener(EvevtWorkState.Start, this.getPoint(e),this.viewId)
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Start, this.getPoint(e), MainViewDisplayerManager.viewId);
+        const point = this.getPoint(e);
+        this.cachePoint = point;
+        point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
     }
     protected touchmove = throttle((e:TouchEvent) =>{
-        this.control.worker.originalEventLintener(EvevtWorkState.Doing, this.getPoint(e),this.viewId)
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Doing, this.getPoint(e), MainViewDisplayerManager.viewId);
+        const point = this.getPoint(e);
+        this.cachePoint = point;
+        point && this.control.worker.originalEventLintener(EvevtWorkState.Doing, point,this.viewId)
     }, 20, {'leading':false})
     protected touchend = (e:TouchEvent) =>{
-        this.control.worker.originalEventLintener(EvevtWorkState.Done, this.getPoint(e),this.viewId)
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], EvevtWorkState.Done, this.getPoint(e), MainViewDisplayerManager.viewId);
+        const point = this.getPoint(e) || this.cachePoint;
+        point && this.control.worker.originalEventLintener(EvevtWorkState.Done, point,this.viewId)
+        this.cachePoint = undefined;
     }
-    protected cursorMouseMove = throttle((e:MouseEvent) => {
+    cursorMouseMove = throttle((e:MouseEvent) => {
         const curPoint = this.getPoint(e);
-        if ( this.cachePoint && isEqual(curPoint, this.cachePoint)) {
+        if ( this.cacheCursorPoint && isEqual(curPoint, this.cacheCursorPoint)) {
             return;
         }
-        this.cachePoint = this.getPoint(e);
-        this.control.worker.sendCursorEvent(curPoint,this.viewId);
+        this.cacheCursorPoint = curPoint;
+        curPoint && this.control.worker.sendCursorEvent(curPoint,this.viewId);
     }, 30, {'leading':false})
     protected cursorMouseLeave = throttle(() =>{
-        this.cachePoint = [undefined,undefined];
-        this.control.worker.sendCursorEvent(this.cachePoint,this.viewId);
-        // this.internalMsgEmitter?.emit([InternalMsgEmitterType.Cursor, EmitEventType.MoveCursor], [undefined,undefined], MainViewDisplayerManager.viewId);
+        this.cacheCursorPoint = [undefined,undefined];
+        this.control.worker.sendCursorEvent(this.cacheCursorPoint,this.viewId);
     }, 30, {'leading':false})
     protected bindDisplayerEvent(div:HTMLDivElement) {
         div.addEventListener('mousedown',this.mousedown, false);

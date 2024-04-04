@@ -280,7 +280,7 @@ export class EraserShape extends BaseShapeTool{
         workId: IworkId;
         toolsType: EToolsKey;
       }> = new Map();
-      this.vNodes.getLastTarget();
+      this.vNodes.setTarget();
       for (let i = 0; i < points.length-1; i+=2) {
         this.createEraserRect(points.slice(i,i+2));
         const rect = this.remove({curNodeMap: this.vNodes.getLastTarget(), removeIds, newWorkDatas});

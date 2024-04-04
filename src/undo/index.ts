@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction, Collector, Storage_Selector_key } from "../collector";
-import { cloneDeep, debounce, isEqual } from "lodash";
+import cloneDeep from "lodash/cloneDeep";
+import debounce from "lodash/debounce";
+import isEqual from "lodash/isEqual";
+
 import type { Room } from "white-web-sdk";
 import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
 import { MasterController } from "../core/mainEngine";

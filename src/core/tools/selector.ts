@@ -7,7 +7,7 @@ import { Point2d } from "../utils/primitives/Point2d";
 import { Storage_Selector_key } from "../../collector/const";
 import { VNodeManager } from "../worker/vNodeManager";
 import { ShapeNodes, getShapeTools } from ".";
-import { isNumber } from "lodash";
+import isNumber from "lodash/isNumber";
 import { TextOptions } from "../../component/textEditor/types";
 import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
 export interface SelectorOptions extends BaseShapeOptions {

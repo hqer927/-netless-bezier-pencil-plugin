@@ -870,9 +870,6 @@ export class MasterControlForWorker extends MasterController {
             ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
             this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode);
         }
-        // this.internalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.CreateScene], this.createSceneLintener.bind(this));
-        // this.internalMsgEmitter?.on([InternalMsgEmitterType.MainEngine, EmitEventType.OriginalEvent], this.originalEventLintener.bind(this));
-        // this.internalMsgEmitter?.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
     }
     originalEventLintener(workState, point, viewId) {
         switch (workState) {

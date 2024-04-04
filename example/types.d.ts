@@ -3,7 +3,8 @@ export {}
 declare global {
     interface Window {
       room: any;
-      syncedStore:any;
-      pluginRoom:any;
+      syncedStore: any;
+      pluginRoom: any;
+      manager: any;
     }
 }
