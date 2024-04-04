@@ -1,9 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
-import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from './enum';
-import { BaseShapeOptions, BaseShapeTool } from './tools';
+import { ETextEditorType, TextOptions } from '../component/textEditor/types';
+import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EScaleType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
+import { BaseShapeOptions, BaseShapeTool, ShapeOptions } from './tools';
 
 export type IworkId = string | number; 
+
+export type ViewWorkerOptions = {
+    offscreenCanvasOpt: IOffscreenCanvasOptionType;
+    layerOpt: ILayerOptionType;
+    dpr: number;
+    originalPoint: [number, number],
+    cameraOpt: ICameraOpt;
+}
 
 export interface ICanvasSceneType {
     /** canvas 上下文 */
@@ -34,34 +43,44 @@ export interface ILayerOptionType {
     offscreen?:boolean,
     handleEvent?: boolean,
     depth?: boolean,
-    width?: number;
-    height?: number;
+    width: number;
+    height: number;
     bufferSize?: number;
 }
 export interface IUpdateNodeOpt {
     scale?: [number,number],
-    size?: {
-        width: number,
-        height: number
+    box?: {
+        x: number,
+        y: number,
+        w: number,
+        h: number
     },
     translate?: [number,number],
     selectorColor?: string,
-    color?: string,
-    opacity?:number,
+    strokeColor?: string,
+    fillColor?: string,
+    fontColor?: string,
+    fontBgColor?: string,
+    isOpacity?: boolean,
     pos?:[number, number];
     workState?: EvevtWorkState;
     useAnimation?: boolean;
     zIndex?:number;
-    zIndexDistance?:number;
+    zIndexLayer?: ElayerType;
     originPos?:[number,number]
     ops?:string;
     angle?:number;
-    centralPoint?:[number,number]
+    centralPoint?:[number,number];
+    selectScale?: number[];
+    boxScale?:[number,number];
+    boxTranslate?:[number,number];
 }
 
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
+    viewId:string;
     msgType: EPostMessageType;
     dataType: EDataType;
+    scenePath?:string;
     workState?: EvevtWorkState;
     op?: number[];
     offscreenCanvasOpt?: IOffscreenCanvasOptionType;
@@ -91,11 +110,13 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
     }>;
     willSerializeData?:boolean;
     isRunSubWork?:boolean;
-    noRender?:boolean;
     // isSafari?:boolean;
     undoTickerId?:number;
-    scenePath?:string;
     scenes?:ISerializableStorageData;
+    textType?:ETextEditorType;
+    mainTasksqueueCount?:number;
+    textUpdateForWoker?:boolean;
+    tasksqueue?:Map<string,IWorkerMessage>;
 }
 export interface IRectType {
     x:number;
@@ -116,15 +137,16 @@ export interface IMainMessage extends INormalPushMsg {
     isFullWork?: boolean;
     drawCount?: number;
     selectIds?: Array<string>;
-    color?: string;
     padding?: number;
     selectRect?: IRectType;
+    selectorColor?: string,
+    strokeColor?: string,
+    fillColor?: string,
+    isOpacity?: boolean,
     updateNodeOpts?: Map<string, IUpdateNodeOpt>;
-    nodeColor?:string;
-    nodeOpactiy?:number;
     willSyncService?:boolean;
-    newWorkDatas?:Array<{
-        op:number[];
+    newWorkDatas?: Map<string,{
+        op: number[];
         opt: BaseShapeOptions;
         workId: IworkId;
         toolsType: EToolsKey;
@@ -133,10 +155,19 @@ export interface IMainMessage extends INormalPushMsg {
     scenePath?:string;
     canvasWidth?:number;
     canvasHeight?:number;
+    workState?:EvevtWorkState;
+    canTextEdit?:boolean;
+    canRotate?:boolean;
+    scaleType?: EScaleType;
+    textOpt?:TextOptions;
+    viewId?:string;
 }
 export interface IMainMessageRenderData {
+    viewId: string
     rect?: IRectType,
     imageBitmap?: ImageBitmap;
+    
+    isDrawAll?: boolean;
     drawCanvas?: ECanvasShowType;
     
     isClear?: boolean;
@@ -148,15 +179,16 @@ export interface IMainMessageRenderData {
     offset?: {
         x:number,
         y:number,
-    }
+    },
+    translate?:[number,number];
 }
-
 export interface IBatchMainMessage {
     /** 绘制数据 */
     render?: Array<IMainMessageRenderData>;
     /** 同步服务端数据 */
     sp?: Array<IMainMessage>;
     drawCount?: number;
+    workerTasksqueueCount?:number;
 }
 
 export interface ICameraOpt {
@@ -170,13 +202,13 @@ export interface ICameraOpt {
 
 export interface IActiveToolsDataType {
     toolsType: EToolsKey;
-    toolsOpt: BaseShapeOptions;
+    toolsOpt: ShapeOptions;
 }
 
 export interface IActiveWorkDataType {
-    workId: IworkId | undefined;
+    workId?: IworkId;
     workState: EvevtWorkState;
-    toolsOpt?: BaseShapeOptions;
+    toolsOpt?: ShapeOptions;
 }
 export type IServiceWorkItem = {
     toolsType: EToolsKey;
@@ -193,12 +225,31 @@ export type IServiceWorkItem = {
     selectIds?: string[];
     oldRect?:IRectType;
     totalRect?: IRectType;
-    noRender?:boolean;
 }
 export type BaseNodeMapItem = {
     name: string;
     rect: IRectType;
-    ops?: string;
-    opt?: BaseShapeOptions;
-    toolsType?: EToolsKey;
+    op: number[];
+    opt: BaseShapeOptions;
+    centerPos: [number, number];
+    toolsType: EToolsKey;
+    canRotate: boolean;
+    scaleType: EScaleType;
 }
+// export type TextOpt = {
+//     fontSize?: number;
+//     fontColor?: string;
+//     fontBgColor?: string;
+//     fontFamily?: string;
+//     fontVariant?: string;
+//     fontWeight?: string;
+//     fontStretch?: string;
+//     textAlign?: string;
+//     verticalAlign?: string;
+// }
+// export type TextInfo = {
+//     x: number,
+//     y: number,
+//     text: string[],
+//     opt?: TextOpt
+// }

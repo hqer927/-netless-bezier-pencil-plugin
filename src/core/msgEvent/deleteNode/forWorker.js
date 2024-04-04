@@ -1,8 +1,8 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
-import { ECanvasShowType, EDataType, EPostMessageType } from "../../enum";
+import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "../../enum";
 import { SelectorShape } from "../../tools";
-import { computRect, getNodeRect, getSafetyRect } from "../../utils";
+import { computRect } from "../../utils";
 export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
     constructor() {
         super(...arguments);
@@ -30,51 +30,64 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         if (!this.localWork) {
             return;
         }
-        const { workId, willRefresh } = data;
-        if (!workId) {
+        const { removeIds, willRefresh, willSyncService, viewId } = data;
+        if (!removeIds?.length) {
             return;
         }
         let rect;
-        const workShape = this.localWork.workShapes.get(workId);
-        if (workShape && workId === SelectorShape.selectorId) {
-            const selectIds = workShape.selectIds;
-            selectIds?.forEach(name => {
-                this.localWork?.drawLayer?.getElementsByName(name).forEach(n => {
-                    n.remove();
+        const sp = [];
+        const render = [];
+        const removes = [];
+        for (const workId of removeIds) {
+            if (workId === SelectorShape.selectorId) {
+                const workShapeNode = this.localWork.workShapes.get(SelectorShape.selectorId);
+                const selectIds = workShapeNode.selectIds && [...workShapeNode.selectIds] || [];
+                for (const key of selectIds) {
+                    const info = this.localWork.vNodes.get(key);
+                    if (info) {
+                        const ms = this.commandDeleteText(key);
+                        ms && sp.push(ms);
+                    }
+                    rect = computRect(rect, this.localWork.removeNode(key));
+                    removes.push(key);
+                }
+                const r = workShapeNode?.updateSelectIds([]);
+                rect = computRect(rect, r.bgRect);
+                this.localWork.clearWorkShapeNodeCache(SelectorShape.selectorId);
+                this.localWork.workShapes.delete(SelectorShape.selectorId);
+                sp.push({
+                    type: EPostMessageType.Select,
+                    selectIds: [],
+                    willSyncService
                 });
-                this.localWork?.curNodeMap.delete(name);
-            });
-            rect = workShape.oldRect;
-            this.localWork.drawLayer?.parent?.getElementById(SelectorShape.selectorId)?.remove();
-            this.localWork.workShapes.delete(SelectorShape.selectorId);
+                continue;
+            }
+            const ms = this.commandDeleteText(workId);
+            ms && sp.push(ms);
+            rect = computRect(rect, this.localWork.removeNode(workId));
+            removes.push(workId);
         }
-        else if (workId) {
-            const key = workId.toString();
-            let rect = getNodeRect(key, this.localWork.fullLayer);
-            if (rect) {
-                this.localWork.fullLayer.getElementsByName(key).forEach(c => c.remove());
-            }
-            const r = getNodeRect(key, this.localWork.drawLayer);
-            if (r) {
-                rect = computRect(rect, r);
-                this.localWork.drawLayer?.getElementsByName(key).forEach(c => c.remove());
-            }
-            if (rect) {
-                rect = getSafetyRect(rect);
-            }
-            this.localWork?.curNodeMap.delete(key);
+        if (willSyncService) {
+            sp.push({
+                type: EPostMessageType.RemoveNode,
+                removeIds: removes,
+                undoTickerId: data.undoTickerId
+            });
         }
         if (rect && willRefresh) {
+            render.push({
+                rect,
+                drawCanvas: ECanvasShowType.Bg,
+                clearCanvas: ECanvasShowType.Bg,
+                isClear: true,
+                isFullWork: true,
+                viewId
+            });
+        }
+        if (render.length || sp.length) {
             this.localWork._post({
-                render: [
-                    {
-                        rect,
-                        drawCanvas: ECanvasShowType.Bg,
-                        clearCanvas: ECanvasShowType.Bg,
-                        isClear: true,
-                        isFullWork: true,
-                    }
-                ]
+                render,
+                sp
             });
         }
     }
@@ -83,5 +96,15 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
             return;
         }
         this.serviceWork.removeSelectWork(data);
+    }
+    commandDeleteText(workId) {
+        const curNode = this.localWork?.vNodes.get(workId);
+        if (curNode && curNode.toolsType === EToolsKey.Text) {
+            return {
+                type: EPostMessageType.TextUpdate,
+                toolsType: EToolsKey.Text,
+                workId
+            };
+        }
     }
 }

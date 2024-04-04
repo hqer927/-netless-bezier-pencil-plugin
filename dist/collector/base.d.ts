@@ -1,22 +1,20 @@
-import { BaseCollectorReducerAction, Diff, INormalPushMsg, ISerializableStorageData } from "./types";
-import { BezierPencilPlugin } from "../plugin";
 import { IworkId } from "../core";
-export declare abstract class BaseCollector {
-    abstract uid: string;
-    abstract serviceStorage: ISerializableStorageData;
-    abstract plugin?: BezierPencilPlugin;
-    abstract storage: ISerializableStorageData;
+import { TeachingAidsPluginLike } from "../plugin/types";
+export declare abstract class BaseCollector<T> {
+    plugin: TeachingAidsPluginLike;
+    uid: string;
+    abstract serviceStorage: T;
+    abstract storage: T;
     protected abstract namespace: string;
-    setNamespace(namespace: string): void;
-    getNamespaceData(namespace: string): ISerializableStorageData;
+    constructor(plugin: TeachingAidsPluginLike);
+    getNamespaceData(): T;
+    getUidFromKey(key: string): string;
     isLocalId(key: string): boolean;
     getLocalId(key: string): string;
+    isSelector(key: string): boolean;
     abstract transformKey(key: IworkId): string;
-    abstract keyTransformWorkId(key: string): string;
     abstract isOwn(key: IworkId): boolean;
-    abstract dispatch(action: BaseCollectorReducerAction): void;
-    abstract transformToSerializableData(data: INormalPushMsg): string;
-    abstract transformToNormalData(str: string): INormalPushMsg;
-    abstract addStorageStateListener(callBack: (diff: Diff<any>) => void): void;
+    abstract dispatch(action: any): void;
+    abstract addStorageStateListener(callBack: (diff: any) => void): void;
     abstract removeStorageStateListener(): void;
 }

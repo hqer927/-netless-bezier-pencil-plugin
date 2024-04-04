@@ -8,6 +8,7 @@ import { TranslateNodeMethod } from './translateNode/forMain';
 import { DeleteNodeMethod } from './deleteNode/forMain';
 import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
+export { ZIndexNodeMethod };
 export class MethodBuilderMain {
     constructor(emitTypes) {
         Object.defineProperty(this, "builders", {
@@ -39,10 +40,13 @@ export class MethodBuilderMain {
         }
         return undefined;
     }
-    registerForMainEngine(emtType, main, serviceColloctor) {
+    getBuilder(type) {
+        return this.builders.get(type);
+    }
+    registerForMainEngine(emtType, control) {
         this.builders.forEach(builder => {
             if (builder) {
-                builder.registerForMainEngine(emtType, main, serviceColloctor);
+                builder.registerForMainEngine(emtType, control);
             }
         });
         return this;

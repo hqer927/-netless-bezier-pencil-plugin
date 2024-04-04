@@ -1,58 +1,52 @@
-import { Group } from "spritejs";
-import { BaseShapeOptions, BaseShapeTool } from "./base";
-import { EDataType, EPostMessageType, EToolsKey } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkItem, BaseNodeMapItem } from "../types";
+import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkItem } from "../types";
 import { Point2d } from "../utils/primitives/Point2d";
+import { VNodeManager } from "../worker/vNodeManager";
+import { TextOptions } from "../../component/textEditor/types";
+import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
 export interface SelectorOptions extends BaseShapeOptions {
 }
-type CurNodeMapItem = {
-    name: string;
-    rect: IRectType;
-    color: string;
-    pos: [number, number];
-    rotate: number;
-    scale: [number, number];
-    opactiy: number;
-};
 export declare class SelectorShape extends BaseShapeTool {
-    updataOptService(): IRectType | undefined;
+    readonly toolsType: EToolsKey;
     static selectorId: string;
     static selectorBorderId: string;
     protected tmpPoints: Array<Point2d>;
-    toolsType: EToolsKey;
     protected workOptions: BaseShapeOptions;
-    protected syncTimestamp: number;
-    curNodeMap: Map<string, CurNodeMapItem>;
     selectIds?: string[];
-    oldRect?: IRectType;
-    static SelectBorderPadding: number;
-    nodeColor?: string;
-    nodeOpactiy?: number;
+    selectorColor?: string;
+    strokeColor?: string;
+    fillColor?: string;
     oldSelectRect?: IRectType;
-    constructor(workOptions: SelectorOptions, fullLayer: Group, drawLayer?: Group);
-    computNodeMap(nodeMaps: Map<string, BaseNodeMapItem>): void;
+    canRotate: boolean;
+    canTextEdit: boolean;
+    scaleType: EScaleType;
+    textOpt?: TextOptions;
+    constructor(props: BaseShapeToolProps);
     private computSelector;
     private updateTempPoints;
+    private drawSelector;
     private draw;
+    private getSelecteorInfo;
     consume(props: {
         data: IWorkerMessage;
-        nodeMaps?: Map<string, BaseNodeMapItem>;
     }): IMainMessage;
     consumeAll(): IMainMessage;
     consumeService(): undefined;
-    combineConsume(): undefined;
     clearTmpPoints(): void;
     clearSelectData(): void;
     private backToFullLayer;
     private sealToDrawLayer;
-    private updateSelectorSize;
-    private updateSelectorRect;
     private getSelectorRect;
+    isCanFillColor(toolsType?: EToolsKey): boolean;
     updateSelector(param: {
         updateSelectorOpt: IUpdateNodeOpt;
+        vNodes: VNodeManager;
         selectIds?: string[];
+        willSerializeData?: boolean;
+        worker?: LocalWorkForFullWorker;
     }): IMainMessage | undefined;
-    blurSelector(nodeMaps: Map<string, BaseNodeMapItem>): {
+    blurSelector(): {
         type: EPostMessageType;
         dataType: EDataType;
         rect: IRectType | undefined;
@@ -60,13 +54,10 @@ export declare class SelectorShape extends BaseShapeTool {
         willSyncService: boolean;
     };
     private getRightServiceId;
-    private drawSelector;
-    selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>, curNodeMap: Map<string, BaseNodeMapItem>): IRectType | undefined;
-    removeService(): IRectType | undefined;
-    getSelector(nodeMaps: Map<string, BaseNodeMapItem>): IRectType | undefined;
-    updateSelectIds(nextSelectIds: string[], nodeMaps: Map<string, BaseNodeMapItem>): {
+    selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>): IRectType | undefined;
+    reRenderSelector(): IRectType | undefined;
+    updateSelectIds(nextSelectIds: string[]): {
         bgRect: IRectType | undefined;
         selectRect: IRectType | undefined;
     };
 }
-export {};

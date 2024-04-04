@@ -1,23 +1,24 @@
-import { Group } from "spritejs";
-import { BaseShapeOptions, BaseShapeTool } from "./base";
-import { EToolsKey } from "../enum";
+import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
+import { EScaleType, EToolsKey } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType } from "../types";
 import { EStrokeType } from "../../plugin/types";
 import { Point2d } from "../utils/primitives/Point2d";
 export interface LaserPenOptions extends BaseShapeOptions {
     thickness: number;
     duration: number;
+    strokeColor: string;
     strokeType: Omit<EStrokeType, 'Stroke'>;
 }
 export declare class LaserPenShape extends BaseShapeTool {
-    updataOptService(): undefined;
+    readonly toolsType: EToolsKey;
+    readonly canRotate: boolean;
+    readonly scaleType: EScaleType;
     protected syncTimestamp: number;
     private syncIndex;
-    readonly toolsType: EToolsKey;
     protected tmpPoints: Array<Point2d>;
     protected workOptions: LaserPenOptions;
     private consumeIndex;
-    constructor(workOptions: LaserPenOptions, fullLayer: Group);
+    constructor(props: BaseShapeToolProps);
     combineConsume(): undefined;
     setWorkOptions(workOptions: LaserPenOptions): void;
     consume(props: {

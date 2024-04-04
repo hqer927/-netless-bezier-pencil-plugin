@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import EventEmitter2 from "eventemitter2";
-import { MainEngineForWorker } from "../core";
-import { BaseCollectorReducerAction, Collector } from "../collector";
-import { cloneDeep, debounce, isEqual } from "lodash";
+import { BaseCollectorReducerAction, Collector, Storage_Selector_key } from "../collector";
+import cloneDeep from "lodash/cloneDeep";
+import debounce from "lodash/debounce";
+import isEqual from "lodash/isEqual";
+
 import type { Room } from "white-web-sdk";
+import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
+import { MasterController } from "../core/mainEngine";
 
 export enum EUndoType {
     sdk = 1, 
@@ -20,83 +24,160 @@ export interface IUndoStackItem {
     id?: number;
     sdkStep?: number;
     data?: Set<ILocalStorageDataItem>;
+    scenePath:string;
 }
 export interface ILocalStorageDataItem {
     dataType: EUndoDataType;
     key: string;
     data: BaseCollectorReducerAction | [BaseCollectorReducerAction, BaseCollectorReducerAction];
 }
+export interface UndoRedoMethodProps extends BaseSubWorkModuleProps {
+    viewId:string
+}
 export class UndoRedoMethod {
     static sdkCallBack: <NAME extends string>(name: NAME, listener: any) => void;
     static MaxStackLength = 20;
-    static emitter: EventEmitter2 = new EventEmitter2();
     static waitTime = 100;
+    emitter: EventEmitter2 = new EventEmitter2();
     undoStack: IUndoStackItem[];
     redoStack: IUndoStackItem[];
-    worker: MainEngineForWorker;
-    colloctor: Collector;
+    worker: MasterController;
+    collector: Collector;
+    control:TeachingAidsManagerLike;
     room: Room;
     private isTicking:boolean;
     private undoTickerId?:number;
+    private viewId:string;
+    private scenePath?:string;
     private tickStartStorerCache?:Map<string,BaseCollectorReducerAction|undefined>;
     private excludeIds:Set<string> = new Set();
-    constructor(room:Room, worker: MainEngineForWorker, colloctor: Collector) {
+    constructor(props: UndoRedoMethodProps) {
+        const {control, internalMsgEmitter, viewId } = props;
+        this.control = control;
+        this.emitter = internalMsgEmitter;
         this.undoStack = [];
         this.redoStack = [];
-        this.room = room;
-        this.worker = worker;
-        this.colloctor = colloctor;
+        this.room = control.room as Room;
+        this.worker = control.worker;
+        this.collector = control.collector as Collector;
         this.isTicking = false;
-        UndoRedoMethod.emitter.on('undoTickerStart',this.undoTickerStart.bind(this));
-        UndoRedoMethod.emitter.on('undoTickerEnd',this.undoTickerEnd.bind(this));
-        UndoRedoMethod.emitter.on('excludeIds',this.addExcludeIds.bind(this));
+        this.viewId = viewId;
     }
-    private addExcludeIds(ids:string[]){
+    addExcludeIds(ids:string[]){
         if (this.isTicking) {
             for (const id of ids) {
                 this.excludeIds.add(id);
             }
         }
     }
-    addSdkUndoData(step:number){
-        const i = this.undoStack.findIndex(s=>s?.sdkStep && s.sdkStep > step);
-        // console.log('addSdkUndoData', step, i)
-        if (i>-1) {
-            this.undoStack.splice(i);
-        } else if (step > 0) {
-            const i = this.undoStack.findIndex(s=> s?.sdkStep && s.sdkStep === step);
-            // const j = this.redoStack.findIndex(s=> s?.sdkStep && s.sdkStep === step);
-            // console.log('addSdkUndoData1', step, i, j)
-            if (i === -1) {
-                if (this.isTicking && this.undoTickerId) {
-                    const f = this.undoStack.find(f=>f.id === this.undoTickerId);
-                    // 如果undoTickerEnd先执行,则f能find
-                    if (f) {
-                        f.type = EUndoType.both;
-                        f.sdkStep = step;
-                    } else {
-                        this.undoStack.push({
-                            id: this.undoTickerId,
-                            type: EUndoType.both,
-                            sdkStep: step,
-                        });
-                        if (this.undoStack.length > UndoRedoMethod.MaxStackLength) {
-                            this.undoStack.shift();
-                        }
-                        UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
-                    }
-                } else {
-                    this.undoStack.push({
-                        type: EUndoType.sdk,
-                        sdkStep: step
-                    })
-                    if (this.undoStack.length > UndoRedoMethod.MaxStackLength) {
-                        this.undoStack.shift();
-                    }
-                    UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
+    undoTickerStart(id:number, scenePath:string) {
+        this.isTicking = true;
+        this.excludeIds.clear();
+        this.undoTickerId = id;
+        this.scenePath = scenePath;
+        const storage = this.collector.storage[this.viewId] && this.collector.storage[this.viewId][scenePath] || {};
+        this.tickStartStorerCache = new Map(Object.entries(cloneDeep(storage)));
+    }
+    undoTickerEnd = debounce((id:number, viewId:string, scenePath:string )=> {
+        if (id === this.undoTickerId && scenePath === this.scenePath && viewId === this.viewId && this.tickStartStorerCache) {
+            const storage = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] || {};
+            const diff = this.diffFun(
+                this.tickStartStorerCache, 
+                new Map(Object.entries(storage))
+            );
+            // console.log('undoTickerEnd', id, viewId, storage, diff)
+            if(diff.size) {
+                this.undoStack.push({
+                    id,
+                    type: EUndoType.plugin,
+                    data: diff,
+                    scenePath
+                });
+                if (this.undoStack.length > UndoRedoMethod.MaxStackLength) {
+                    this.undoStack.shift();
                 }
+                this.emitter.emit('onCanUndoStepsUpdate', this.undoStack.length);
+            }
+            if (this.redoStack.length) {
+                this.redoStack.length = 0;
+                this.emitter.emit('onCanRedoStepsUpdate', this.redoStack.length);
             }
         }
+        this.isTicking = false;
+        this.scenePath = undefined;
+        this.tickStartStorerCache = undefined;
+        this.undoTickerId = undefined;
+        this.excludeIds.clear();
+    }, UndoRedoMethod.waitTime)
+    undo(scenePath:string): number {
+        let i = this.undoStack.length - 1;
+        while (i >= 0) {
+            const data = this.undoStack[i];
+            if (data.scenePath === scenePath) {
+                const data = this.undoStack[i];
+                if (data) {
+                    this.redoStack.push(data);
+                    if (data.type === EUndoType.plugin && data.data) {
+                        this.refreshPlugin(data);
+                    }
+                }
+                this.undoStack.splice(i,1);
+                break;
+            }
+            i--;
+        }
+        const undoLength = this.undoStack.filter(s=>s.scenePath === scenePath).length;
+        const redoLength = this.redoStack.filter(s=>s.scenePath === scenePath).length;
+        this.emitter.emit("onCanUndoStepsUpdate", undoLength);
+        this.emitter.emit("onCanRedoStepsUpdate", redoLength);
+        return undoLength;
+    }
+    redo(scenePath:string): number {
+        let i = this.redoStack.length - 1;
+        while (i > 0) {
+            const data = this.redoStack[i];
+            if (data.scenePath === scenePath) {
+                const data = this.redoStack[i];
+                if (data) {
+                    this.undoStack.push(data);
+                    if (data.type === EUndoType.plugin && data.data) {
+                        this.refreshPlugin(data,true);
+                    }
+                }
+                this.redoStack.splice(i,1);
+                break;
+            }
+            i--;
+        }
+        const undoLength = this.undoStack.filter(s=>s.scenePath === scenePath).length;
+        const redoLength = this.redoStack.filter(s=>s.scenePath === scenePath).length;
+        this.emitter.emit("onCanUndoStepsUpdate", undoLength);
+        this.emitter.emit("onCanRedoStepsUpdate", redoLength);
+        return redoLength;
+    }
+    clear(): void {
+        this.clearUndo();
+        this.clearRedo();
+    }
+    clearUndo(): void {
+        this.undoStack.length = 0;
+        this.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
+    }
+    clearRedo(): void {
+        this.redoStack.length = 0;
+        this.emitter.emit("onCanRedoStepsUpdate", this.redoStack.length);
+    }
+    canUndo(): boolean {
+        if (this.undoStack.length) {
+            return true;
+        }
+        return false;
+    }
+    canRedo(): boolean {
+        if (this.redoStack.length) {
+            return true;
+        }
+        return false;
     }
     private diffFun(_old:Map<string, BaseCollectorReducerAction|undefined>, _new:Map<string, BaseCollectorReducerAction|undefined>) {
         const diff:Set<ILocalStorageDataItem> = new Set();
@@ -122,7 +203,7 @@ export class UndoRedoMethod {
             _oldV && diff.add({
                 dataType: EUndoDataType.Delete,
                 key,
-                data: _oldV
+                data: _oldV,
             })
         }
         for (const key of newKeys) {
@@ -131,48 +212,12 @@ export class UndoRedoMethod {
                 diff.add({
                     dataType: EUndoDataType.Draw,
                     key,
-                    data: _newV
+                    data: _newV,
                 })
             }
         }
         return diff;
     }
-    undoTickerStart(id:number) {
-        this.excludeIds.clear();
-        this.isTicking = true;
-        this.undoTickerId = id; 
-        this.tickStartStorerCache = new Map(Object.entries(cloneDeep(this.colloctor.storage)));
-    }
-    undoTickerEnd = debounce((id:number)=> {
-        if (id === this.undoTickerId && this.tickStartStorerCache) {
-            this.isTicking = false;
-            const diff = this.diffFun(this.tickStartStorerCache, new Map(Object.entries(this.colloctor.storage)));
-            // console.log('undoTickerEnd', id, diff)
-            const f = this.undoStack.find(f=>f.id === this.undoTickerId);
-            // 针对的是EUndoType.all这种场景,如果addSdkUndoData先执行,则f能find
-            if (f) {
-                f.data = diff;
-                // console.log('undoTickerEnd1', f)
-            } else if(diff.size) {
-                this.undoStack.push({
-                    id,
-                    type: EUndoType.plugin,
-                    data: diff
-                });
-                if (this.undoStack.length > UndoRedoMethod.MaxStackLength) {
-                    this.undoStack.shift();
-                }
-                UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
-            }
-            if (this.redoStack.length) {
-                this.redoStack.length = 0;
-                UndoRedoMethod.emitter.emit("onCanRedoStepsUpdate", this.redoStack.length);
-            }
-            this.tickStartStorerCache = undefined;
-            this.undoTickerId = undefined;
-            this.excludeIds.clear();
-        }
-    }, UndoRedoMethod.waitTime)
     private isDrawEffectiveScene(value:ILocalStorageDataItem, keys:string[]):boolean {
         const {key} = value
         if (keys.includes(key)) {
@@ -180,12 +225,12 @@ export class UndoRedoMethod {
         }
         return true;
     }
-    private isDeleteEffectiveScene(value:ILocalStorageDataItem, keys:string[]):boolean {
+    private isDeleteEffectiveScene(value:ILocalStorageDataItem, keys:string[], scenePath:string):boolean {
         const {key} = value
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+        const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -193,12 +238,12 @@ export class UndoRedoMethod {
         }
         return true;
     }
-    private isOldEffectiveScene(value:ILocalStorageDataItem, keys:string[]):boolean {
+    private isOldEffectiveScene(value:ILocalStorageDataItem, keys:string[],scenePath:string):boolean {
         const {key} = value
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+        const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -213,22 +258,28 @@ export class UndoRedoMethod {
         }
         return true;
     }
-    private refreshPlugin(targetData: Set<ILocalStorageDataItem>, isRedo:boolean = false) {
+    private refreshPlugin(item: IUndoStackItem, isRedo:boolean = false) {
         let isOk:boolean;
-        const keys = Object.keys(this.colloctor.storage);
+        const {scenePath} = item;
+        const targetData = item.data;
+        if(!targetData){
+            return;
+        }
         for (const value of targetData.values()) {
-            switch (value.dataType) {
+            const {dataType, data, key} = value;
+            const keys = Object.keys(this.collector.storage[this.viewId][scenePath]);
+            switch (dataType) {
                 case EUndoDataType.Draw:
-                    isOk = isRedo ? this.isDrawEffectiveScene(value, keys) : this.isDeleteEffectiveScene(value, keys);
+                    isOk = isRedo ? this.isDrawEffectiveScene(value, keys) : this.isDeleteEffectiveScene(value, keys, scenePath);
                     if (isOk) {
-                        if (isRedo && !Array.isArray(value.data)) {
-                            if (value.data.updateNodeOpt?.useAnimation) {
-                                value.data.updateNodeOpt.useAnimation = false;
+                        if (isRedo && !Array.isArray(data)) {
+                            if (data.updateNodeOpt?.useAnimation) {
+                                data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
-                                const selectIds = value.data.selectIds;
+                            if (this.collector.getLocalId(key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                                const selectIds = data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -239,29 +290,32 @@ export class UndoRedoMethod {
                                         }
                                     }
                                     if (isfalt) {
-                                        value.data.selectIds = selectIds.filter(id=>!!id);
+                                        data.selectIds = selectIds.filter(id=>!!id);
                                     } 
                                 }  
                             }
-                            this.colloctor.updateValue(value.key, value.data, {isAfterUpdate: true});
+                            // console.log('refreshPlugin--1', value.data)
+                            this.collector.updateValue(value.key, data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         } else if(!isRedo && !Array.isArray(value.data)) {
-                            this.colloctor.updateValue(value.key, undefined, {isAfterUpdate: true});
+                            // console.log('refreshPlugin--2', undefined)
+                            this.collector.updateValue(value.key, undefined, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }   
                     break;
                 case EUndoDataType.Delete:
-                    isOk = isRedo ? this.isDeleteEffectiveScene(value, keys) : this.isDrawEffectiveScene(value, keys);
+                    isOk = isRedo ? this.isDeleteEffectiveScene(value, keys,scenePath) : this.isDrawEffectiveScene(value, keys);
                     if (isOk) {
-                        if (isRedo && !Array.isArray(value.data)) {
-                            this.colloctor.updateValue(value.key, undefined, {isAfterUpdate: true});
-                        } else if(!isRedo && !Array.isArray(value.data)) {
-                            if (value.data.updateNodeOpt?.useAnimation) {
-                                value.data.updateNodeOpt.useAnimation = false;
+                        if (isRedo && !Array.isArray(data)) {
+                            // console.log('refreshPlugin--6', undefined)
+                            this.collector.updateValue(key, undefined, {isAfterUpdate: true,viewId:this.viewId,scenePath});
+                        } else if(!isRedo && !Array.isArray(data)) {
+                            if (data.updateNodeOpt?.useAnimation) {
+                                data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
-                                const selectIds = value.data.selectIds;
+                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                                const selectIds = data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -272,30 +326,31 @@ export class UndoRedoMethod {
                                         }
                                     }
                                     if (isfalt) {
-                                        value.data.selectIds = selectIds.filter(id=>!!id);
+                                        data.selectIds = selectIds.filter(id=>!!id);
                                     } 
                                 }  
                             }
-                            this.colloctor.updateValue(value.key, value.data, {isAfterUpdate: true});
+                            // console.log('refreshPlugin--5', value.data)
+                            this.collector.updateValue(value.key, value.data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }
                     break;
                 case EUndoDataType.Update:
-                    isOk = isRedo ? this.isNewEffectiveScene(value, keys) : this.isOldEffectiveScene(value, keys);
+                    isOk = isRedo ? this.isNewEffectiveScene(value, keys) : this.isOldEffectiveScene(value, keys, scenePath);
                     if (isOk) {
-                        if (isRedo && Array.isArray(value.data) && value.data.length === 2) {
-                            const newData = value.data[1];
+                        if (isRedo && Array.isArray(data) && data.length === 2) {
+                            const newData = data[1];
                             if (newData.updateNodeOpt?.useAnimation) {
                                 newData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
                                 const selectIds = newData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
-                                    for (const data of otherSelectorData) {
+                                    for (const _data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
-                                            if (data?.selectIds?.includes(selectIds[i])) {
+                                            if (_data?.selectIds && _data.selectIds?.includes(selectIds[i])) {
                                                 delete selectIds[i];
                                                 isfalt = true;
                                             }  
@@ -306,20 +361,21 @@ export class UndoRedoMethod {
                                     } 
                                 }  
                             }
-                            this.colloctor.updateValue(value.key, newData, {isAfterUpdate: true});
-                        } else if(!isRedo && Array.isArray(value.data) && value.data.length === 2) {
-                            const oldData = value.data[0];
+                            // console.log('refreshPlugin--4', newData)
+                            this.collector.updateValue(key, newData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                        } else if(!isRedo && Array.isArray(data) && data.length === 2) {
+                            const oldData = data[0];
                             if (oldData.updateNodeOpt?.useAnimation) {
                                 oldData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.colloctor.getLocalId(value.key) === 'selector' && this.colloctor.isOwn(value.key)) {
+                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
                                 const selectIds = oldData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.colloctor.getLocalId(k) === 'selector' && !this.colloctor.isOwn(k)).map(key=>this.colloctor.storage[key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
-                                    for (const data of otherSelectorData) {
+                                    for (const _data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
-                                            if (data?.selectIds?.includes(selectIds[i])) {
+                                            if (_data?.selectIds && _data.selectIds.includes(selectIds[i])) {
                                                 delete selectIds[i];
                                                 isfalt = true;
                                             }  
@@ -330,7 +386,8 @@ export class UndoRedoMethod {
                                     } 
                                 }  
                             }   
-                            this.colloctor.updateValue(value.key, oldData, {isAfterUpdate: true});
+                            // console.log('refreshPlugin--3', oldData)
+                            this.collector.updateValue(value.key, oldData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }
                     break;
@@ -338,62 +395,5 @@ export class UndoRedoMethod {
                     break;
             }
         }
-    }
-    undo(_undo:()=>number): number {
-        const data = this.undoStack.pop();
-        if (data) {
-            this.redoStack.push(data);
-            if ((data.type === EUndoType.sdk || data.type === EUndoType.both) && data.sdkStep) {
-                _undo.call(this.room);
-            }
-            if ((data.type === EUndoType.plugin || data.type === EUndoType.both) && data.data) {
-                this.refreshPlugin(data.data);
-            }
-        }
-        UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
-        UndoRedoMethod.emitter.emit("onCanRedoStepsUpdate", this.redoStack.length);
-        return this.undoStack.length;
-    }
-    redo(_redo:()=>number): number {
-        const data = this.redoStack.pop();
-        if (data) {
-            this.undoStack.push(data);
-            if ((data.type === EUndoType.plugin || data.type === EUndoType.both) && data.data) {
-                this.refreshPlugin(data.data, true);
-            }
-            if ((data.type === EUndoType.sdk || data.type === EUndoType.both) && data.sdkStep) {
-                _redo.call(this.room);
-            }
-        }
-        UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
-        UndoRedoMethod.emitter.emit("onCanRedoStepsUpdate", this.redoStack.length);
-        return this.redoStack.length;
-    }
-    clear(): void {
-        this.clearUndo();
-        this.clearRedo();
-    }
-    clearUndo(): void {
-        this.undoStack.length = 0;
-        UndoRedoMethod.emitter.emit("onCanUndoStepsUpdate", this.undoStack.length);
-    }
-    clearRedo(): void {
-        this.redoStack.length = 0;
-        UndoRedoMethod.emitter.emit("onCanRedoStepsUpdate", this.redoStack.length);
-    }
-    canUndo(): boolean {
-        if (this.undoStack.length) {
-            return true;
-        }
-        return false;
-    }
-    canRedo(): boolean {
-        if (this.redoStack.length) {
-            return true;
-        }
-        return false;
-    }
-    destroy(){
-        UndoRedoMethod.emitter.removeAllListeners();
     }
 }

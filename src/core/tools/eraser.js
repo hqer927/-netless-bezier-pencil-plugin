@@ -1,22 +1,24 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseShapeTool } from "./base";
-import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
-import { computRect, isIntersect } from "../utils";
-// import { EStrokeType } from "../../plugin/types";
-import { transformToNormalData } from "../../collector/utils";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
+import { computRect, getRectFromPoints, isIntersect } from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import lineclip from "lineclip";
-import { EStrokeType } from "../../plugin/types";
+import { Point2d } from "../utils/primitives/Point2d";
 export class EraserShape extends BaseShapeTool {
-    updataOptService() {
-        return;
-    }
-    constructor(workOptions, fullLayer) {
-        super(fullLayer);
-        Object.defineProperty(this, "syncTimestamp", {
+    constructor(props) {
+        super(props);
+        Object.defineProperty(this, "canRotate", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: false
+        });
+        Object.defineProperty(this, "scaleType", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: EScaleType.none
         });
         Object.defineProperty(this, "toolsType", {
             enumerable: true,
@@ -36,7 +38,6 @@ export class EraserShape extends BaseShapeTool {
             writable: true,
             value: void 0
         });
-        // private removeIds:Array<string>= [];
         Object.defineProperty(this, "worldPosition", {
             enumerable: true,
             configurable: true,
@@ -61,83 +62,18 @@ export class EraserShape extends BaseShapeTool {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "curNodeMap", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Map()
-        });
-        this.workOptions = workOptions;
-        this.syncTimestamp = 0;
+        this.workOptions = props.toolsOpt;
         this.worldPosition = this.fullLayer.worldPosition;
         this.worldScaling = this.fullLayer.worldScaling;
     }
-    computNodeMap(nodeMaps) {
-        this.curNodeMap.clear();
-        nodeMaps.forEach(v => {
-            const c = this.fullLayer.getElementsByName(v.name)[0];
-            const op = v.ops && transformToNormalData(v.ops);
-            if (c && op.length) {
-                const polyline = [];
-                for (let i = 0; i < op.length; i += 3) {
-                    const p = new Vec2d(op[i] * this.worldScaling[0] + this.worldPosition[0], op[i + 1] * this.worldScaling[1] + this.worldPosition[1], op[i + 2]);
-                    polyline.push(p);
-                }
-                let opt = v.opt;
-                if (!opt) {
-                    let color = c.getAttribute('strokeColor');
-                    const className = c.className.split(',');
-                    const strokeType = Number(className[2]);
-                    if (c.tagName === "GROUP") {
-                        if (strokeType === EStrokeType.Stroke) {
-                            color = c.getAttribute('bgcolor');
-                        }
-                        else {
-                            color = c.children[0].getAttribute('strokeColor');
-                        }
-                    }
-                    const opacity = c.getAttribute('opacity');
-                    const scale = c.getAttribute('scale');
-                    const zIndex = c.getAttribute('zIndex');
-                    const rotate = c.getAttribute('rotate');
-                    const syncUnitTime = this.workOptions.syncUnitTime;
-                    opt = {
-                        color,
-                        opacity,
-                        syncUnitTime,
-                        zIndex,
-                        scale,
-                        rotate,
-                        strokeType,
-                    };
-                }
-                this.curNodeMap.set(v.name, {
-                    name: v.name,
-                    rect: v.rect,
-                    polyline,
-                    opt,
-                    toolsType: v.toolsType || EToolsKey.Pencil
-                });
-            }
-        });
-    }
-    updataNodeMap(key, value) {
-        const op = value.op;
-        const polyline = [];
-        for (let i = 0; i < op.length; i += 3) {
-            const p = new Vec2d(op[i] * this.worldScaling[0] + this.worldPosition[0], op[i + 1] * this.worldScaling[1] + this.worldPosition[1], op[i + 2]);
-            polyline.push(p);
-        }
-        this.curNodeMap.set(key, {
-            name: value.name,
-            rect: value.rect,
-            polyline,
-            opt: value.opt,
-            toolsType: value.toolsType || EToolsKey.Pencil
-        });
-    }
     combineConsume() {
         return undefined;
+    }
+    consumeService() {
+        return undefined;
+    }
+    setWorkOptions(setWorkOptions) {
+        super.setWorkOptions(setWorkOptions);
     }
     createEraserRect(point) {
         const x = point[0] * this.worldScaling[0] + this.worldPosition[0];
@@ -150,13 +86,6 @@ export class EraserShape extends BaseShapeTool {
             h: height,
         };
         this.eraserPolyline = [this.eraserRect.x, this.eraserRect.y, this.eraserRect.x + this.eraserRect.w, this.eraserRect.y + this.eraserRect.h];
-    }
-    consumeService() {
-        return undefined;
-    }
-    setWorkOptions(setWorkOptions) {
-        super.setWorkOptions(setWorkOptions);
-        this.syncTimestamp = Date.now();
     }
     computRectCenterPoints() {
         const ps = this.tmpPoints.slice(-2);
@@ -184,64 +113,6 @@ export class EraserShape extends BaseShapeTool {
         const v2 = new Vec2d(p2[0], p2[1]);
         const { width, height } = EraserShape.eraserSizes[this.workOptions.thickness];
         return Vec2d.Dist(v1, v2) < Math.hypot(width, height) * 0.5;
-    }
-    consume(props) {
-        const { op, workState } = props.data;
-        if (!op || op.length === 0) {
-            return {
-                type: EPostMessageType.None
-            };
-        }
-        if (workState === EvevtWorkState.Start) {
-            props.nodeMaps && this.computNodeMap(props.nodeMaps);
-        }
-        const oldTmpLength = this.tmpPoints.length;
-        if (oldTmpLength > 1 && this.isNear([op[0], op[1]], [this.tmpPoints[oldTmpLength - 2], this.tmpPoints[oldTmpLength - 1]])) {
-            return {
-                type: EPostMessageType.None
-            };
-        }
-        if (props.nodeMaps) {
-            if (oldTmpLength === 4) {
-                this.tmpPoints.shift();
-                this.tmpPoints.shift();
-            }
-            this.tmpPoints.push(op[0], op[1]);
-            const points = this.computRectCenterPoints();
-            let totalRect;
-            const totalRemoveIds = new Set();
-            const totalNewWorkDatas = new Map();
-            // console.log('points', this.tmpPoints, points)
-            for (let i = 0; i < points.length - 1; i += 2) {
-                this.createEraserRect(points.slice(i, i + 2));
-                const { rect, removeIds, newWorkDatas } = this.remove();
-                totalRect = computRect(totalRect, rect);
-                removeIds.forEach(id => totalRemoveIds.add(id));
-                newWorkDatas?.forEach(w => {
-                    if (!totalRemoveIds.has(w.workId)) {
-                        totalNewWorkDatas.set(w.workId, w);
-                    }
-                });
-            }
-            if (totalRect && totalRemoveIds.size) {
-                const newWorkDatas = [];
-                for (const v of totalNewWorkDatas.values()) {
-                    if (!totalRemoveIds.has(v.workId)) {
-                        newWorkDatas.push(v);
-                    }
-                }
-                return {
-                    type: EPostMessageType.RemoveNode,
-                    dataType: EDataType.Local,
-                    rect: totalRect,
-                    removeIds: [...totalRemoveIds],
-                    newWorkDatas
-                };
-            }
-        }
-        return {
-            type: EPostMessageType.None
-        };
     }
     cutPolyline(inters, polyline) {
         let result = [polyline];
@@ -337,71 +208,129 @@ export class EraserShape extends BaseShapeTool {
         }
         return res;
     }
-    remove() {
+    remove(props) {
+        const { curNodeMap, removeIds, newWorkDatas } = props;
         const { isLine } = this.workOptions;
         let rect;
-        const removeIds = [];
-        const removeNodes = [];
-        const newWorkDatas = [];
-        this.curNodeMap.forEach((np, key) => {
-            const node = this.fullLayer.getElementsByName(np.name)[0];
-            if (node && np.rect && this.eraserRect && this.eraserPolyline && isIntersect(this.eraserRect, np.rect)) {
-                if (np.polyline.length > 1) {
-                    const intersect = lineclip.polyline(np.polyline.map(p => p.XY), this.eraserPolyline);
-                    if (intersect.length) {
-                        removeNodes.push(node);
-                        removeIds.push(np.name);
-                        // this.removeIds.push(np.name);
-                        if (!isLine) {
-                            const intersectArr = this.translateIntersect(intersect);
-                            const newLines = this.cutPolyline(intersectArr, np.polyline);
-                            for (let i = 0; i < newLines.length; i++) {
-                                const workId = `${key}_s_${i}`;
-                                const op = [];
-                                newLines[i].forEach(o => {
-                                    op.push((o.x - this.worldPosition[0]) / this.worldScaling[0], (o.y - this.worldPosition[1]) / this.worldScaling[1], o.z);
-                                });
-                                newWorkDatas.push({
-                                    workId,
-                                    op,
-                                    opt: np.opt,
-                                    toolsType: np.toolsType
-                                });
+        for (const [key, np] of curNodeMap.entries()) {
+            if (np.rect && this.eraserRect && this.eraserPolyline && isIntersect(this.eraserRect, np.rect)) {
+                const op = np.op;
+                if (!op?.length) {
+                    continue;
+                }
+                const ps = [];
+                const polyline = [];
+                for (let i = 0; i < op.length; i += 3) {
+                    const p = new Vec2d(op[i] * this.worldScaling[0] + this.worldPosition[0], op[i + 1] * this.worldScaling[1] + this.worldPosition[1], op[i + 2]);
+                    polyline.push(p);
+                    ps.push(new Point2d(p.x, p.y));
+                }
+                const rect1 = getRectFromPoints(ps);
+                if (isIntersect(rect1, this.eraserRect)) {
+                    if (polyline.length > 1) {
+                        const intersect = lineclip.polyline(polyline.map(p => p.XY), this.eraserPolyline);
+                        if (intersect.length) {
+                            removeIds.add(np.name);
+                            if (!isLine && np.toolsType === EToolsKey.Pencil) {
+                                const intersectArr = this.translateIntersect(intersect);
+                                const newLines = this.cutPolyline(intersectArr, polyline);
+                                for (let i = 0; i < newLines.length; i++) {
+                                    const workId = `${key}_s_${i}`;
+                                    const op = [];
+                                    newLines[i].forEach(o => {
+                                        op.push((o.x - this.worldPosition[0]) / this.worldScaling[0], (o.y - this.worldPosition[1]) / this.worldScaling[1], o.z);
+                                    });
+                                    if (np.opt && np.toolsType && this.vNodes) {
+                                        this.vNodes.setInfo(workId, {
+                                            rect: rect1 || np.rect,
+                                            op: op,
+                                            opt: np.opt,
+                                            canRotate: np.canRotate,
+                                            scaleType: np.scaleType,
+                                            toolsType: np.toolsType,
+                                        });
+                                        newWorkDatas.set(workId, {
+                                            workId,
+                                            op,
+                                            opt: np.opt,
+                                            toolsType: np.toolsType
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
+                    else {
+                        removeIds.add(np.name);
+                    }
+                    rect = computRect(rect, rect1);
                 }
-                else {
-                    removeNodes.push(node);
-                    removeIds.push(np.name);
-                    // this.removeIds.push(np.name);
-                }
-                rect = computRect(rect, np.rect);
             }
-        });
-        removeNodes.forEach(r => r.remove());
-        if (rect) {
-            rect.x -= EraserShape.SafeBorderPadding;
-            rect.y -= EraserShape.SafeBorderPadding;
-            rect.w += EraserShape.SafeBorderPadding * 2;
-            rect.h += EraserShape.SafeBorderPadding * 2;
         }
-        return { rect, removeIds, newWorkDatas };
+        removeIds.forEach(r => this.vNodes?.delete(r));
+        if (rect) {
+            rect.x -= BaseShapeTool.SafeBorderPadding;
+            rect.y -= BaseShapeTool.SafeBorderPadding;
+            rect.w += BaseShapeTool.SafeBorderPadding * 2;
+            rect.h += BaseShapeTool.SafeBorderPadding * 2;
+        }
+        return rect;
+    }
+    consume(props) {
+        const { op } = props.data;
+        if (!op || op.length === 0) {
+            return {
+                type: EPostMessageType.None
+            };
+        }
+        const oldTmpLength = this.tmpPoints.length;
+        if (oldTmpLength > 1 && this.isNear([op[0], op[1]], [this.tmpPoints[oldTmpLength - 2], this.tmpPoints[oldTmpLength - 1]])) {
+            return {
+                type: EPostMessageType.None
+            };
+        }
+        if (oldTmpLength === 4) {
+            this.tmpPoints.shift();
+            this.tmpPoints.shift();
+        }
+        this.tmpPoints.push(op[0], op[1]);
+        const points = this.computRectCenterPoints();
+        let totalRect;
+        const removeIds = new Set();
+        const newWorkDatas = new Map();
+        this.vNodes.setTarget();
+        for (let i = 0; i < points.length - 1; i += 2) {
+            this.createEraserRect(points.slice(i, i + 2));
+            const rect = this.remove({ curNodeMap: this.vNodes.getLastTarget(), removeIds, newWorkDatas });
+            totalRect = computRect(totalRect, rect);
+        }
+        this.vNodes.deleteLastTarget();
+        if (totalRect && removeIds.size) {
+            for (const key of newWorkDatas.keys()) {
+                if (removeIds.has(key)) {
+                    newWorkDatas.delete(key);
+                }
+            }
+            // console.log('totalRemoveIds', totalRemoveIds)
+            return {
+                type: EPostMessageType.RemoveNode,
+                dataType: EDataType.Local,
+                rect: totalRect,
+                removeIds: [...removeIds],
+                newWorkDatas
+            };
+        }
+        return {
+            type: EPostMessageType.None
+        };
     }
     consumeAll(props) {
         return this.consume(props);
     }
     clearTmpPoints() {
         this.tmpPoints.length = 0;
-        this.syncTimestamp = 0;
     }
 }
-Object.defineProperty(EraserShape, "SafeBorderPadding", {
-    enumerable: true,
-    configurable: true,
-    writable: true,
-    value: 10
-});
 Object.defineProperty(EraserShape, "eraserSizes", {
     enumerable: true,
     configurable: true,

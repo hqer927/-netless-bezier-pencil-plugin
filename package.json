@@ -1,6 +1,6 @@
 {
   "name": "@hqer/bezier-pencil-plugin",
-  "version": "0.0.31",
+  "version": "0.0.37",
   "main": "./dist/bezier-pencil-plugin.js",
   "module": "./dist/bezier-pencil-plugin.mjs",
   "types": "./dist/index.d.ts",
@@ -11,8 +11,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@netless/cursor-tool": "^0.1.1",
+    "@netless/window-manager": "0.4.71-beta.0",
     "@types/lodash": "^4.14.202",
     "@types/react": "^18.2.38",
+    "@types/react-dom": "^18.2.23",
     "cross-env": "^7.0.3",
     "less": "^4.2.0",
     "spritejs": "^3.8.3",
@@ -21,6 +24,9 @@
     "white-web-sdk": "^2.16.47"
   },
   "peerDependencies": {
+    "@netless/app-slide": ">=0.2",
+    "@netless/cursor-tool": ">=0.1",
+    "@netless/window-manager": "0.4.71-beta.0",
     "white-web-sdk": ">= 2.16"
   },
   "dependencies": {
@@ -29,9 +35,9 @@
     "lodash": "^4.17.21",
     "lz-string": "^1.5.0",
     "re-resizable": "^6.9.11",
-    "react": ">=16.8.0",
-    "react-draggable": "^4.4.6",
-    "value-enhancer": "^3.1.4"
+    "react": ">=17",
+    "react-dom": ">=17",
+    "react-draggable": "^4.4.6"
   },
   "description": "",
   "directories": {

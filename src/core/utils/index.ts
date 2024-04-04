@@ -2,6 +2,7 @@
 import { Box2d } from './primitives/Box2d'
 import { Vec2d, VecLike } from './primitives/Vec2d'
 export * from "./math";
+export * from "./spriteNode";
 
 /** @public */
 export function precise(A: VecLike) {
@@ -769,4 +770,13 @@ export const requestAsyncCallBack = (callBack:()=>void, timeout:number):Promise<
 	}, ()=>{
 		callBack();
 	});
+}
+
+export const getRatioWithContext = (context: CanvasRenderingContext2D) => {
+	const backingStoreRatio = (context as any).webkitBackingStorePixelRatio ||
+		(context as any).mozBackingStorePixelRatio ||
+		(context as any).msBackingStorePixelRatio ||
+		(context as any).oBackingStorePixelRatio ||
+		(context as any).backingStorePixelRatio || 1.0;
+	return Math.max(1.0, (window.devicePixelRatio || 1.0) / backingStoreRatio);
 }

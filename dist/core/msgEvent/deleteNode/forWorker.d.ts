@@ -9,4 +9,5 @@ export declare class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
     consume(data: IWorkerMessage): boolean | undefined;
     consumeForLocalWorker(data: IWorkerMessage): void;
     consumeForServiceWorker(data: IWorkerMessage): void;
+    private commandDeleteText;
 }

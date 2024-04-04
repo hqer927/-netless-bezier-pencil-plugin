@@ -3,11 +3,12 @@ import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IworkId } from "../../types";
 import { EDataType, EPostMessageType } from "../../enum";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import { SelectorShape } from "../../tools";
+import { Storage_Selector_key } from "../../../collector";
 
 export type ZIndexActiveEmtData = {
     workId: IworkId,
     isActive: boolean;
+    viewId: string;
 }
 export class ZIndexActiveMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType = EmitEventType.ZIndexActive;
@@ -15,10 +16,14 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workId, isActive} = data;
+        const {workId, isActive, viewId} = data;
+        const view =  this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return ;
+        }
         const localMsgs: IWorkerMessage[] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
-        if (workId === SelectorShape.selectorId) {
+        if (workId === Storage_Selector_key) {
             localMsgs.push({
                 workId,
                 msgType: EPostMessageType.UpdateNode,
@@ -26,7 +31,8 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
                 isActiveZIndex: isActive,
                 emitEventType: this.emitEventType,
                 willRefreshSelector: true,
-                willSyncService: false
+                willSyncService: false,
+                viewId
             })
         }
         if (localMsgs.length) {

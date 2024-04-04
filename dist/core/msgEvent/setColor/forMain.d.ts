@@ -4,11 +4,15 @@ import { IworkId } from "../../types";
 import { EvevtWorkState } from "../../enum";
 export type SetColorNodeEmtData = {
     workIds: IworkId[];
-    color: string;
-    opacity?: number;
+    strokeColor?: string;
+    fillColor?: string;
+    fontColor?: string;
+    fontBgColor?: string;
     workState?: EvevtWorkState;
+    viewId: string;
 };
 export declare class SetColorNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;
+    private setTextColor;
     collect(data: SetColorNodeEmtData): void;
 }

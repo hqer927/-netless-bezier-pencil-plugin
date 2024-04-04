@@ -23,6 +23,7 @@ export class CopyNodeMethodForWorker extends BaseMsgMethodForWorker {
     consumeForLocalWorker(data) {
         const { workId } = data;
         if (workId) {
+            // console.log('consumeForLocalWorker', data)
             this.localWork?.consumeFull(data);
         }
     }

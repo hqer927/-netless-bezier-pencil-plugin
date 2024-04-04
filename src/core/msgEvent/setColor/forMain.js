@@ -1,9 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import cloneDeep from "lodash/cloneDeep";
-import { EDataType, EPostMessageType } from "../../enum";
-import { SelectorShape } from "../../tools";
-import { UndoRedoMethod } from "../../../undo";
+import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
+import { colorRGBA2Array } from "../../../collector/utils/color";
 export class SetColorNodeMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -14,16 +14,35 @@ export class SetColorNodeMethod extends BaseMsgMethod {
             value: EmitEventType.SetColorNode
         });
     }
+    setTextColor(key, curStore, updateNodeOpt, viewId) {
+        const { fontColor, fontBgColor } = updateNodeOpt;
+        if (curStore.opt) {
+            if (fontColor) {
+                curStore.opt.fontColor = fontColor;
+            }
+            if (fontBgColor) {
+                curStore.opt.fontColor = fontBgColor;
+            }
+            this.control.textEditorManager.updateTextForMasterController({
+                workId: key,
+                opt: curStore.opt,
+                viewId
+            });
+        }
+    }
     collect(data) {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const { workIds, color, opacity } = data;
+        const { workIds, strokeColor, fillColor, fontColor, fontBgColor, viewId } = data;
+        const view = this.control.viewContainerManager.getView(viewId);
+        if (!view?.displayer) {
+            return;
+        }
+        const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
         const localMsgs = [];
-        const serviceMsgs = [];
-        const selectIds = [];
         const undoTickerId = Date.now();
         while (keys.length) {
             const curKey = keys.pop();
@@ -33,85 +52,54 @@ export class SetColorNodeMethod extends BaseMsgMethod {
             const curKeyStr = curKey.toString();
             const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
-            const curStore = cloneDeep(store[key]);
             let localWorkId = curKeyStr;
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
             }
-            if (curStore && localWorkId === SelectorShape.selectorId) {
-                // const selector = store[SelectorShape.selectorId];
-                if (curStore.selectIds) {
-                    selectIds.push(...curStore.selectIds);
-                    // keys.push(...selector.selectIds);
-                    const updateNodeOpt = curStore.updateNodeOpt || {};
-                    updateNodeOpt.color = color;
-                    if (opacity) {
-                        updateNodeOpt.opacity = opacity;
-                    }
-                    const taskData = {
-                        workId: curKey,
-                        msgType: EPostMessageType.UpdateNode,
-                        dataType: EDataType.Local,
-                        updateNodeOpt,
-                        emitEventType: this.emitEventType,
-                        willRefreshSelector: true,
-                        willSyncService: true
-                    };
-                    const subStore = new Map();
-                    selectIds.forEach((name) => {
-                        const isLocalId = this.serviceColloctor?.isLocalId(name);
-                        let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
-                        const curStore = store[key];
-                        if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
-                            key = this.serviceColloctor.getLocalId(key);
-                        }
-                        curStore?.opt && subStore.set(key, {
-                            updateNodeOpt: curStore.updateNodeOpt,
-                            opt: curStore.opt,
-                        });
-                    });
-                    taskData.selectStore = subStore;
-                    taskData.willSerializeData = true;
-                    taskData.undoTickerId = undoTickerId;
-                    localMsgs.push(taskData);
-                }
-                continue;
-            }
+            const curStore = store[viewId][scenePath][key] || undefined;
             if (curStore) {
-                const opt = curStore.opt;
                 const updateNodeOpt = curStore.updateNodeOpt || {};
-                if (opt) {
-                    updateNodeOpt.color = color;
-                    updateNodeOpt.opacity = opacity;
-                    serviceMsgs.push({
-                        ...curStore,
-                        type: EPostMessageType.UpdateNode,
-                        updateNodeOpt
-                    });
-                    if (!selectIds.includes(curKeyStr)) {
-                        let localWorkId = curKeyStr;
-                        if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-                            localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-                        }
-                        localMsgs.push({
-                            workId: localWorkId,
-                            msgType: EPostMessageType.UpdateNode,
-                            dataType: EDataType.Local,
-                            updateNodeOpt,
-                            emitEventType: this.emitEventType,
-                            willSyncService: false,
-                            willRefresh: true
-                        });
+                if (fontColor || fontBgColor) {
+                    if (fontColor) {
+                        updateNodeOpt.fontColor = fontColor;
+                        const [r, g, b, a] = colorRGBA2Array(fontColor);
+                        this.control.room?.setMemberState({ textColor: [r, g, b], textOpacity: a });
+                    }
+                    if (fontBgColor) {
+                        updateNodeOpt.fontBgColor = fontBgColor;
+                        const [r, g, b, a] = colorRGBA2Array(fontBgColor);
+                        this.control.room?.setMemberState({ textBgColor: [r, g, b], textOpacity: a });
+                    }
+                    if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
+                        this.setTextColor(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId);
+                        continue;
                     }
                 }
+                if (strokeColor) {
+                    updateNodeOpt.strokeColor = strokeColor;
+                }
+                if (fillColor) {
+                    updateNodeOpt.fillColor = fillColor;
+                }
+                const taskData = {
+                    workId: localWorkId,
+                    msgType: EPostMessageType.UpdateNode,
+                    dataType: EDataType.Local,
+                    updateNodeOpt,
+                    emitEventType: this.emitEventType,
+                    willRefresh: true,
+                    willRefreshSelector: true,
+                    willSyncService: true,
+                    textUpdateForWoker: true,
+                    undoTickerId,
+                    viewId
+                };
+                localMsgs.push(taskData);
             }
         }
-        UndoRedoMethod.emitter.emit("undoTickerStart", undoTickerId);
+        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
-        }
-        if (serviceMsgs.length) {
-            this.collectForServiceWorker(serviceMsgs);
         }
     }
 }

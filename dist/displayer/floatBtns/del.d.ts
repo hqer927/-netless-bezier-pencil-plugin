@@ -1,2 +1,6 @@
 import React from "react";
-export declare const Del: () => React.JSX.Element;
+import { TeachingAidsViewManagerLike } from "../../plugin/types";
+export declare const Del: (props: {
+    workIds?: string[];
+    maranger: TeachingAidsViewManagerLike;
+}) => React.JSX.Element;

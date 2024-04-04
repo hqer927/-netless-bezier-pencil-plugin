@@ -1,54 +1,81 @@
 import { Point2d } from "../utils/primitives/Point2d";
-import { EPostMessageType, EToolsKey } from "../enum";
+import { EScaleType, EToolsKey } from "../enum";
 import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt, IWorkerMessage } from "../types";
 import { Group } from "spritejs";
+import { VNodeManager } from "../worker/vNodeManager";
+import { ShapeNodes, ShapeOptions } from "./utils";
+import { TextOptions } from "../../component/textEditor/types";
 export interface BaseShapeOptions {
-    color: string;
-    opacity?: number;
+    isOpacity?: boolean;
+    fontColor?: string;
+    fontBgColor?: string;
+    strokeColor?: string;
+    fillColor?: string;
     vertex?: string;
     fragment?: string;
     syncUnitTime?: number;
     zIndex?: number;
     scale?: [number, number];
     rotate?: number;
+    thickness?: number;
+    textOpt?: TextOptions;
+    translate?: [number, number];
 }
-export interface CombineConsumeResult {
-    type: EPostMessageType;
-    rect: IRectType | undefined;
-    consumeIndex: number;
+export interface BaseShapeToolProps {
+    vNodes: VNodeManager;
+    toolsOpt: ShapeOptions;
+    fullLayer: Group;
+    drawLayer?: Group;
 }
 export declare abstract class BaseShapeTool {
+    static SafeBorderPadding: number;
     protected abstract tmpPoints: Array<Point2d | number>;
     readonly abstract toolsType: EToolsKey;
-    protected abstract workOptions: BaseShapeOptions;
-    protected abstract syncTimestamp: number;
+    readonly abstract canRotate: boolean;
+    readonly abstract scaleType: EScaleType;
     syncUnitTime: number;
+    vNodes: VNodeManager;
     protected drawLayer?: Group;
     protected fullLayer: Group;
     protected workId: number | string | undefined;
-    constructor(fullLayer: Group, drawLayer?: Group);
-    setWorkId(id: number | string | undefined): void;
-    getWorkId(): string | number | undefined;
-    getWorkOptions(): BaseShapeOptions;
-    setWorkOptions(workOptions: BaseShapeOptions): void;
+    protected abstract workOptions: ShapeOptions;
+    constructor(props: BaseShapeToolProps);
+    /** 消费本地数据，返回绘制结果 */
     abstract consume(props: {
         data: IWorkerMessage;
         isFullWork?: boolean;
-        nodeMaps?: Map<string, BaseNodeMapItem>;
         isClearAll?: boolean;
         isSubWorker?: boolean;
     }): IMainMessage;
+    /** 消费本地完整数据，返回绘制结果 */
     abstract consumeAll(props: {
         data?: IWorkerMessage;
-        nodeMaps?: Map<string, BaseNodeMapItem>;
     }): IMainMessage;
+    /** 消费服务端数据，返回绘制结果 */
     abstract consumeService(props: {
         op: number[];
         isFullWork: boolean;
         replaceId?: string;
         isClearAll?: boolean;
     }): IRectType | undefined;
-    abstract updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined;
-    abstract combineConsume(): IMainMessage | undefined;
+    /** 清除临时数据 */
     abstract clearTmpPoints(): void;
+    /** 设置工作id */
+    setWorkId(id: number | string | undefined): void;
+    getWorkId(): string | number | undefined;
+    /** 获取工作选项配置 */
+    getWorkOptions(): ShapeOptions;
+    /** 设置工作选项配置 */
+    setWorkOptions(workOptions: BaseShapeOptions): void;
+    /** 更新服务端同步配置,返回绘制结果 */
+    updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined;
+    static updateNodeOpt(param: {
+        node: ShapeNodes;
+        opt: IUpdateNodeOpt;
+        vNodes: VNodeManager;
+        willSerializeData?: boolean;
+        targetNode?: BaseNodeMapItem;
+    }): IRectType | undefined;
+    static getCenterPos(r: IRectType, layer: Group): [number, number];
+    static getRectFromLayer(layer: Group, name: string): IRectType | undefined;
 }

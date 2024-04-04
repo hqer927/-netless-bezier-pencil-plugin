@@ -84,12 +84,23 @@ export function hexToRgba(hex, opacity = 1) {
     return 'rgba(' + parseInt('0x' + hex.slice(1, 3)) + ',' + parseInt('0x' + hex.slice(3, 5)) + ','
         + parseInt('0x' + hex.slice(5, 7)) + ',' + opacity + ')';
 }
+export function rgbToRgba(r, g, b, opacity = 1) {
+    return `rgba(${r},${g},${b},${opacity})`;
+}
 // 将rgb颜色转成hex
 export function colorRGBA2Hex(color) {
     const rgb = color.split(',');
     const r = parseInt(rgb[0].split('(')[1]);
     const g = parseInt(rgb[1]);
     const b = parseInt(rgb[2]);
-    const a = parseInt(rgb[3].split(')')[0]);
+    const a = Number(rgb[3].split(')')[0]);
     return [rgbToHex(r, g, b), a];
+}
+export function colorRGBA2Array(color) {
+    const rgb = color.split(',');
+    const r = parseInt(rgb[0].split('(')[1]);
+    const g = parseInt(rgb[1]);
+    const b = parseInt(rgb[2]);
+    const a = Number(rgb[3].split(')')[0]);
+    return [r, g, b, a];
 }

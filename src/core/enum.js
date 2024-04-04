@@ -1,24 +1,46 @@
 export var EToolsKey;
 (function (EToolsKey) {
+    /** 铅笔绘制工具 */
     EToolsKey[EToolsKey["Pencil"] = 1] = "Pencil";
+    /** 橡皮擦工具 */
     EToolsKey[EToolsKey["Eraser"] = 2] = "Eraser";
+    /** 选择工具 */
     EToolsKey[EToolsKey["Selector"] = 3] = "Selector";
+    /** 点击互动工具 */
     EToolsKey[EToolsKey["Clicker"] = 4] = "Clicker";
+    /** 箭头工具 */
     EToolsKey[EToolsKey["Arrow"] = 5] = "Arrow";
+    /** 抓手工具 */
     EToolsKey[EToolsKey["Hand"] = 6] = "Hand";
+    /** 激光铅笔绘制工具 */
     EToolsKey[EToolsKey["LaserPen"] = 7] = "LaserPen";
+    /** 文字工具 */
+    EToolsKey[EToolsKey["Text"] = 8] = "Text";
+    /** 直线工具 */
+    EToolsKey[EToolsKey["Straight"] = 9] = "Straight";
+    /** 矩形工具 */
+    EToolsKey[EToolsKey["Rectangle"] = 10] = "Rectangle";
+    /** 圆形工具 */
+    EToolsKey[EToolsKey["Ellipse"] = 11] = "Ellipse";
+    /** 星形工具 */
+    EToolsKey[EToolsKey["Star"] = 12] = "Star";
+    /** 三角形工具 */
+    EToolsKey[EToolsKey["Triangle"] = 13] = "Triangle";
+    /** 菱形工具 */
+    EToolsKey[EToolsKey["Rhombus"] = 14] = "Rhombus";
+    /** 多边形工具 */
+    EToolsKey[EToolsKey["Polygon"] = 15] = "Polygon";
+    /** 聊天泡泡框 */
+    EToolsKey[EToolsKey["SpeechBalloon"] = 16] = "SpeechBalloon";
 })(EToolsKey || (EToolsKey = {}));
-export var ESpriteNodeKey;
-(function (ESpriteNodeKey) {
-    ESpriteNodeKey[ESpriteNodeKey["Path"] = 0] = "Path";
-    ESpriteNodeKey[ESpriteNodeKey["Rect"] = 1] = "Rect";
-})(ESpriteNodeKey || (ESpriteNodeKey = {}));
 export var EDataType;
 (function (EDataType) {
     /** 本地数据 */
     EDataType[EDataType["Local"] = 1] = "Local";
     /** 服务端数据 */
     EDataType[EDataType["Service"] = 2] = "Service";
+    /** 来源于worker */
+    EDataType[EDataType["Worker"] = 3] = "Worker";
 })(EDataType || (EDataType = {}));
 export var EvevtWorkState;
 (function (EvevtWorkState) {
@@ -62,13 +84,17 @@ export var EPostMessageType;
     EPostMessageType[EPostMessageType["None"] = 11] = "None";
     /** 获取指定场景快照 */
     EPostMessageType[EPostMessageType["Snapshot"] = 12] = "Snapshot";
+    /** 获取指定场所有元素的的包围盒 */
+    EPostMessageType[EPostMessageType["BoundingBox"] = 13] = "BoundingBox";
+    /**  */
+    EPostMessageType[EPostMessageType["Cursor"] = 14] = "Cursor";
+    /** */
+    EPostMessageType[EPostMessageType["TextUpdate"] = 15] = "TextUpdate";
+    /**  */
+    EPostMessageType[EPostMessageType["GetTextActive"] = 16] = "GetTextActive";
+    /** 批量队列化处理 */
+    EPostMessageType[EPostMessageType["TasksQueue"] = 17] = "TasksQueue";
 })(EPostMessageType || (EPostMessageType = {}));
-export var EShapeDataTypeKey;
-(function (EShapeDataTypeKey) {
-    EShapeDataTypeKey[EShapeDataTypeKey["Path"] = 0] = "Path";
-    EShapeDataTypeKey[EShapeDataTypeKey["Rect"] = 1] = "Rect";
-    EShapeDataTypeKey[EShapeDataTypeKey["Texture"] = 2] = "Texture";
-})(EShapeDataTypeKey || (EShapeDataTypeKey = {}));
 export var ECanvasContextType;
 (function (ECanvasContextType) {
     ECanvasContextType["Webgl2"] = "webgl2";
@@ -82,14 +108,24 @@ export var ECanvasShowType;
     ECanvasShowType[ECanvasShowType["Selector"] = 3] = "Selector";
     ECanvasShowType[ECanvasShowType["None"] = 4] = "None";
 })(ECanvasShowType || (ECanvasShowType = {}));
-export var EScaleDirection;
-(function (EScaleDirection) {
-    EScaleDirection["LT"] = "topLeft";
-    EScaleDirection["LC"] = "left";
-    EScaleDirection["LB"] = "bottomLeft";
-    EScaleDirection["TC"] = "top";
-    EScaleDirection["RT"] = "topRight";
-    EScaleDirection["RC"] = "right";
-    EScaleDirection["RB"] = "bottomRight";
-    EScaleDirection["BC"] = "bottom";
-})(EScaleDirection || (EScaleDirection = {}));
+export var EventMessageType;
+(function (EventMessageType) {
+    /** cursor事件 */
+    EventMessageType[EventMessageType["Cursor"] = 1] = "Cursor";
+    /** 创建text编辑器 */
+    EventMessageType[EventMessageType["TextCreate"] = 2] = "TextCreate";
+})(EventMessageType || (EventMessageType = {}));
+export var ElayerType;
+(function (ElayerType) {
+    ElayerType[ElayerType["Top"] = 1] = "Top";
+    ElayerType[ElayerType["Bottom"] = 2] = "Bottom";
+})(ElayerType || (ElayerType = {}));
+export var EScaleType;
+(function (EScaleType) {
+    /** 不可以拉伸 */
+    EScaleType[EScaleType["none"] = 1] = "none";
+    /** 八个方向都可以拉伸 */
+    EScaleType[EScaleType["all"] = 2] = "all";
+    /** 两个方向拉伸 */
+    EScaleType[EScaleType["both"] = 3] = "both";
+})(EScaleType || (EScaleType = {}));

@@ -1,45 +1,47 @@
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { MainEngineForWorker } from "../worker/main";
-import { BaseCollector } from "../../collector";
+import { Collector } from "../../collector";
 import { IWorkerMessage } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { requestAsyncCallBack } from "../utils";
-import { UndoRedoMethod } from "../../undo";
-import { BezierPencilDisplayer } from "../../plugin";
+import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
+import { MasterController } from "../mainEngine";
 
 export abstract class BaseMsgMethod {
     static dispatch(emtType: InternalMsgEmitterType, emitEventType:EmitEventType, value: unknown) {
-        BezierPencilDisplayer.InternalMsgEmitter?.emit([emtType, emitEventType], value);
+        BaseTeachingAidsManager.InternalMsgEmitter?.emit([emtType, emitEventType], value);
     }
     abstract readonly emitEventType: EmitEventType;
-    emtType: InternalMsgEmitterType | undefined;
-    mainEngine: MainEngineForWorker | undefined;
-    serviceColloctor: BaseCollector | undefined;
-    registerForMainEngine(emtType: InternalMsgEmitterType, main: MainEngineForWorker, serviceColloctor: BaseCollector) {
+    emtType!: InternalMsgEmitterType;
+    control!: BaseTeachingAidsManager;
+    mainEngine!: MasterController;
+    serviceColloctor?: Collector;
+    registerForMainEngine(emtType: InternalMsgEmitterType, control: BaseTeachingAidsManager) {
         this.emtType = emtType;
-        this.mainEngine = main;
-        this.serviceColloctor = serviceColloctor;
-        BezierPencilDisplayer.InternalMsgEmitter?.on([this.emtType, this.emitEventType], this.collect.bind(this));
+        this.control = control;
+        this.mainEngine = control.worker;
+        this.serviceColloctor = control.collector;
+        this.mainEngine.internalMsgEmitter.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }
     destroy() {
-        this.emtType && BezierPencilDisplayer.InternalMsgEmitter?.off([this.emtType, this.emitEventType], this.collect.bind(this));
+        this.emtType && this.mainEngine && this.mainEngine.internalMsgEmitter.off([this.emtType, this.emitEventType], this.collect.bind(this));
     }
     collectForLocalWorker(data: IWorkerMessage[] ): void {
-        data.forEach(d=>{
-            this.mainEngine?.taskBatchData.set(`${d.msgType},${d.workId}`,d)
-        })
+        for (const d of data) {
+            this.mainEngine?.taskBatchData.add(d);
+        }
         this.mainEngine?.runAnimation();
     }
     collectForServiceWorker(actions: BaseCollectorReducerAction[]): void {
         requestAsyncCallBack(()=>{
             actions.forEach(action=>{
                 this.serviceColloctor?.dispatch(action);
-                if (action.undoTickerId) {
-                    UndoRedoMethod.emitter.emit("undoTickerEnd", action.undoTickerId);
+                const {viewId, undoTickerId} = action;
+                if (undoTickerId && viewId) {
+                    this.mainEngine?.internalMsgEmitter?.emit('undoTickerEnd', undoTickerId, viewId);
                 }
             })
-        }, MainEngineForWorker.maxLastSyncTime);
+        }, this.mainEngine.maxLastSyncTime);
     }
     abstract collect(data: unknown): void;
 }

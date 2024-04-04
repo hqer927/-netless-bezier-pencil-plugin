@@ -1,8 +1,9 @@
 /// <reference types="lodash" />
 import EventEmitter2 from "eventemitter2";
-import { MainEngineForWorker } from "../core";
 import { BaseCollectorReducerAction, Collector } from "../collector";
 import type { Room } from "white-web-sdk";
+import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
+import { MasterController } from "../core/mainEngine";
 export declare enum EUndoType {
     sdk = 1,
     plugin = 2,
@@ -18,43 +19,48 @@ export interface IUndoStackItem {
     id?: number;
     sdkStep?: number;
     data?: Set<ILocalStorageDataItem>;
+    scenePath: string;
 }
 export interface ILocalStorageDataItem {
     dataType: EUndoDataType;
     key: string;
     data: BaseCollectorReducerAction | [BaseCollectorReducerAction, BaseCollectorReducerAction];
 }
+export interface UndoRedoMethodProps extends BaseSubWorkModuleProps {
+    viewId: string;
+}
 export declare class UndoRedoMethod {
     static sdkCallBack: <NAME extends string>(name: NAME, listener: any) => void;
     static MaxStackLength: number;
-    static emitter: EventEmitter2;
     static waitTime: number;
+    emitter: EventEmitter2;
     undoStack: IUndoStackItem[];
     redoStack: IUndoStackItem[];
-    worker: MainEngineForWorker;
-    colloctor: Collector;
+    worker: MasterController;
+    collector: Collector;
+    control: TeachingAidsManagerLike;
     room: Room;
     private isTicking;
     private undoTickerId?;
+    private viewId;
+    private scenePath?;
     private tickStartStorerCache?;
     private excludeIds;
-    constructor(room: Room, worker: MainEngineForWorker, colloctor: Collector);
-    private addExcludeIds;
-    addSdkUndoData(step: number): void;
-    private diffFun;
-    undoTickerStart(id: number): void;
-    undoTickerEnd: import("lodash").DebouncedFunc<(id: number) => void>;
-    private isDrawEffectiveScene;
-    private isDeleteEffectiveScene;
-    private isOldEffectiveScene;
-    private isNewEffectiveScene;
-    private refreshPlugin;
-    undo(_undo: () => number): number;
-    redo(_redo: () => number): number;
+    constructor(props: UndoRedoMethodProps);
+    addExcludeIds(ids: string[]): void;
+    undoTickerStart(id: number, scenePath: string): void;
+    undoTickerEnd: import("lodash").DebouncedFunc<(id: number, viewId: string, scenePath: string) => void>;
+    undo(scenePath: string): number;
+    redo(scenePath: string): number;
     clear(): void;
     clearUndo(): void;
     clearRedo(): void;
     canUndo(): boolean;
     canRedo(): boolean;
-    destroy(): void;
+    private diffFun;
+    private isDrawEffectiveScene;
+    private isDeleteEffectiveScene;
+    private isOldEffectiveScene;
+    private isNewEffectiveScene;
+    private refreshPlugin;
 }

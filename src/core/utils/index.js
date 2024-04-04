@@ -2,6 +2,7 @@
 import { Box2d } from './primitives/Box2d';
 import { Vec2d } from './primitives/Vec2d';
 export * from "./math";
+export * from "./spriteNode";
 /** @public */
 export function precise(A) {
     return `${toDomPrecision(A.x)},${toDomPrecision(A.y)} `;
@@ -674,4 +675,12 @@ export const requestAsyncCallBack = (callBack, timeout) => {
     }, () => {
         callBack();
     });
+};
+export const getRatioWithContext = (context) => {
+    const backingStoreRatio = context.webkitBackingStorePixelRatio ||
+        context.mozBackingStorePixelRatio ||
+        context.msBackingStorePixelRatio ||
+        context.oBackingStorePixelRatio ||
+        context.backingStorePixelRatio || 1.0;
+    return Math.max(1.0, (window.devicePixelRatio || 1.0) / backingStoreRatio);
 };

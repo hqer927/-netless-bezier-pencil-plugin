@@ -1,2 +1,3 @@
 import React from "react";
-export declare const Layer: () => React.JSX.Element;
+import { SubButProps } from "../types";
+export declare const Layer: (props: SubButProps) => React.JSX.Element;
