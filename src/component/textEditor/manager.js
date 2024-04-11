@@ -5,7 +5,6 @@ import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../co
 import { requestAsyncCallBack } from "../../core/utils";
 import { ProxyMap } from "../../core/utils/proxy";
 export class TextEditorManagerImpl {
-    // private activeIdCache?:string;
     constructor(props) {
         Object.defineProperty(this, "internalMsgEmitter", {
             enumerable: true,
@@ -268,18 +267,7 @@ export class TextEditorManagerImpl {
     }
     updateForLocalEditor(activeId, info) {
         this.editors.set(activeId, info);
-        // this.effectUpdate();
     }
-    // private effectUpdate(activeId?:string): void {
-    //     if (activeId) {
-    //         if (activeId !== this.activeId) {
-    //             this.checkEmptyTextBlur();
-    //         }
-    //         this.active(activeId);
-    //         return;
-    //     }
-    //     this.checkEmptyTextBlur();
-    // }
     active(workId) {
         const info = this.editors.get(workId);
         if (info && info.viewId) {
@@ -355,6 +343,7 @@ export class TextEditorManagerImpl {
             info.dataType = undefined;
             info.canWorker = false;
             info.canSync = true;
+            //console.log('updateTextForWorker', {..._info, ...info})
             this.editors.set(workId, { ..._info, ...info });
         }
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);

@@ -9,6 +9,7 @@ import { ShapeNodes } from "./utils";
 import cloneDeep from "lodash/cloneDeep";
 import { getRectScaleed, getRectTranslated } from "../utils";
 import { VNodeManager } from "../worker/vNodeManager";
+import isBoolean from "lodash/isBoolean";
 
 export class TextShape extends BaseShapeTool {
     readonly canRotate: boolean = false;
@@ -104,13 +105,28 @@ export class TextShape extends BaseShapeTool {
             return;
         }
         const workId = this.workId.toString();
-        const {fontColor,fontBgColor} = updateNodeOpt;
+        const {fontColor,fontBgColor, bold, italic, lineThrough, underline} = updateNodeOpt;
         const info = this.vNodes.get(workId);
         if (!info) {
             return;
         }
         if (fontColor) {
             info.opt.fontColor = fontColor;
+        }
+        if (fontBgColor) {
+            info.opt.fontBgColor = fontBgColor;
+        }
+        if (bold) {
+            (info.opt as TextOptions).bold = bold;
+        }
+        if (italic) {
+            (info.opt as TextOptions).italic = italic;
+        }
+        if (isBoolean(lineThrough)) {
+            (info.opt as TextOptions).lineThrough = lineThrough;
+        }
+        if (isBoolean(underline)) {
+            (info.opt as TextOptions).underline = underline;
         }
         if (fontBgColor) {
             info.opt.fontBgColor = fontBgColor;
@@ -146,11 +162,13 @@ export class TextShape extends BaseShapeTool {
                 fontSize: textOpt.fontSize,
                 lineHeight: textOpt.fontSize,
                 fontFamily: textOpt.fontFamily,
-                fontStyle: textOpt.fontStyle,
+                bold: textOpt.bold,
                 fillColor: textOpt.fontColor,
                 bgcolor: textOpt.fontBgColor,
                 textAlign: textOpt.textAlign,
-                fontWeight: textOpt.fontWeight,
+                italic: textOpt.italic,
+                underline: textOpt.underline,
+                lineThrough: textOpt.lineThrough,
             };
             const pos:[number,number] = [0,0];
             if (textOpt.verticalAlign === 'middle') {
@@ -179,7 +197,7 @@ export class TextShape extends BaseShapeTool {
         targetNode?: BaseNodeMapItem,
     }): IRectType | undefined {
         const {node, opt, vNodes, targetNode} = param;
-        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, workState} = opt;
+        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, workState, bold, italic, lineThrough, underline, fontSize} = opt;
         // let rect:IRectType|undefined;
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt) return;
@@ -195,6 +213,33 @@ export class TextShape extends BaseShapeTool {
         if (fontBgColor) {
             if (_Opt.fontBgColor ) {
                 _Opt.fontBgColor = fontBgColor;
+            }
+        }
+        if (bold) {
+            _Opt.bold = bold;
+        }
+        if (italic) {
+            _Opt.italic = italic;
+        }
+        if (isBoolean(lineThrough)) {
+            _Opt.lineThrough = lineThrough;
+        }
+        if (isBoolean(underline)) {
+            _Opt.underline = underline;
+        }
+        if (fontSize) {
+            const {boxSize} = _Opt;
+            const scale = fontSize / _Opt.fontSize;
+            const newBoxSize:[number,number] | undefined = boxSize && [boxSize[0] * scale, boxSize[1] * scale];
+            if (newBoxSize) {
+                _Opt.boxSize = newBoxSize;
+                _Opt.fontSize = fontSize;
+                nodeOpt.rect = {
+                    x: nodeOpt.rect.x,
+                    y: nodeOpt.rect.y,
+                    w: newBoxSize[0],
+                    h: newBoxSize[1],
+                }
             }
         }
         if (box && boxTranslate && boxScale) {

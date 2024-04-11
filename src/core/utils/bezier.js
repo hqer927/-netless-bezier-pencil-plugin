@@ -82,7 +82,7 @@ export class Bezier {
      */
     static twoBezier(t, p1, cp, p2) {
         const x = (1 - t) * (1 - t) * p1.x + 2 * t * (1 - t) * cp.x + t * t * p2.x;
-        const y = (1 - t) * (1 - t) * p1.y + 2 * t * (1 - t) * cp.y + t * t * p2.x;
+        const y = (1 - t) * (1 - t) * p1.y + 2 * t * (1 - t) * cp.y + t * t * p2.y;
         return new Vec2d(x, y);
     }
     /**

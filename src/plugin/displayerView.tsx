@@ -10,7 +10,7 @@ import { TextEditorContainer } from "../component/textEditor/view";
 import { FloatBar } from "../displayer/floatBar";
 import { RotateBtn } from "../displayer/rotate";
 import { CursorManager } from '../displayer/cursor';
-import { ResizableBox } from '../displayer/resizable';
+import { ResizableBox, ResizableTwoBox } from '../displayer/resizable';
 
 export interface BaseDisplayerProps {
     viewId: string;
@@ -30,7 +30,7 @@ export interface BaseDisplayerState {
     position?: {x:number, y:number},
     operationType: EmitEventType;
     angle: number;
-    cursorInfo?: {x?:number, y?:number, roomMember?: RoomMember}[],
+    cursorInfo?: {x?:number, y?:number, roomMember?: RoomMember},
     scale:[number,number];
     editors?: Map<string,TextEditorInfo>;
     activeTextId?:string;
@@ -42,6 +42,7 @@ export const DisplayerContext = React.createContext<Pick<BaseDisplayerState, 'zI
     setSize: (size:{width:number, height:number, workState:EvevtWorkState}) => void;
     setAngle: (angle:number) => void;
     setOperationType:(type:EmitEventType)=>void;
+    setFloatBarData:(data:Partial<ShowFloatBarMsgValue>)=>void;
 }>({
     maranger: undefined,
     floatBarColors:[],
@@ -56,6 +57,7 @@ export const DisplayerContext = React.createContext<Pick<BaseDisplayerState, 'zI
     setSize:()=>{},
     setAngle:()=>{},
     setOperationType:()=>{},
+    setFloatBarData:()=>{}
 });
 export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseDisplayerState>  {
     constructor(props: BaseDisplayerProps) {
@@ -112,7 +114,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
             editors: this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId)
         })
     }
-    setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }[]) {
+    setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }) {
         this.setState({cursorInfo});
     }
     setSize(scale:{width:number, height:number, workState:EvevtWorkState}) {
@@ -132,6 +134,11 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
     }
     setFloatZIndex(zIndex: number) {
         this.setState({zIndex})
+    }
+    setFloatBarData(data:Partial<ShowFloatBarMsgValue>){
+        this.state.floatBarData && this.setState({
+            floatBarData: {...this.state.floatBarData, ...data}
+        })
     }
     private setPosition = (point:{x:number,y:number}) => {
         this.setState({position:point});
@@ -175,6 +182,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                             setSize: this.setSize.bind(this),
                             setAngle:this.setAngle.bind(this),
                             setOperationType:this.setOperationType.bind(this),
+                            setFloatBarData:this.setFloatBarData.bind(this),
                         }}>
                         {   
                             this.state.showFloatBar && 
@@ -203,14 +211,14 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                             (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.ScaleNode) && 
                             <ResizableBox className={styles['ResizeBtn']} />
                         }
+                        { 
+                            this.state.floatBarData?.scaleType === EScaleType.both && this.state.showFloatBar && 
+                            (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.SetPoint) && 
+                            <ResizableTwoBox className={styles['ResizeTowBox']} />
+                        }
                     </DisplayerContext.Provider>
                     {
-                        !!this.state.cursorInfo?.length && this.state.cursorInfo.map((info)=>{
-                            if (info.roomMember) {
-                                return <CursorManager key={info.roomMember.memberId} className={styles['CursorBox']} info={info}/>
-                            }
-                            return null
-                        })
+                        this.state.cursorInfo && this.state.cursorInfo.roomMember && (<CursorManager key={this.state.cursorInfo.roomMember.memberId} className={styles['CursorBox']} info={this.state.cursorInfo}/> || null)
                     }
                 </div>
             </React.Fragment>

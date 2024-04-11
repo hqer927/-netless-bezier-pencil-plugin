@@ -165,7 +165,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
     }
     static onCreate(plugin: InvisiblePlugin<TeachingAidsPluginAttributes, any> ) {
         if (TeachingAidsPlugin.options && !TeachingAidsPlugin.currentManager) {
-            console.log('onCreate', TeachingAidsPlugin.options);
+            // console.log('onCreate', TeachingAidsPlugin.options);
             createTeachingAidsPluginManager(plugin as TeachingAidsPlugin, TeachingAidsPlugin.options, TeachingAidsPlugin.remake);
         }
     }

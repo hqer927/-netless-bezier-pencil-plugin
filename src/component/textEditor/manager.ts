@@ -56,7 +56,6 @@ export class TextEditorManagerImpl implements TextEditorManager {
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
     private proxyMap:ProxyMap<string,TextEditorInfo>;
-    // private activeIdCache?:string;
     constructor(props:BaseSubWorkModuleProps){
         const {control, internalMsgEmitter } = props;
         this.control = control;
@@ -280,18 +279,7 @@ export class TextEditorManagerImpl implements TextEditorManager {
     }
     updateForLocalEditor(activeId:string, info:TextEditorInfo): void {
         this.editors.set(activeId,info);
-        // this.effectUpdate();
     }
-    // private effectUpdate(activeId?:string): void {
-    //     if (activeId) {
-    //         if (activeId !== this.activeId) {
-    //             this.checkEmptyTextBlur();
-    //         }
-    //         this.active(activeId);
-    //         return;
-    //     }
-    //     this.checkEmptyTextBlur();
-    // }
     active(workId: string): void {
         const info = this.editors.get(workId);
         if (info && info.viewId) {
@@ -364,6 +352,7 @@ export class TextEditorManagerImpl implements TextEditorManager {
             info.dataType = undefined;
             info.canWorker = false;
             info.canSync = true;
+            //console.log('updateTextForWorker', {..._info, ...info})
             this.editors.set(workId, {..._info, ...info});
         }
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId)

@@ -29,7 +29,7 @@ export interface BaseDisplayerState {
         x?: number;
         y?: number;
         roomMember?: RoomMember;
-    }[];
+    };
     scale: [number, number];
     editors?: Map<string, TextEditorInfo>;
     activeTextId?: string;
@@ -48,6 +48,7 @@ export declare const DisplayerContext: React.Context<Pick<BaseDisplayerState, "s
     }) => void;
     setAngle: (angle: number) => void;
     setOperationType: (type: EmitEventType) => void;
+    setFloatBarData: (data: Partial<ShowFloatBarMsgValue>) => void;
 }>;
 export declare class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseDisplayerState> {
     constructor(props: BaseDisplayerProps);
@@ -59,13 +60,14 @@ export declare class BaseViewDisplayer extends React.Component<BaseDisplayerProp
         x?: number;
         y?: number;
         roomMember?: RoomMember;
-    }[]): void;
+    }): void;
     setSize(scale: {
         width: number;
         height: number;
         workState: EvevtWorkState;
     }): void;
     setFloatZIndex(zIndex: number): void;
+    setFloatBarData(data: Partial<ShowFloatBarMsgValue>): void;
     private setPosition;
     private setAngle;
     private setOperationType;

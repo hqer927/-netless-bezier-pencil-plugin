@@ -40,7 +40,7 @@ export default function App() {
             break;
           case EToolsKey.LaserPen:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, useNewPencil: false, strokeType: EStrokeType.Normal});
             break;
           case EToolsKey.Arrow:
             // window.room.disableDeviceInputs = false;
@@ -70,6 +70,9 @@ export default function App() {
             // window.room.disableDeviceInputs = false;
             window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus});
             break;
+        case EToolsKey.SpeechBalloon:
+          window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon});
+          break;
           case EToolsKey.Hand:
             // window.room.disableDeviceInputs = false;
             window.room.setMemberState({currentApplianceName: ApplianceNames.hand});

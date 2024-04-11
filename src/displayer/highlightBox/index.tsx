@@ -19,3 +19,13 @@ export const HightLightBox = () => {
         </div>
     )
 }
+
+export const HightLightTwoBox = () => {
+    const {floatBarData} = useContext(DisplayerContext);
+    return (
+        <div className="bezier-pencil-plugin-hightlight-box" 
+            style={{borderColor: floatBarData?.selectorColor}}
+        >
+        </div>
+    )
+}

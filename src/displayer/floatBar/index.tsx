@@ -9,12 +9,10 @@ import type { DraggableData, DraggableEvent } from "react-draggable";
 import { FloatBtns } from "../floatBtns";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
-import { HightLightBox } from "../highlightBox";
+import { HightLightBox, HightLightTwoBox } from "../highlightBox";
 import { Storage_Selector_key } from "../../collector";
 import { TextViewInSelector } from "../../component/textEditor/view";
 import { TextEditorInfo } from "../../component/textEditor";
-
-// let clickClockTimer:number|undefined;
 
 export const FloatBar = React.forwardRef((props:{
     className: string,
@@ -70,7 +68,6 @@ export const FloatBar = React.forwardRef((props:{
     },[operationType, floatBarData, position])
     // console.log('editors', editors)
     const HighLightUI = useMemo(()=>{
-        console.log('HighLightUI', operationType, floatBarData?.scaleType)
         if ( 
             floatBarData?.scaleType !== EScaleType.all ||
             operationType === EmitEventType.RotateNode
@@ -78,6 +75,15 @@ export const FloatBar = React.forwardRef((props:{
             return null
         }
         return <HightLightBox/>
+    },[floatBarData, operationType])
+    const HighLightTwoUI = useMemo(()=>{
+        if ( 
+            floatBarData?.scaleType !== EScaleType.both ||
+            operationType === EmitEventType.RotateNode
+        ) {
+            return null
+        }
+        return <HightLightTwoBox/>
     },[floatBarData, operationType])
     return (
         <Draggable
@@ -96,10 +102,23 @@ export const FloatBar = React.forwardRef((props:{
                     } : undefined
                 }
                 onClick={(e:any)=>{
-                    if (editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
-                        const clickEvent = new PointerEvent('click', e);
-                        textRef.current.dispatchEvent(clickEvent);
+                    if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
+                        const point = maranger.getPoint(e.nativeEvent);
+                        point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
                     }
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return false
+                }}
+                onTouchEndCapture={(e:any)=>{
+                    if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
+                        const point = maranger.getPoint(e.nativeEvent);
+                        point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
+        
+                    }
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return false
                 }}
             >
                 { FloatBtnsUI }
@@ -113,6 +132,7 @@ export const FloatBar = React.forwardRef((props:{
                     <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"/>
                 </div>
                 { HighLightUI }
+                { HighLightTwoUI }
                 {
                     editors?.size && maranger && <TextViewInSelector
                         manager={maranger}

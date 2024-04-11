@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Group, Path, Polyline } from "spritejs";
+import { Polyline } from "spritejs";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeTool } from "./base";
 import { computRect, getRectFromPoints } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
+import { Vec2d } from "../utils/primitives/Vec2d";
+import { Bezier } from "../utils/bezier";
 export class SpeechBalloonShape extends BaseShapeTool {
     constructor(props) {
         super(props);
@@ -18,13 +20,19 @@ export class SpeechBalloonShape extends BaseShapeTool {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: EScaleType.none
+            value: EScaleType.all
         });
         Object.defineProperty(this, "toolsType", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: EToolsKey.SpeechBalloon
+        });
+        Object.defineProperty(this, "ratio", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0.8
         });
         Object.defineProperty(this, "tmpPoints", {
             enumerable: true,
@@ -91,7 +99,8 @@ export class SpeechBalloonShape extends BaseShapeTool {
             }
             return { type: EPostMessageType.None };
         }
-        const r = this.draw({ workId, isFullWork, normalize: true, isDrawing: true });
+        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+        const r = this.draw({ workId, layer, isDrawing: true });
         const rect = computRect(r, this.oldRect);
         this.oldRect = r;
         return {
@@ -114,17 +123,19 @@ export class SpeechBalloonShape extends BaseShapeTool {
                 removeIds: [workId]
             };
         }
-        const rect = this.draw({ workId, isFullWork: true, normalize: true, isDrawing: false });
+        const layer = this.fullLayer;
+        const rect = this.draw({ workId, layer, isDrawing: false });
         this.oldRect = rect;
         const op = this.tmpPoints.map(c => [...c.XY, 0]).flat(1);
         const ops = transformToSerializableData(op);
-        props.vNodes.setInfo(workId, {
+        this.vNodes.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,
+            toolsType: this.toolsType,
             scaleType: this.scaleType,
             canRotate: this.canRotate,
-            toolsType: this.toolsType
+            centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
         });
         return {
             rect,
@@ -136,26 +147,27 @@ export class SpeechBalloonShape extends BaseShapeTool {
         };
     }
     draw(props) {
-        const { workId, normalize, isFullWork, isDrawing } = props;
+        const { workId, layer } = props;
         this.fullLayer.getElementsByName(workId).map(o => o.remove());
         this.drawLayer?.getElementsByName(workId).map(o => o.remove());
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const { strokeColor, fillColor, thickness, zIndex, placement } = this.workOptions;
+        const { strokeColor, fillColor, thickness, zIndex, placement, scale, rotate, translate } = this.workOptions;
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
+        // console.log('draw', this.workOptions, this.tmpPoints)
         const { rect, pos, points } = this.computDrawPoints(thickness, placement);
         const attr = {
             pos,
-            close: true,
             name: workId,
             id: workId,
-            points,
+            points: points.map(p => p.XY),
             lineWidth: thickness,
-            fillColor: fillColor,
+            fillColor: fillColor !== 'transparent' && fillColor || undefined,
             strokeColor,
-            normalize,
+            normalize: true,
+            className: `${pos[0]},${pos[1]}`,
             zIndex,
-            lineJoin: 'round'
+            lineJoin: 'round',
+            close: true
         };
         const r = {
             x: Math.floor(rect.x * worldScaling[0] + worldPosition[0] - BaseShapeTool.SafeBorderPadding * worldScaling[0]),
@@ -163,54 +175,224 @@ export class SpeechBalloonShape extends BaseShapeTool {
             w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding * worldScaling[0]),
             h: Math.floor(rect.h * worldScaling[1] + 2 * BaseShapeTool.SafeBorderPadding * worldScaling[1])
         };
-        if (isDrawing) {
-            const { name, id, zIndex, strokeColor } = attr;
-            const centerPos = [
-                ((r.x + r.w / 2) - worldPosition[0]) / worldScaling[0],
-                ((r.y + r.h / 2) - worldPosition[1]) / worldScaling[1]
-            ];
-            const group = new Group({
-                name, id, zIndex,
-                pos: centerPos,
-                anchor: [0.5, 0.5],
-                size: [r.w, r.h]
-            });
-            console.log('attr', attr);
-            const node = new Polyline({
-                ...attr,
-                pos: [0, 0]
-            });
-            const anchorCross = new Path({
-                d: 'M-4,0H4M0,-4V4',
-                normalize: true,
-                pos: [0, 0],
-                strokeColor,
-                lineWidth: 1,
-                scale: [1 / worldScaling[0], 1 / worldScaling[1]]
-            });
-            group.append(node, anchorCross);
-            layer.append(group);
+        // if (isDrawing) {
+        //     const {name, id, zIndex, strokeColor} = attr;
+        //     const centerPos = [
+        //         ((r.x + r.w / 2) - worldPosition[0]) / worldScaling[0],
+        //         ((r.y + r.h / 2) - worldPosition[1]) / worldScaling[1]
+        //     ]
+        //     const group = new Group({
+        //         name, id, zIndex, 
+        //         pos: centerPos,
+        //         anchor: [0.5, 0.5],
+        //         size: [r.w, r.h]
+        //     });
+        //     // console.log('attr', attr)
+        //     const node = new Polyline({
+        //         ...attr,
+        //         pos:[0, 0]
+        //     });
+        //     const anchorCross = new Path({
+        //         d:'M-4,0H4M0,-4V4',
+        //         normalize: true,
+        //         pos: [0, 0],
+        //         strokeColor,
+        //         lineWidth: 1,
+        //         scale:[1 / worldScaling[0], 1 / worldScaling[1]]
+        //     });
+        //     group.append(node, anchorCross);
+        //     layer.append(group);
+        //     return r;
+        // } 
+        if (scale) {
+            attr.scale = scale;
         }
-        else {
-            const node = new Polyline(attr);
-            layer.append(node);
+        if (rotate) {
+            attr.rotate = rotate;
+        }
+        if (translate) {
+            attr.translate = translate;
+        }
+        const node = new Polyline(attr);
+        layer.append(node);
+        if (scale || rotate || translate) {
+            const r = node.getBoundingClientRect();
+            return {
+                x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
+                y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
+                w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
+                h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
+            };
         }
         return r;
     }
-    computDrawPoints(thickness, _placement) {
+    transformControlPoints(placement) {
         const r = getRectFromPoints(this.tmpPoints);
-        const pos = [Math.floor(r.x + r.w / 2), Math.floor(r.y + r.h / 2)];
-        // const scale = getWHRatio(r.w,r.h);
-        // const radius = Math.floor(Math.min(r.w,r.h) / 2);
+        switch (placement) {
+            case 'bottom':
+            case 'bottomLeft':
+            case 'bottomRight': {
+                const bottomY = r.y + r.h * this.ratio;
+                return [
+                    new Vec2d(r.x, r.y, 0),
+                    new Vec2d(r.x + r.w, r.y, 0),
+                    new Vec2d(r.x + r.w, bottomY, 0),
+                    new Vec2d(r.x, bottomY, 0)
+                ];
+            }
+            case 'top':
+            case 'topLeft':
+            case 'topRight': {
+                const topY = r.y + r.h * (1 - this.ratio);
+                return [
+                    new Vec2d(r.x, topY, 0),
+                    new Vec2d(r.x + r.w, topY, 0),
+                    new Vec2d(r.x + r.w, r.y + r.h, 0),
+                    new Vec2d(r.x, r.y + r.h, 0)
+                ];
+            }
+            case 'left':
+            case 'leftBottom':
+            case 'leftTop': {
+                const leftX = r.x + r.w * (1 - this.ratio);
+                return [
+                    new Vec2d(leftX, r.y, 0),
+                    new Vec2d(r.x + r.w, r.y, 0),
+                    new Vec2d(r.x + r.w, r.y + r.h, 0),
+                    new Vec2d(leftX, r.y + r.h, 0)
+                ];
+            }
+            case 'right':
+            case 'rightBottom':
+            case 'rightTop': {
+                const rightX = r.x + r.w * this.ratio;
+                return [
+                    new Vec2d(r.x, r.y, 0),
+                    new Vec2d(rightX, r.y, 0),
+                    new Vec2d(rightX, r.y + r.h, 0),
+                    new Vec2d(r.x, r.y + r.h, 0)
+                ];
+            }
+        }
+    }
+    computDrawPoints(thickness, placement) {
+        const r = getRectFromPoints(this.tmpPoints);
+        const controlPoints = this.transformControlPoints(placement);
+        const offsetW = Math.floor(r.w * 0.1);
+        const offsetH = Math.floor(r.h * 0.1);
         const points = [];
-        // const average = 2 * Math.PI / vertices;
-        // for (let i = 0; i < vertices; i++) {
-        //     const outerAngle = i * average - 0.5 * Math.PI;
-        //     const x = radius * scale[0] * Math.cos(outerAngle);
-        //     const y = radius * scale[1] * Math.sin(outerAngle);
-        //     points.push(x, y);
-        // }
+        /** 顺时针 计算 */
+        // 左上角
+        const leftEndPoint = Vec2d.Add(controlPoints[0], new Vec2d(0, offsetH, 0));
+        const topStartPoint = Vec2d.Add(controlPoints[0], new Vec2d(offsetW, 0, 0));
+        const leftTopPoints = Bezier.getBezierPoints(10, leftEndPoint, controlPoints[0], topStartPoint);
+        // points.push(...Bezier.getBezierPoints(4,leftEndPoint,controlPoints[0],topStartPoint));
+        // 右上角
+        const topEndPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW, 0, 0));
+        const rightStartPoint = Vec2d.Add(controlPoints[1], new Vec2d(0, offsetH, 0));
+        const topRightPoints = Bezier.getBezierPoints(10, topEndPoint, controlPoints[1], rightStartPoint);
+        // points.push(...Bezier.getBezierPoints(4,topEndPoint,controlPoints[1],rightStartPoint));
+        //右下角
+        const rightEndPoint = Vec2d.Sub(controlPoints[2], new Vec2d(0, offsetH, 0));
+        const bottomStartPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW, 0, 0));
+        const rightBottomPoints = Bezier.getBezierPoints(10, rightEndPoint, controlPoints[2], bottomStartPoint);
+        // points.push(...Bezier.getBezierPoints(4,rightEndPoint,controlPoints[2],bottomStartPoint));
+        //左下角
+        const bottomEndPoint = Vec2d.Add(controlPoints[3], new Vec2d(offsetW, 0, 0));
+        const leftStartPoint = Vec2d.Sub(controlPoints[3], new Vec2d(0, offsetH, 0));
+        const bottomLeftPoints = Bezier.getBezierPoints(10, bottomEndPoint, controlPoints[3], leftStartPoint);
+        // points.push(...Bezier.getBezierPoints(4,bottomEndPoint,controlPoints[2],leftStartPoint));
+        // 三角形的点
+        const triangleW = offsetW * (1 - this.ratio) * 10;
+        const triangleH = offsetH * (1 - this.ratio) * 10;
+        switch (placement) {
+            case 'bottom': {
+                const rightPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 5 - triangleW / 2, 0, 0));
+                const midPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 5, -triangleH, 0));
+                const leftPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 5 + triangleW / 2, 0, 0));
+                points.push(midPoint, leftPoint, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, rightPoint);
+                break;
+            }
+            case 'bottomRight': {
+                const rightPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 1.1, 0, 0));
+                const midPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 1.1 + triangleW / 2, -triangleH, 0));
+                const leftPoint = Vec2d.Sub(controlPoints[2], new Vec2d(offsetW * 1.1 + triangleW, 0, 0));
+                points.push(midPoint, leftPoint, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, rightPoint);
+                break;
+            }
+            case 'bottomLeft': {
+                const rightPoint = Vec2d.Add(controlPoints[3], new Vec2d(offsetW * 1.1 + triangleW, 0, 0));
+                const midPoint = Vec2d.Add(controlPoints[3], new Vec2d(offsetW * 1.1 + triangleW / 2, triangleH, 0));
+                const leftPoint = Vec2d.Add(controlPoints[3], new Vec2d(offsetW * 1.1, 0, 0));
+                points.push(midPoint, leftPoint, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, rightPoint);
+                break;
+            }
+            case 'top': {
+                const rightPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 5 - triangleW / 2, 0, 0));
+                const midPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 5, triangleH, 0));
+                const leftPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 5 + triangleW / 2, 0, 0));
+                points.push(midPoint, rightPoint, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, leftPoint);
+                break;
+            }
+            case 'topRight': {
+                const rightPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 1.1, 0, 0));
+                const midPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 1.1 + triangleW / 2, triangleH, 0));
+                const leftPoint = Vec2d.Sub(controlPoints[1], new Vec2d(offsetW * 1.1 + triangleW, 0, 0));
+                points.push(midPoint, rightPoint, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, leftPoint);
+                break;
+            }
+            case 'topLeft': {
+                const rightPoint = Vec2d.Add(controlPoints[0], new Vec2d(offsetW * 1.1 + triangleW, 0, 0));
+                const midPoint = Vec2d.Add(controlPoints[0], new Vec2d(offsetW * 1.1 + triangleW / 2, -triangleH, 0));
+                const leftPoint = Vec2d.Add(controlPoints[0], new Vec2d(offsetW * 1.1, 0, 0));
+                points.push(midPoint, rightPoint, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, leftPoint);
+                break;
+            }
+            case 'left': {
+                const topPoint = Vec2d.Add(controlPoints[0], new Vec2d(0, offsetH * 5 - triangleH / 2, 0));
+                const midPoint = Vec2d.Add(controlPoints[0], new Vec2d(-triangleW, offsetH * 5, 0));
+                const bottomPoint = Vec2d.Add(controlPoints[0], new Vec2d(0, offsetH * 5 + triangleH / 2, 0));
+                points.push(midPoint, topPoint, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, bottomPoint);
+                break;
+            }
+            case 'leftTop': {
+                const topPoint = Vec2d.Add(controlPoints[0], new Vec2d(0, offsetH * 1.1, 0));
+                const midPoint = Vec2d.Add(controlPoints[0], new Vec2d(-triangleW, offsetH * 1.1 + triangleH / 2, 0));
+                const bottomPoint = Vec2d.Add(controlPoints[0], new Vec2d(0, offsetH * 1.1 + triangleH, 0));
+                points.push(midPoint, topPoint, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, bottomPoint);
+                break;
+            }
+            case 'leftBottom': {
+                const topPoint = Vec2d.Sub(controlPoints[3], new Vec2d(0, offsetH * 1.1 + triangleH, 0));
+                const midPoint = Vec2d.Sub(controlPoints[3], new Vec2d(triangleW, offsetH * 1.1 + triangleH / 2, 0));
+                const bottomPoint = Vec2d.Sub(controlPoints[3], new Vec2d(0, offsetH * 1.1, 0));
+                points.push(midPoint, topPoint, ...leftTopPoints, ...topRightPoints, ...rightBottomPoints, ...bottomLeftPoints, bottomPoint);
+                break;
+            }
+            case 'right': {
+                const topPoint = Vec2d.Add(controlPoints[1], new Vec2d(0, offsetH * 5 - triangleH / 2, 0));
+                const midPoint = Vec2d.Add(controlPoints[1], new Vec2d(triangleW, offsetH * 5, 0));
+                const bottomPoint = Vec2d.Add(controlPoints[1], new Vec2d(0, offsetH * 5 + triangleH / 2, 0));
+                points.push(midPoint, bottomPoint, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, topPoint);
+                break;
+            }
+            case 'rightTop': {
+                const topPoint = Vec2d.Add(controlPoints[1], new Vec2d(0, offsetH * 1.1, 0));
+                const midPoint = Vec2d.Add(controlPoints[1], new Vec2d(triangleW, offsetH * 1.1 + triangleH / 2, 0));
+                const bottomPoint = Vec2d.Add(controlPoints[1], new Vec2d(0, offsetH * 1.1 + triangleH, 0));
+                points.push(midPoint, bottomPoint, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, topPoint);
+                break;
+            }
+            case 'rightBottom': {
+                const topPoint = Vec2d.Sub(controlPoints[2], new Vec2d(0, offsetH * 1.1 + triangleH, 0));
+                const midPoint = Vec2d.Sub(controlPoints[2], new Vec2d(-triangleW, offsetH * 1.1 + triangleH / 2, 0));
+                const bottomPoint = Vec2d.Sub(controlPoints[2], new Vec2d(0, offsetH * 1.1, 0));
+                points.push(midPoint, bottomPoint, ...rightBottomPoints, ...bottomLeftPoints, ...leftTopPoints, ...topRightPoints, topPoint);
+                break;
+            }
+        }
         const rect = getRectFromPoints(this.tmpPoints, thickness);
+        const pos = [Math.floor(rect.x + rect.w / 2), Math.floor(rect.y + rect.h / 2)];
         return {
             rect,
             pos,
@@ -249,11 +431,49 @@ export class SpeechBalloonShape extends BaseShapeTool {
         for (let i = 0; i < op.length; i += 3) {
             this.tmpPoints.push(new Point2d(op[i], op[i + 1], op[i + 2]));
         }
-        const rect = this.draw({ workId, isFullWork, normalize: true, isDrawing: false });
+        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+        const rect = this.draw({ workId, layer, isDrawing: false });
         this.oldRect = rect;
+        this.vNodes.setInfo(workId, {
+            rect,
+            op,
+            opt: this.workOptions,
+            toolsType: this.toolsType,
+            scaleType: this.scaleType,
+            canRotate: this.canRotate,
+            centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
+        });
         return rect;
     }
     clearTmpPoints() {
         this.tmpPoints.length = 0;
+    }
+    static updateNodeOpt(param) {
+        const { node, opt, vNodes } = param;
+        const { strokeColor, fillColor } = opt;
+        const nodeOpt = vNodes.get(node.name);
+        let n = node;
+        if (node.tagName === 'GROUP') {
+            n = node.children[0];
+        }
+        if (strokeColor) {
+            n.setAttribute('strokeColor', strokeColor);
+            if (nodeOpt?.opt?.strokeColor) {
+                nodeOpt.opt.strokeColor = strokeColor;
+            }
+        }
+        if (fillColor) {
+            if (fillColor === 'transparent') {
+                n.setAttribute('fillColor', 'rgba(0,0,0,0)');
+            }
+            else {
+                n.setAttribute('fillColor', fillColor);
+            }
+            if (nodeOpt?.opt?.fillColor) {
+                nodeOpt.opt.fillColor = fillColor;
+            }
+        }
+        nodeOpt && vNodes.setInfo(node.name, nodeOpt);
+        return BaseShapeTool.updateNodeOpt(param);
     }
 }

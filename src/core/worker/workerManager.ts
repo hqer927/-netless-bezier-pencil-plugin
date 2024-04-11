@@ -130,7 +130,8 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
         this.methodBuilder = new MethodBuilderWorker([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode
+            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.SetFontStyle,
+            EmitEventType.SetPoint
         ]).registerForWorker(this.localWork,this.serviceWork);
         this.vNodes.init(this.fullLayer, this.drawLayer);
     }
@@ -205,7 +206,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
         if (rsp?.length) {
             msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
         }
-        if (msg.drawCount || msg.workerTasksqueueCount || rsp?.length || newRender?.length) {
+        if (msg.drawCount || msg.workerTasksqueueCount || msg.sp?.length || newRender?.length) {
             // console.log('post', this.fullLayer.children.map(c=>c.name), 
             //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.name),
             //     (this.fullLayer.parent as Layer)?.children?.map(c=>c.id),
@@ -245,6 +246,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
             case EPostMessageType.UpdateNode:
             case EPostMessageType.FullWork:
                 this.consumeFull(dataType, msg)
+                
                 break;
             case EPostMessageType.RemoveNode:
                 this.removeNode(msg);
@@ -505,6 +507,10 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                 } 
             }
             msg.render = newRender;
+        }
+        const rsp = msg.sp?.filter(s=>(s.type !== EPostMessageType.None || Object.keys(s).filter(f=>f === 'type').length));
+        if (rsp?.length) {
+            msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
         }
         if (msg.sp?.length || msg.drawCount || newRender?.length) {
             this._post(msg, transfers);

@@ -8,4 +8,5 @@ export * from './ellipse';
 export * from './rectangle';
 export * from './star';
 export * from './polygon';
+export * from './speechBalloon';
 export * from './utils';

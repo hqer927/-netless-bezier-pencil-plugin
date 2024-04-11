@@ -430,10 +430,10 @@
   resolved "https://registry.npmjs.org/@eslint/js/-/js-8.57.0.tgz#a5417ae8427873f1dd08b70b3574b453e67b5f7f"
   integrity sha512-Ys+3g2TaW7gADOJzPt83SJtCDhMjndcDMFVQ/Tj9iA1BfJzFKD9mAUXT3OenpuPHbI6P/myECxRJrofUsDx/5g==
 
-"@hqer/bezier-pencil-plugin@^0.0.37":
-  version "0.0.37"
-  resolved "https://registry.npmjs.org/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.37.tgz#3d763479c07f753aff27aed4191f64b4b316c07a"
-  integrity sha512-mpZUzb3/ECs1MGXgPiTx7vKlb6s/wnV8jZvC/wzWprBkxMUUb4FeV26PAbnwyUxTMjI/k5+XzLgcGNyDJtzOFg==
+"@hqer/bezier-pencil-plugin@^0.0.38":
+  version "0.0.38"
+  resolved "https://registry.npmjs.org/@hqer/bezier-pencil-plugin/-/bezier-pencil-plugin-0.0.38.tgz#d779dc39c2e97dbf9795976f147988803ff14a53"
+  integrity sha512-27qCAOKH/JuO1MI++1gVBJxbSRHqUzcP3RYostTFyR6AkM9tCTbEoZrg1OhXIFhL+2ZH+SB1wHOCvh/1spTsdg==
   dependencies:
     eventemitter2 "^6.4.9"
     lineclip "^1.1.5"

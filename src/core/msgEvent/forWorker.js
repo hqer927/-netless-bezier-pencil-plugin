@@ -7,6 +7,8 @@ import { TranslateNodeMethodForWorker } from './translateNode/forWorker';
 import { DeleteNodeMethodForWorker } from './deleteNode/forWorker';
 import { ScaleNodeMethodForWorker } from './scaleNode/forWorker';
 import { RotateNodeMethodForWorker } from './rotateNode/forWorker';
+import { SetFontStyleMethodForWorker } from './setFont/forWorker';
+import { SetPointMethodForWorker } from './setPoint/forWorker';
 export class MethodBuilderWorker {
     constructor(emitTypes) {
         Object.defineProperty(this, "builders", {
@@ -35,6 +37,10 @@ export class MethodBuilderWorker {
                 return new ScaleNodeMethodForWorker();
             case EmitEventType.RotateNode:
                 return new RotateNodeMethodForWorker();
+            case EmitEventType.SetFontStyle:
+                return new SetFontStyleMethodForWorker();
+            case EmitEventType.SetPoint:
+                return new SetPointMethodForWorker();
         }
         return undefined;
     }

@@ -24,11 +24,14 @@ export declare class LaserPenShape extends BaseShapeTool {
     consume(props: {
         data: IWorkerMessage;
         isFullWork: boolean;
+        isSubWorker?: boolean;
     }): IMainMessage;
     consumeAll(): IMainMessage;
     clearTmpPoints(): void;
     consumeService(props: {
         op: number[];
+        isFullWork?: boolean;
+        replaceId?: string;
     }): IRectType | undefined;
     private computDotStroke;
     private updateTempPoints;

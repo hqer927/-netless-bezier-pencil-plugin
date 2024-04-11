@@ -251,9 +251,9 @@ export class MasterControlForWorker extends MasterController{
                 if (sp?.length) {
                     this.collectorSyncData(sp);
                 }
-                if (render?.length) {
-                    // console.log('selector - subWorker - render', render)
-                }
+                // if (render?.length) {
+                //     console.log('selector - subWorker - sp', sp)
+                // }
                 if (!drawCount && render?.length) {
                     this.viewContainerManager.render(render);
                     return;
@@ -280,7 +280,7 @@ export class MasterControlForWorker extends MasterController{
         let isHasOther = false;
         for (const data of sp) {
             const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, 
-                undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, 
+                undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points,
                 selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath} = data;
                 if (!viewId) {
                     console.error('collectorSyncData', data)
@@ -288,7 +288,7 @@ export class MasterControlForWorker extends MasterController{
                 }
             switch (type) {
                 case EPostMessageType.Select: {
-                    const value:Partial<ShowFloatBarMsgValue> | undefined = selectIds?.length ? {...selectRect, selectIds, canvasHeight, canvasWidth} : undefined;
+                    const value:Partial<ShowFloatBarMsgValue> | undefined = selectIds?.length ? {...selectRect, selectIds, canvasHeight, canvasWidth, points} : undefined;
                     if (value && opt?.strokeColor) {
                         value.selectorColor = opt.strokeColor;
                     }
@@ -316,6 +316,7 @@ export class MasterControlForWorker extends MasterController{
                     if (value && textOpt) {
                         value.textOpt = textOpt;
                     }
+                    // console.log('value', value?.points && cloneDeep(value.points))
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
                         const scenePath = this.viewContainerManager.getCurScenePath(viewId);
@@ -549,7 +550,7 @@ export class MasterControlForWorker extends MasterController{
                 this.control.textEditorManager.onServiceDerive(d);
                 return;
             }
-            console.log('onServiceDerive', d)
+            // console.log('onServiceDerive', d)
             this.taskBatchData.add(d);
         }
         this.runAnimation();
@@ -778,7 +779,8 @@ export class MasterControlForWorker extends MasterController{
             this.methodBuilder = new MethodBuilderMain([
                 EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
                 EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-                EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode
+                EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
+                EmitEventType.SetFontStyle, EmitEventType.SetPoint
             ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
             this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
         }

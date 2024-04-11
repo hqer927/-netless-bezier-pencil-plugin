@@ -12,3 +12,7 @@ export const HightLightBox = () => {
         React.createElement("div", { className: "point RB nwse-resize", style: { backgroundColor: floatBarData?.selectorColor } }),
         React.createElement("div", { className: "point BC ns-resize", style: { backgroundColor: floatBarData?.selectorColor } })));
 };
+export const HightLightTwoBox = () => {
+    const { floatBarData } = useContext(DisplayerContext);
+    return (React.createElement("div", { className: "bezier-pencil-plugin-hightlight-box", style: { borderColor: floatBarData?.selectorColor } }));
+};

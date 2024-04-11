@@ -426,6 +426,7 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
         }
         for (const scenePath of newScenePaths) {
             if (!oldScenePaths.includes(scenePath)) {
+                // console.log('syncViewData---1', this.storage[viewId][scenePath])
                 willSyncMap.set(scenePath, this.storage[viewId][scenePath]);
             }
         }
@@ -513,7 +514,7 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
     private syncUpdataKey(viewId:string, scenePath:string, key:string, value: BaseCollectorReducerAction | undefined, isAfterUpdate:boolean = false){
         const length = Object.keys(this.serviceStorage[viewId][scenePath]).length;
         if (!length) {
-            this.syncStorageKey(viewId, scenePath, this.storage, isAfterUpdate);
+            this.syncStorageKey(viewId, scenePath, this.storage[viewId][scenePath], isAfterUpdate);
         } else {
             if(!isAfterUpdate){
                 if (value === undefined) {

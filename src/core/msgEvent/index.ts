@@ -9,6 +9,8 @@ import { DeleteNodeMethod } from './deleteNode/forMain';
 import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
 import { BaseTeachingAidsManager } from '../../plugin/baseTeachingAidsManager';
+import { SetFontStyleMethod } from './setFont/forMain';
+import { SetPointMethod } from './setPoint/forMain';
 export { ZIndexNodeMethod };
 
 export type MsgMethod<T extends BaseMsgMethod> = T;
@@ -34,7 +36,11 @@ export class MethodBuilderMain {
             case EmitEventType.ScaleNode:
                 return new ScaleNodeMethod();
             case EmitEventType.RotateNode:
-                return new RotateNodeMethod();        
+                return new RotateNodeMethod();  
+            case EmitEventType.SetFontStyle:
+                return new SetFontStyleMethod();
+            case EmitEventType.SetPoint:
+                return new SetPointMethod();      
        }
        return undefined
     }

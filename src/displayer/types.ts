@@ -22,6 +22,7 @@ export type ShowFloatBarMsgValue = {
     textOpt?: TextOptions,
     scaleType?: EScaleType;
     canRotate?: boolean;
+    points?:[number,number][];
 };
 export type SubButProps = {
     open: boolean;

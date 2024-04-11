@@ -34,7 +34,7 @@ export class LocalWorkForSubWorker extends LocalWork {
     runSelectWork(data: IWorkerMessage): undefined {
         const workShape = this.setFullWork(data);
         if(workShape && data.selectIds?.length && data.workId){
-            (workShape as SelectorShape).selectServiceNode(data.workId.toString(), {selectIds:data.selectIds});
+            (workShape as SelectorShape).selectServiceNode(data.workId.toString(), {selectIds:data.selectIds},false);
         }
     }
     consumeDraw(data: IWorkerMessage): IMainMessage | undefined {
@@ -99,11 +99,12 @@ export class LocalWorkForSubWorker extends LocalWork {
                                     canDel: false,
                                     isRect: true,
                                 });
-                                this.runLaserPenAnimation();
+                                this.runLaserPenAnimation(result);
                             }
-                            this._post({
-                                sp: [result]
-                            });
+                            // console.log('consumeDrawAll', result)
+                            // this._post({
+                            //     sp: [result]
+                            // });
                         }
                         const duration = (workShapeNode.getWorkOptions() as LaserPenOptions)?.duration;
                         this.closeAnimationTime = duration ?  duration * 1000 + 100 : this.closeAnimationTime;
@@ -114,7 +115,9 @@ export class LocalWorkForSubWorker extends LocalWork {
                             if (rectData) {
                                 rectData.canDel = true;
                             }
+                            // console.log('consumeDrawAll--1', workShapeNode.getWorkOptions().syncUnitTime || this.closeAnimationTime)
                             setTimeout(()=>{
+                                // console.log('consumeDrawAll--2')
                                 this._post({
                                     sp: [{
                                         removeIds:[workId.toString()],
@@ -143,14 +146,14 @@ export class LocalWorkForSubWorker extends LocalWork {
         }
         return ;
     }
-    private runLaserPenAnimation() {
+    private runLaserPenAnimation(result?:IMainMessage) {
         if (!this.animationId) {
             this.animationId = requestAnimationFrame(() => {
                 this.animationId = undefined;
                 this.runLaserPenStep++;
                 if (this.runLaserPenStep > 1) {
                     this.runLaserPenStep = 0;
-                    this.runLaserPenAnimation();
+                    this.runLaserPenAnimation(result);
                     return;
                 }
                 let rect:IRectType | undefined;
@@ -176,6 +179,9 @@ export class LocalWorkForSubWorker extends LocalWork {
                     this.runLaserPenAnimation();
                 }
                 if (rect) {
+                    if(result) {
+                        sp.push(result);
+                    }
                     this._post({
                         render: [{
                             rect,

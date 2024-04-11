@@ -1,5 +1,6 @@
 import { EventMessageType, EvevtWorkState } from "../core";
 import { EventCollector } from "../collector/eventCollector";
+import { Storage_Splitter } from "../collector";
 import isNumber from "lodash/isNumber";
 // import { MasterController } from "../core/mainEngine";
 export var CursorColloctSource;
@@ -69,7 +70,7 @@ export class CursorManagerImpl {
             // console.log('addStorageStateListener- eventCollector', event)
             event.forEach((value, uid) => {
                 if (this.eventCollector.uid !== uid) {
-                    const ops = [];
+                    const ops = new Map();
                     value?.forEach(v => {
                         if (v && v.type === EventMessageType.Cursor && v.op && v.viewId) {
                             const op = [];
@@ -78,16 +79,16 @@ export class CursorManagerImpl {
                                 const op2 = v.op[i + 1];
                                 if (isNumber(op1) && isNumber(op2)) {
                                     const _op = this.control.viewContainerManager.transformToOriginPoint([op1, op2], v.viewId);
-                                    op.push(..._op, v.viewId);
+                                    op.push(_op[0], _op[1]);
                                 }
                                 else {
-                                    op.push(op1, op2, v.viewId);
+                                    op.push(op1, op2);
                                 }
                             }
-                            ops.push(...op);
+                            ops.set(v.viewId, op);
                         }
                     });
-                    if (ops.length) {
+                    if (ops.size) {
                         // console.log('activePointWorkShape', ops)
                         this.activePointWorkShape(uid, ops);
                         this.runAnimation();
@@ -100,81 +101,43 @@ export class CursorManagerImpl {
             });
         });
     }
-    activePointWorkShape(uid, op) {
+    activePointWorkShape(uid, ops) {
         const roomMember = this.roomMember.getRoomMember(uid);
         if (!roomMember) {
             return;
         }
-        const workShape1 = this.animationDrawWorkers.get(uid);
-        const workShape = this.animationPointWorkers.get(uid);
-        if (!workShape && op) {
-            const workItem = {
-                animationIndex: 0,
-                animationWorkData: op,
-                freeze: workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing,
-            };
-            this.animationPointWorkers?.set(uid, workItem);
-            return;
-        }
-        if (workShape && op) {
-            workShape.animationWorkData = op;
-            workShape.animationIndex = 0;
-            workShape.freeze = workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing;
+        for (const [viewId, op] of ops.entries()) {
+            const key = this.getKey(uid, viewId);
+            const workShape1 = this.animationDrawWorkers.get(key);
+            const workShape = this.animationPointWorkers.get(key);
+            if (op) {
+                if (!workShape) {
+                    const workItem = {
+                        animationIndex: 0,
+                        animationWorkData: op,
+                        freeze: workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing || false,
+                    };
+                    this.animationPointWorkers?.set(key, workItem);
+                    return;
+                }
+                workShape.animationWorkData = op;
+                workShape.animationIndex = 0;
+                workShape.freeze = workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing || false;
+            }
         }
     }
-    activeDrawWorkShape(uid, op, workState, viewId) {
-        const roomMember = this.roomMember.getRoomMember(uid);
-        if (!roomMember) {
-            return;
-        }
-        if (workState === EvevtWorkState.Start) {
-            const workShape1 = this.animationPointWorkers.get(uid);
-            if (!workShape1) {
-                const workItem = {
-                    animationIndex: 0,
-                    animationWorkData: [],
-                    freeze: true,
-                };
-                this.animationDrawWorkers?.set(uid, workItem);
-            }
-            else {
-                workShape1.animationWorkData = [];
-                workShape1.animationIndex = 0;
-                workShape1.freeze = true;
-            }
-        }
-        else if (workState === EvevtWorkState.Done) {
-            const workShape1 = this.animationPointWorkers.get(uid);
-            if (workShape1) {
-                workShape1.freeze = false;
-            }
-        }
-        const workShape = this.animationDrawWorkers.get(uid);
-        const ops = [];
-        if (op) {
-            for (let i = 0; i < op.length; i += 2) {
-                ops.push(op[i], op[i + 1], viewId);
-            }
-        }
-        if (!workShape && ops.length) {
-            const workItem = {
-                animationIndex: 0,
-                animationWorkData: ops,
-                workState
-            };
-            this.animationDrawWorkers?.set(uid, workItem);
-            return;
-        }
-        if (workShape && ops.length) {
-            workShape.animationWorkData = ops;
-            workShape.animationIndex = 0;
-            workShape.workState = workState;
-        }
+    getKey(uid, viewId) {
+        return `${uid}${Storage_Splitter}${viewId}`;
+    }
+    getUidAndviewId(key) {
+        const [uid, viewId] = key.split(Storage_Splitter);
+        return { uid, viewId };
     }
     animationCursor() {
         this.animationId = undefined;
         const cursorInfos = new Map();
-        this.animationPointWorkers.forEach((workShape, uid) => {
+        this.animationPointWorkers.forEach((workShape, key) => {
+            const { uid } = this.getUidAndviewId(key);
             const freeze = workShape.freeze;
             if (freeze) {
                 return;
@@ -183,46 +146,90 @@ export class CursorManagerImpl {
             const roomMember = this.roomMember.getRoomMember(uid);
             if (roomMember) {
                 if (workShape.animationWorkData.length - 1 > curIndex) {
-                    workShape.animationIndex = curIndex + 3;
+                    workShape.animationIndex = curIndex + 2;
                 }
                 const x = workShape.animationWorkData[curIndex];
                 const y = workShape.animationWorkData[curIndex + 1];
-                const viewId = workShape.animationWorkData[curIndex + 2];
-                cursorInfos.set(uid, {
+                cursorInfos.set(key, {
                     x,
                     y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined,
-                    viewId
+                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
                 });
                 if (workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
-                    this.animationPointWorkers.delete(uid);
+                    this.animationPointWorkers.delete(key);
                 }
             }
         });
-        this.animationDrawWorkers.forEach((workShape, uid) => {
+        this.animationDrawWorkers.forEach((workShape, key) => {
+            const { uid } = this.getUidAndviewId(key);
             const curIndex = workShape.animationIndex;
             const roomMember = this.roomMember.getRoomMember(uid);
             if (roomMember) {
                 if (workShape.animationWorkData.length - 1 > curIndex) {
-                    workShape.animationIndex = curIndex + 3;
+                    workShape.animationIndex = curIndex + 2;
                 }
                 const x = workShape.animationWorkData[curIndex];
                 const y = workShape.animationWorkData[curIndex + 1];
-                const viewId = workShape.animationWorkData[curIndex + 2];
-                cursorInfos.set(uid, {
+                cursorInfos.set(key, {
                     x,
                     y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined,
-                    viewId
+                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
                 });
                 if (workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
-                    this.animationDrawWorkers.delete(uid);
+                    this.animationDrawWorkers.delete(key);
                 }
             }
         });
-        this.control.viewContainerManager.setActiveCursor([...cursorInfos.values()]);
+        for (const [key, info] of cursorInfos.entries()) {
+            const { viewId } = this.getUidAndviewId(key);
+            this.control.viewContainerManager.setActiveCursor(viewId, info);
+        }
         if (this.animationPointWorkers.size || this.animationDrawWorkers.size) {
             this.runAnimation();
+        }
+    }
+    activeDrawWorkShape(uid, op, workState, viewId) {
+        const roomMember = this.roomMember.getRoomMember(uid);
+        if (!roomMember) {
+            return;
+        }
+        const key = this.getKey(uid, viewId);
+        if (workState === EvevtWorkState.Start) {
+            const workShape1 = this.animationPointWorkers.get(key);
+            if (!workShape1) {
+                const workItem = {
+                    animationIndex: 0,
+                    animationWorkData: [],
+                    freeze: true,
+                };
+                this.animationDrawWorkers?.set(key, workItem);
+            }
+            else {
+                workShape1.animationWorkData = [];
+                workShape1.animationIndex = 0;
+                workShape1.freeze = true;
+            }
+        }
+        else if (workState === EvevtWorkState.Done) {
+            const workShape1 = this.animationPointWorkers.get(key);
+            if (workShape1) {
+                workShape1.freeze = false;
+            }
+        }
+        const workShape = this.animationDrawWorkers.get(key);
+        if (op) {
+            if (!workShape) {
+                const workItem = {
+                    animationIndex: 0,
+                    animationWorkData: op,
+                    workState
+                };
+                this.animationDrawWorkers?.set(key, workItem);
+                return;
+            }
+            workShape.animationWorkData = op;
+            workShape.animationIndex = 0;
+            workShape.workState = workState;
         }
     }
     runAnimation() {
@@ -230,9 +237,6 @@ export class CursorManagerImpl {
             this.animationId = requestAnimationFrame(this.animationCursor.bind(this));
         }
     }
-    // injectWorker(worker: MasterController){
-    //     this.worker = worker;
-    // }
     sendEvent(point, viewId) {
         this.eventCollector.dispatch({
             type: EventMessageType.Cursor,
@@ -247,7 +251,7 @@ export class CursorManagerImpl {
                 clearTimeout(this.removeTimerId);
                 this.removeTimerId = undefined;
             }
-            const _op = isNumber(op[0]) && isNumber(op[1]) && this.control.viewContainerManager.transformToOriginPoint(op, viewId) || op;
+            const _op = isNumber(op[0]) && isNumber(op[1]) && this.control.viewContainerManager.transformToOriginPoint(op, viewId) || [undefined, undefined];
             this.activeDrawWorkShape(uid, _op, workState, viewId);
             this.runAnimation();
             if (workState === EvevtWorkState.Done && !this.removeTimerId) {

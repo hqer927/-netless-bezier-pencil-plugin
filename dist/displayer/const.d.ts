@@ -6,3 +6,4 @@ export declare type Margin = {
 };
 export declare const BarPadding: Margin;
 export declare const BarMargin: Margin;
+export declare const FontSizeList: readonly number[];

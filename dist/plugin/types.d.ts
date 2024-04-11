@@ -134,6 +134,8 @@ export type MemberState = _MemberState & {
     textAlign?: "left" | "center" | "right";
     /** 垂直对齐方式 */
     verticalAlign?: "top" | "middle" | "bottom";
+    /** 位置 */
+    placement?: SpeechBalloonPlacement;
 };
 export type SyncOpt = {
     /** 同步间隔 */
@@ -177,7 +179,11 @@ export declare enum EmitEventType {
     /** 控制editor */
     CommandEditor = "CommandEditor",
     /** 设置editor */
-    SetEditorData = "SetEditorData"
+    SetEditorData = "SetEditorData",
+    /** 设置文字样式 */
+    SetFontStyle = "SetFontStyle",
+    /** 设置坐标 */
+    SetPoint = "SetPoint"
 }
 export declare enum InternalMsgEmitterType {
     DisplayState = "DisplayState",

@@ -7,7 +7,7 @@ import { TextEditorContainer } from "../component/textEditor/view";
 import { FloatBar } from "../displayer/floatBar";
 import { RotateBtn } from "../displayer/rotate";
 import { CursorManager } from '../displayer/cursor';
-import { ResizableBox } from '../displayer/resizable';
+import { ResizableBox, ResizableTwoBox } from '../displayer/resizable';
 export const DisplayerContext = React.createContext({
     maranger: undefined,
     floatBarColors: [],
@@ -22,6 +22,7 @@ export const DisplayerContext = React.createContext({
     setSize: () => { },
     setAngle: () => { },
     setOperationType: () => { },
+    setFloatBarData: () => { }
 });
 export class BaseViewDisplayer extends React.Component {
     constructor(props) {
@@ -125,6 +126,11 @@ export class BaseViewDisplayer extends React.Component {
     setFloatZIndex(zIndex) {
         this.setState({ zIndex });
     }
+    setFloatBarData(data) {
+        this.state.floatBarData && this.setState({
+            floatBarData: { ...this.state.floatBarData, ...data }
+        });
+    }
     render() {
         return (React.createElement(React.Fragment, null,
             React.createElement("div", { className: styles['Container'], onMouseDown: (e) => {
@@ -152,6 +158,7 @@ export class BaseViewDisplayer extends React.Component {
                         setSize: this.setSize.bind(this),
                         setAngle: this.setAngle.bind(this),
                         setOperationType: this.setOperationType.bind(this),
+                        setFloatBarData: this.setFloatBarData.bind(this),
                     } },
                     this.state.showFloatBar &&
                         React.createElement(FloatBar, { className: styles['FloatBar'], ref: this.props.refs.floatBarCanvasRef, editors: this.state.editors, activeTextId: this.state.activeTextId }),
@@ -162,12 +169,10 @@ export class BaseViewDisplayer extends React.Component {
                         React.createElement(RotateBtn, { className: styles['RotateBtn'] }),
                     this.state.floatBarData?.scaleType === EScaleType.all && this.state.showFloatBar &&
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.ScaleNode) &&
-                        React.createElement(ResizableBox, { className: styles['ResizeBtn'] })),
-                !!this.state.cursorInfo?.length && this.state.cursorInfo.map((info) => {
-                    if (info.roomMember) {
-                        return React.createElement(CursorManager, { key: info.roomMember.memberId, className: styles['CursorBox'], info: info });
-                    }
-                    return null;
-                }))));
+                        React.createElement(ResizableBox, { className: styles['ResizeBtn'] }),
+                    this.state.floatBarData?.scaleType === EScaleType.both && this.state.showFloatBar &&
+                        (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.SetPoint) &&
+                        React.createElement(ResizableTwoBox, { className: styles['ResizeTowBox'] })),
+                this.state.cursorInfo && this.state.cursorInfo.roomMember && (React.createElement(CursorManager, { key: this.state.cursorInfo.roomMember.memberId, className: styles['CursorBox'], info: this.state.cursorInfo }) || null))));
     }
 }

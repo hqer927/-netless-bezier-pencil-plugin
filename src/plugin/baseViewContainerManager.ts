@@ -105,6 +105,7 @@ export abstract class ViewContainerManager {
     destroyAppView(viewId:string) {
         const viewInfo = this.appViews.get(viewId);
         if(viewInfo){
+            this.control.textEditorManager.clear(viewId);
             viewInfo.displayer.destroy();
             this.appViews.delete(viewId);
         }
@@ -233,15 +234,11 @@ export abstract class ViewContainerManager {
         }
     }
     /** 激活刷新指针 */
-    setActiveCursor(cursorInfo: { x?: number; y?: number, roomMember?: RoomMember, viewId:string }[]) {
-        for (const item of cursorInfo) {
-            const { viewId, ...info } = item;
-            const view = this.getView(viewId);
-            const vDom = view?.displayer.vDom;
-            if (vDom) {
-                // console.log('setActiveCursor', viewId, info);
-                vDom.setActiveCursor([info]);
-            }
+    setActiveCursor(viewId:string, cursorInfo: { x?: number; y?: number, roomMember?: RoomMember}) {
+        const view = this.getView(viewId);
+        const vDom = view?.displayer.vDom;
+        if (vDom) {
+            vDom.setActiveCursor(cursorInfo);
         }
     }
     /** 激活刷新文字编辑器 */
@@ -312,9 +309,12 @@ export abstract class AppViewDisplayerManager {
         } 
     }
     getPoint(e:any):[number,number]|undefined{
-        if (e instanceof TouchEvent && e.targetTouches[0]) {
-            const point:[number,number] = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-            return point;
+        if (e instanceof TouchEvent) {
+            const event:Touch = e.targetTouches[0] || e.changedTouches[0];
+            if (event) {
+                const point:[number,number] = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
+                return point;
+            }
         }
         if(isNumber(e.pageX) && isNumber(e.pageY)) {
             const point:[number,number] = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
@@ -466,7 +466,7 @@ export abstract class MainViewDisplayerManager {
     }
     updateSize(){
         this.setCanvassStyle();
-        this.reflashContainerOffset();
+        // this.reflashContainerOffset();
     }
     reflashContainerOffset(){
         if(this.eventTragetElement){
@@ -479,9 +479,12 @@ export abstract class MainViewDisplayerManager {
         } 
     }
     getPoint(e:any):[number,number]|undefined{
-        if (e instanceof TouchEvent && e.targetTouches[0]) {
-            const point:[number,number] = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-            return point;
+        if (e instanceof TouchEvent) {
+            const event:Touch = e.targetTouches[0] || e.changedTouches[0];
+            if (event) {
+                const point:[number,number] = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
+                return point;
+            }
         }
         if(isNumber(e.pageX) && isNumber(e.pageY)) {
             const point:[number,number] = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
@@ -508,6 +511,7 @@ export abstract class MainViewDisplayerManager {
     }
     protected mousedown = (e:MouseEvent) =>{
         if (e.button === 0) {
+            this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
             point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
@@ -526,6 +530,7 @@ export abstract class MainViewDisplayerManager {
         }
     }
     protected touchstart = (e:TouchEvent) =>{
+        this.reflashContainerOffset();
         const point = this.getPoint(e);
         this.cachePoint = point;
         point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)

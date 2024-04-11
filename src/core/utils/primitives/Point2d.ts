@@ -127,7 +127,7 @@ export class Point2d extends Vec2d {
         return dotPts;
     }
     /**
-     * 根据圆心和园上的起始点，获取半圆上的等份点
+     * 根据圆心和圆上的起始点，获取半圆上的等份点
      * @param o 圆心 
      * @param p 圆弧起始点
      * @param radian 1，逆时针180度 -1，顺时针 

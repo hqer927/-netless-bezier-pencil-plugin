@@ -268,15 +268,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                             op: workShape.animationWorkData, 
                             isFullWork
                         });
-                        const cursorPs = {
+                        cursorPoints.set(key, {
                             workState: !oldRect? EvevtWorkState.Start : workShape.ops ? EvevtWorkState.Done : EvevtWorkState.Doing,
                             op: workShape.animationWorkData.filter((_v, i) => {
                                 if (i % 3 !== 2) {
                                     return true;
                                 }
                             }).slice(-2),
-                        };
-                        cursorPoints.set(key, cursorPs)
+                        })
                         if (isFullWork) {
                             this.selectorWorkShapes.forEach((s,selectorId)=>{
                                 if (s.selectIds?.includes(key)) {
@@ -294,6 +293,10 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                 drawCanvas: ECanvasShowType.Bg,
                                 isFullWork,
                                 viewId:this.viewId
+                            })
+                            cursorPoints.set(key, {
+                                workState: EvevtWorkState.Done,
+                                op: [],
                             })
                         } else {
                             floatRenders.push({
@@ -356,6 +359,16 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                     viewId:this.viewId
                                 });
                                 workShape.animationIndex = nextAnimationIndex;
+                                if (data.length) {
+                                    cursorPoints.set(key, {
+                                        workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                                        op: data.filter((_v, i) => {
+                                            if (i % pointUnit !== pointUnit - 1) {
+                                                return true;
+                                            }
+                                        }).slice(-2),
+                                    });
+                                }
                             } else if (workShape.ops) {
                                 const rect = workShape.node?.consumeService({
                                     op: workShape.animationWorkData || [],
@@ -363,7 +376,6 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                     replaceId: workShape.node.getWorkId()?.toString(),
                                 });
                                 workShape.isDel = true;
-                                // workShape.totalRect = computRect(workShape.totalRect, rect);
                                 floatClearRenders.push({
                                     rect,
                                     clearCanvas: ECanvasShowType.Float,
@@ -387,21 +399,15 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                     toolsType: workShape.toolsType,
                                     rect
                                 })
+                                cursorPoints.set(key, {
+                                    workState: EvevtWorkState.Done,
+                                    op: [],
+                                })
                             }
                             isNext = true;
                         } else if (workShape.isDel) {
                             workShape.node?.clearTmpPoints();
                             this.workShapes.delete(key);
-                        }
-                        if (data.length) {
-                            cursorPoints.set(key, {
-                                workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                                op: data.filter((_v, i) => {
-                                    if (i % pointUnit !== pointUnit - 1) {
-                                        return true;
-                                    }
-                                }).slice(-2),
-                            });
                         }
                         break;
                     }
@@ -425,13 +431,24 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                 workShape.timer = undefined;
                             }
                             workShape.animationIndex = nextAnimationIndex;
+                            if (data.length) {
+                                cursorPoints.set(key, {
+                                    workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
+                                    op: data.slice(-2),
+                                })
+                            }
                         } else {
                             if (!workShape.timer) {
                                 workShape.timer = setTimeout(() => {
                                     workShape.timer = undefined;
                                     workShape.isDel = true;
+                                    // console.log('animationDraw--1')
                                     this.runAnimation();
                                 }, (workShape.node?.getWorkOptions() as LaserPenOptions).duration * 1000 + 100) as unknown as number;
+                                cursorPoints.set(key, {
+                                    workState: EvevtWorkState.Done,
+                                    op: [],
+                                })
                             }
                             const rect = workShape.node?.consumeService({
                                 op:[],
@@ -442,13 +459,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         floatClearRenders.push({
                             rect: workShape.totalRect,
                             clearCanvas: ECanvasShowType.Float,
-                            viewId:this.viewId
+                            viewId: this.viewId
                         });
                         floatRenders.push({
                             rect: workShape.totalRect,
                             drawCanvas: ECanvasShowType.Float,
-                            viewId:this.viewId
+                            viewId: this.viewId
                         });
+                        // console.log('animationDraw', floatClearRenders, floatRenders)
                         isNext = true;
                     }
                     else if (workShape.isDel) {
@@ -467,14 +485,9 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                             drawCanvas: ECanvasShowType.Float,
                             viewId:this.viewId
                         });
+                        // console.log('animationDraw--2')
                         workShape.node?.clearTmpPoints();
                         this.workShapes.delete(key);
-                    }
-                    if (data.length) {
-                        cursorPoints.set(key, {
-                            workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                            op: data.slice(-2),
-                        })
                     }
                     break;
                 }
@@ -555,6 +568,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         if (cursorPoints.size) {
             _postData.sp = [];
             cursorPoints.forEach((v,k)=>{
+                // console.log('cursor---animation', this.viewId, v.op, v.workState);
                 _postData.sp?.push({
                     type: EPostMessageType.Cursor,
                     uid: k.split(Storage_Splitter)[0],
@@ -588,7 +602,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         let rect: IRectType | undefined = this.noAnimationRect;
         this.willRunEffectSelectorIds.forEach(id => {
             const workShape = this.selectorWorkShapes.get(id);
-            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape);
+            const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape,true);
             rect = computRect(rect, r);
             if (!workShape?.selectIds?.length) {
                 this.selectorWorkShapes.delete(id);

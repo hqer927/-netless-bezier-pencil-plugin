@@ -8,6 +8,7 @@ export declare class ViewContainerMultiManager extends ViewContainerManager {
     focuedViewId?: string;
     focuedView?: ViewInfo;
     control: TeachingAidsMultiManager;
+    private checkScaleTimer?;
     constructor(props: BaseSubWorkModuleProps);
     mountView(viewId: string): void;
     setFocuedViewCameraOpt(cameraState: CameraState): void;
@@ -16,5 +17,9 @@ export declare class ViewContainerMultiManager extends ViewContainerManager {
     transformToScenePoint(p: [number, number], viewId: string): [number, number];
     render(renderData: IMainMessageRenderData[]): void;
     onMainViewMounted: (bindMainView: View) => void;
-    private onAppViewMounted;
+    private onMainViewSizeUpdated;
+    private onMainViewCameraUpdated;
+    onAppViewMounted: (payload: any) => void;
+    private onAppViewSizeUpdated;
+    private onAppViewCameraUpdated;
 }

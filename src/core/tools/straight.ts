@@ -17,7 +17,7 @@ export interface StraightOptions extends BaseShapeOptions {
 }
 export class StraightShape extends BaseShapeTool{
     readonly canRotate: boolean = false;
-    readonly scaleType: EScaleType = EScaleType.all;
+    readonly scaleType: EScaleType = EScaleType.both;
     readonly toolsType: EToolsKey = EToolsKey.Straight;
     protected tmpPoints:Array<Point2d> = [];
     protected workOptions: StraightOptions;
@@ -79,7 +79,7 @@ export class StraightShape extends BaseShapeTool{
             // op: this.tmpPoints.map(c=>[...c.XY,0]).flat(1)
         }
     }
-    consumeAll(props: { data?: IWorkerMessage | undefined; vNodes: VNodeManager}): IMainMessage {
+    consumeAll(props: { data?: IWorkerMessage | undefined}): IMainMessage {
         const { data }= props;
         const workId = data?.workId?.toString();
         if (!workId) {
@@ -96,7 +96,7 @@ export class StraightShape extends BaseShapeTool{
         this.oldRect = rect;
         const op = this.tmpPoints.map(c=>[...c.XY,0]).flat(1);
         const ops = transformToSerializableData(op);
-        props.vNodes.setInfo(workId, {
+        this.vNodes.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

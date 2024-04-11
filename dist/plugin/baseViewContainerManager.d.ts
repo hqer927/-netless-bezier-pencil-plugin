@@ -62,12 +62,11 @@ export declare abstract class ViewContainerManager {
     /** 销毁浮动选框 */
     unActiveFloatBar(viewId: string): void;
     /** 激活刷新指针 */
-    setActiveCursor(cursorInfo: {
+    setActiveCursor(viewId: string, cursorInfo: {
         x?: number;
         y?: number;
         roomMember?: RoomMember;
-        viewId: string;
-    }[]): void;
+    }): void;
     /** 激活刷新文字编辑器 */
     setActiveTextEditor(viewId: string, activeTextId?: string): void;
 }

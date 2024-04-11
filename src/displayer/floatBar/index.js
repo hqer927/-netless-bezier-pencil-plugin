@@ -8,10 +8,9 @@ import Draggable from 'react-draggable';
 import { FloatBtns } from "../floatBtns";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
-import { HightLightBox } from "../highlightBox";
+import { HightLightBox, HightLightTwoBox } from "../highlightBox";
 import { Storage_Selector_key } from "../../collector";
 import { TextViewInSelector } from "../../component/textEditor/view";
-// let clickClockTimer:number|undefined;
 export const FloatBar = React.forwardRef((props, ref) => {
     const { floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType, maranger } = useContext(DisplayerContext);
     const { className, editors, activeTextId } = props;
@@ -57,12 +56,18 @@ export const FloatBar = React.forwardRef((props, ref) => {
     }, [operationType, floatBarData, position]);
     // console.log('editors', editors)
     const HighLightUI = useMemo(() => {
-        console.log('HighLightUI', operationType, floatBarData?.scaleType);
         if (floatBarData?.scaleType !== EScaleType.all ||
             operationType === EmitEventType.RotateNode) {
             return null;
         }
         return React.createElement(HightLightBox, null);
+    }, [floatBarData, operationType]);
+    const HighLightTwoUI = useMemo(() => {
+        if (floatBarData?.scaleType !== EScaleType.both ||
+            operationType === EmitEventType.RotateNode) {
+            return null;
+        }
+        return React.createElement(HightLightTwoBox, null);
     }, [floatBarData, operationType]);
     return (React.createElement(Draggable, { position: position, onStart: onDragStartHandler, onDrag: onDragHandler, onStop: onDragEndHandler, handle: "canvas" },
         React.createElement("div", { className: `${className}`, style: floatBarData ? {
@@ -71,10 +76,21 @@ export const FloatBar = React.forwardRef((props, ref) => {
                 zIndex,
                 pointerEvents: zIndex < 2 ? 'none' : 'auto',
             } : undefined, onClick: (e) => {
-                if (editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
-                    const clickEvent = new PointerEvent('click', e);
-                    textRef.current.dispatchEvent(clickEvent);
+                if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
+                    const point = maranger.getPoint(e.nativeEvent);
+                    point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId);
                 }
+                e.stopPropagation();
+                e.preventDefault();
+                return false;
+            }, onTouchEndCapture: (e) => {
+                if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
+                    const point = maranger.getPoint(e.nativeEvent);
+                    point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId);
+                }
+                e.stopPropagation();
+                e.preventDefault();
+                return false;
             } },
             FloatBtnsUI,
             React.createElement("div", { className: "bezier-pencil-plugin-floatCanvas-box", style: {
@@ -84,5 +100,6 @@ export const FloatBar = React.forwardRef((props, ref) => {
                 } },
                 React.createElement("canvas", { ref: ref, className: "bezier-pencil-plugin-floatCanvas" })),
             HighLightUI,
+            HighLightTwoUI,
             editors?.size && maranger && React.createElement(TextViewInSelector, { manager: maranger, textRef: textRef, selectIds: floatBarData?.selectIds || [], position: position, activeTextId: activeTextId, editors: editors }) || null)));
 });

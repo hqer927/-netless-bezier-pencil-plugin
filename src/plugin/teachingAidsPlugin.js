@@ -219,7 +219,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
     }
     static onCreate(plugin) {
         if (TeachingAidsPlugin.options && !TeachingAidsPlugin.currentManager) {
-            console.log('onCreate', TeachingAidsPlugin.options);
+            // console.log('onCreate', TeachingAidsPlugin.options);
             createTeachingAidsPluginManager(plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.remake);
         }
     }

@@ -5,6 +5,8 @@ import { Duplicate } from "./duplicate";
 import { Layer } from "./layer";
 import { FillColors, StrokeColors, TextColors } from "./colors";
 import { DisplayerContext } from "../../plugin/displayerView";
+import { FontStyleBtn } from "./fontStyle";
+import { FontSizeBtn } from "./fontSize";
 var EOpenType;
 (function (EOpenType) {
     EOpenType[EOpenType["none"] = 0] = "none";
@@ -13,6 +15,8 @@ var EOpenType;
     EOpenType[EOpenType["FillColor"] = 3] = "FillColor";
     EOpenType[EOpenType["TextColor"] = 4] = "TextColor";
     EOpenType[EOpenType["TextBgColor"] = 5] = "TextBgColor";
+    EOpenType[EOpenType["FontStyle"] = 6] = "FontStyle";
+    EOpenType[EOpenType["FontSize"] = 7] = "FontSize";
 })(EOpenType || (EOpenType = {}));
 export const FloatBtns = React.memo((props) => {
     const { textOpt, workIds, noLayer, position } = props;
@@ -69,6 +73,32 @@ export const FloatBtns = React.memo((props) => {
     //   }
     //   return null;
     // }, [textOpt, openType, floatBarColors, workIds])
+    const useFontStyle = useMemo(() => {
+        if (textOpt && maranger?.viewId) {
+            return React.createElement(FontStyleBtn, { open: openType === EOpenType.FontStyle, setOpen: (bol) => {
+                    if (bol === true) {
+                        setOpenType(EOpenType.FontStyle);
+                    }
+                    else {
+                        setOpenType(EOpenType.none);
+                    }
+                }, textOpt: textOpt, workIds: workIds });
+        }
+        return null;
+    }, [textOpt, openType, workIds, maranger]);
+    const useFontSize = useMemo(() => {
+        if (textOpt && maranger?.viewId) {
+            return React.createElement(FontSizeBtn, { open: openType === EOpenType.FontSize, setOpen: (bol) => {
+                    if (bol === true) {
+                        setOpenType(EOpenType.FontSize);
+                    }
+                    else {
+                        setOpenType(EOpenType.none);
+                    }
+                }, textOpt: textOpt, workIds: workIds });
+        }
+        return null;
+    }, [textOpt, openType, workIds, maranger]);
     const useLayer = useMemo(() => {
         if (noLayer) {
             return null;
@@ -88,6 +118,8 @@ export const FloatBtns = React.memo((props) => {
         maranger && React.createElement(Del, { workIds: workIds, maranger: maranger }),
         useLayer,
         !!maranger?.viewId && React.createElement(Duplicate, { workIds: workIds, viewId: maranger.viewId }),
+        useFontSize,
+        useFontStyle,
         useTextColors,
         useStrokeColors,
         useFillColors));

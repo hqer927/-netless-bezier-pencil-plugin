@@ -1,3 +1,4 @@
+import {resolve} from "path";
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -11,6 +12,18 @@ export default defineConfig({
     },
     preprocessorOptions:{
       less:{}
+    },
+  },
+  base:"/netless-teaching-aids-demo",
+  build: {
+    // lib: {
+    //   entry: path.resolve(__dirname, "src/main.tsx"),
+    //   formats: ["es", "cjs"],
+    // },
+    outDir: "dist",
+    sourcemap: false,
+    rollupOptions:{
+      input: resolve(__dirname,'index.html')
     }
-  }
+  },
 })

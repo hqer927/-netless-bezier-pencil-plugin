@@ -67,7 +67,7 @@ export declare abstract class LocalWork {
     setTmpWorkId(workId: IworkId | undefined): void;
     setTmpWorkOptions(opt: BaseShapeOptions): void;
     setWorkOptions(workId: IworkId, opt: BaseShapeOptions): void;
-    createWorkShapeNode(opt: IActiveToolsDataType): import("../tools").PencilShape | import("../tools").LaserPenShape | import("../tools").EraserShape | import("../tools").StarShape | import("../tools").ArrowShape | import("../tools/straight").StraightShape | import("../tools").EllipseShape | import("../tools").PolygonShape | import("../tools").RectangleShape | import("../tools/text").TextShape | import("../tools").SelectorShape | undefined;
+    createWorkShapeNode(opt: IActiveToolsDataType): import("../tools").PencilShape | import("../tools").LaserPenShape | import("../tools").EraserShape | import("../tools").StarShape | import("../tools").ArrowShape | import("../tools/straight").StraightShape | import("../tools").EllipseShape | import("../tools").PolygonShape | import("../tools").RectangleShape | import("../tools").SpeechBalloonShape | import("../tools/text").TextShape | import("../tools").SelectorShape | undefined;
     setToolsOpt(opt: IActiveToolsDataType): void;
     clearWorkShapeNodeCache(workId: IworkId): void;
     clearAllWorkShapesCache(): void;

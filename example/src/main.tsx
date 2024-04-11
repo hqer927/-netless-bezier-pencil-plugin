@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom'
 import './index.css';
 import '@hqer/bezier-pencil-plugin/dist/style.css';
 import {
-  createBrowserRouter,
+  createHashRouter,
   createRoutesFromElements,
   RouterProvider,
   Route,
@@ -28,7 +28,7 @@ const Container = () => {
   return null
 };
 if (elm) {
-  const routerData = createBrowserRouter(createRoutesFromElements(
+  const routerData = createHashRouter(createRoutesFromElements(
     <Route>
       <Route path="/" element={<IndexPage/>} />
       <Route path="/single" loader={({request})=>{

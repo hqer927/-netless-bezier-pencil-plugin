@@ -20,7 +20,7 @@ export class StraightShape extends BaseShapeTool {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: EScaleType.all
+            value: EScaleType.both
         });
         Object.defineProperty(this, "toolsType", {
             enumerable: true,
@@ -129,7 +129,7 @@ export class StraightShape extends BaseShapeTool {
         this.oldRect = rect;
         const op = this.tmpPoints.map(c => [...c.XY, 0]).flat(1);
         const ops = transformToSerializableData(op);
-        props.vNodes.setInfo(workId, {
+        this.vNodes.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

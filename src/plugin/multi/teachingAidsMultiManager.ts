@@ -2,7 +2,6 @@ import { WindowManager } from "@netless/window-manager";
 import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
 import { BaseSubWorkModuleProps, TeachingAidsPluginOptions } from "../types";
 import { ViewContainerMultiManager } from "./containerManager";
-// import { TeachingAidsMultiPlugin } from "./teachingAidsPlugin";
 import { MemberDiff } from "../../members";
 import type { TeachingAidsPlugin } from "../teachingAidsPlugin";
 
@@ -81,76 +80,11 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
         if (this.windowManager?.mainView) {
             this.viewContainerManager.onMainViewMounted(this.windowManager.mainView)
         }
+        if(this.windowManager.appManager?.viewManager?.views?.size){
+            this.windowManager.appManager.viewManager.views.forEach((view,appId) => {
+                this.viewContainerManager.onAppViewMounted({appId, view})
+            });
+        }
         this.viewContainerManager.listenerWindowManager(this.windowManager);
     }
-    // windowManagerListener = () => {
-    //     function clo (){
-    //         console.log('windowManagerListener111')
-    //     }
-    //     function clo1 (){
-    //         console.log('windowManagerListener111')
-    //     }
-    //     function clo2 (){
-    //         console.log('windowManagerListener111')
-    //     }
-    //     if(!this.windowManager){
-    //         return;
-    //     }
-    //     this.windowManager.emitter.on("loadApp", payload => {
-    //         console.log("windowManager loadApp", payload);
-    //     });
-    //     this.windowManager.emitter.on("mainViewModeChange", mode => {
-    //         console.log("windowManager mode1", mode, this.windowManager?.focused);
-    //     });
-    
-    //     this.windowManager.emitter.on("boxStateChange", state => {
-    //         console.log("windowManager boxStateChange1:", state, this.windowManager?.focused);
-    //     });
-    
-    //     this.windowManager.emitter.on("fullscreenChange", state => {
-    //         console.log("windowManager fullscreenChange1:", state, this.windowManager?.focused);
-    //     });
-    
-    //     this.windowManager.emitter.on("appsChange", apps => {
-    //         console.log("windowManager appsChange1:", apps, this.windowManager?.focused, this.windowManager?.focusedView);
-    //         this.windowManager?.focusedView?.callbacks.off("onCameraUpdatedByDevice",clo)
-    //         this.windowManager?.focusedView?.callbacks.on("onCameraUpdatedByDevice",clo)
-    //     });
-
-    //     this.windowManager.emitter.on("mainViewScenePathChange", path => {
-    //         console.log("windowManager mainViewScenePathChange1", path, this.windowManager?.focused);
-    //     });
-    //     this.windowManager.emitter.on("mainViewSceneIndexChange", index => {
-    //         console.log("windowManager mainViewSceneIndexChange1", index, this.windowManager?.focused);
-    //     });
-    //     this.windowManager.emitter.on("focusedChange", focus => {
-    //         // this.windowManager.focusedView?.callbacks.off("onCameraUpdatedByDevice",clo1)
-    //         // this.windowManager.focusedView?.callbacks.on("onCameraUpdatedByDevice",clo1)
-    //         console.log("windowManager focusedChange1", focus, this.windowManager?.focusedView);
-    //         this.windowManager?.focusedView?.callbacks.off("onCameraUpdatedByDevice",clo2)
-    //         this.windowManager?.focusedView?.callbacks.on("onCameraUpdatedByDevice",clo2)
-    //     });
-    //     this.windowManager.emitter.on("mainViewScenesLengthChange", length => {
-    //         console.log("windowManager mainViewScenesLengthChange1", length, this.windowManager?.focused);
-    //     });
-    //     this.windowManager.emitter.on("canRedoStepsChange", steps => {
-    //         console.log("windowManager canRedoStepsChange1", steps, this.windowManager?.focused);
-    //     });
-    //     this.windowManager.emitter.on("canUndoStepsChange", steps => {
-    //         console.log("windowManager canUndoStepsChange1", steps, this.windowManager?.focused);
-    //         // this.windowManager.focusedView?.callbacks.off("onCameraUpdatedByDevice",clo)
-    //         // this.windowManager.focusedView?.callbacks.on("onCameraUpdatedByDevice",clo)
-    //     });
-    //     this.windowManager.onAppEvent("DocsViewer", event => {
-    //         console.log("windowManager DocsViewer1", event);
-    //         if (event.type === "pageStateChange") console.log("windowManager DocsViewer1 pageStateChange1", event.value);
-    //     });
-    //     this.windowManager.onAppEvent("Slide", event => {
-    //         // console.log("windowManager Slide1", event)
-    //         if (event.type === "pageStateChange") console.log("windowManager Slide1 pageStateChange1", event.value);
-    //     });
-    //     this.windowManager.mainView.callbacks.on("onCameraUpdatedByDevice",clo1);
-    //     this.windowManager.focusedView?.callbacks.on("onCameraUpdatedByDevice",clo1);
-
-    // }
 }

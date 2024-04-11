@@ -11,8 +11,7 @@ import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools/base";
 import { rgbToRgba } from "../collector/utils/color";
-import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOptions } from "../core/tools";
-import { SpeechBalloonOptions } from "../core/tools/speechBalloon";
+import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOptions, SpeechBalloonOptions } from "../core/tools";
 import { ICameraOpt } from "../core/types";
 import throttle from "lodash/throttle";
 
@@ -165,8 +164,8 @@ export abstract class BaseTeachingAidsManager {
                 (opt as TextOptions).verticalAlign = memberState?.verticalAlign || 'middle';
                 (opt as TextOptions).fontColor = memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || opt.strokeColor  || 'rgba(0,0,0,1)';
                 (opt as TextOptions).fontBgColor = Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent';
-                (opt as TextOptions).fontWeight = memberState?.bold && 'bold' || undefined;
-                (opt as TextOptions).fontStyle = memberState?.italic && 'italic' || undefined;
+                (opt as TextOptions).bold = memberState?.bold && 'bold' || undefined;
+                (opt as TextOptions).italic = memberState?.italic && 'italic' || undefined;
                 (opt as TextOptions).underline = memberState?.underline || undefined;
                 (opt as TextOptions).lineThrough = memberState?.lineThrough || undefined;
                 (opt as TextOptions).text = "";
@@ -189,9 +188,7 @@ export abstract class BaseTeachingAidsManager {
             case EToolsKey.Polygon:
             case EToolsKey.SpeechBalloon:
                 if (toolsKey === EToolsKey.Star) {
-                    if (memberState.shapeType === ShapeType.SpeechBalloon) {
-                        (opt as SpeechBalloonOptions).placement = 'bottomLeft';
-                    } else if (memberState.shapeType === ShapeType.Pentagram) {
+                    if (memberState.shapeType === ShapeType.Pentagram) {
                         (opt as StarOptions).vertices = 10;
                         (opt as StarOptions).innerVerticeStep = 2;
                         (opt as StarOptions).innerRatio = 0.4;
@@ -211,21 +208,24 @@ export abstract class BaseTeachingAidsManager {
                     }  
                 }
                 (opt as PolygonOptions).fillColor = memberState?.fillColor && rgbToRgba(memberState.fillColor[0], memberState.fillColor[1], memberState.fillColor[2], memberState?.fillOpacity) || 'transparent';
-                if (toolsKey !== EToolsKey.Rectangle) {
-                    (opt as PolygonOptions).textOpt = {
-                        strokeColor: opt.strokeColor,
-                        fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
-                        textAlign: memberState?.textAlign || 'left',
-                        verticalAlign: memberState?.verticalAlign || 'middle',
-                        fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
-                        fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
-                        fontWeight: memberState?.bold && 'bold' || undefined,
-                        fontStyle: memberState?.italic && 'italic' || undefined,
-                        underline: memberState?.underline || undefined,
-                        lineThrough: memberState?.lineThrough || undefined,
-                        text: ''
-                    }
-                }
+                // if (toolsKey !== EToolsKey.Rectangle) {
+                //     (opt as PolygonOptions).textOpt = {
+                //         strokeColor: opt.strokeColor,
+                //         fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
+                //         textAlign: memberState?.textAlign || 'left',
+                //         verticalAlign: memberState?.verticalAlign || 'middle',
+                //         fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
+                //         fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
+                //         bold: memberState?.bold && 'bold' || undefined,
+                //         italic: memberState?.italic && 'italic' || undefined,
+                //         underline: memberState?.underline || undefined,
+                //         lineThrough: memberState?.lineThrough || undefined,
+                //         text: ''
+                //     }
+                // }
+                if (toolsKey === EToolsKey.SpeechBalloon) {
+                    (opt as SpeechBalloonOptions).placement = memberState.placement || 'bottomLeft';
+                } 
                 break;
             default:
                 break;

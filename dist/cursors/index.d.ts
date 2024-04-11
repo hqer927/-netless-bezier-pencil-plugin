@@ -13,14 +13,13 @@ export type IServiceWorkItem = {
     freeze?: boolean;
     willHid?: boolean;
     animationIndex: number;
-    animationWorkData: Array<number | string | undefined>;
+    animationWorkData: Array<number | undefined>;
     workState?: EvevtWorkState;
 };
 export type CursorInfo = {
     x?: number;
     y?: number;
     roomMember?: RoomMember;
-    viewId: string;
 };
 export declare abstract class CursorManager {
     /** 内部消息管理器 */
@@ -52,8 +51,10 @@ export declare class CursorManagerImpl implements CursorManager {
     private animationDrawWorkers;
     constructor(props: BaseSubWorkModuleProps);
     private activePointWorkShape;
-    private activeDrawWorkShape;
+    private getKey;
+    private getUidAndviewId;
     private animationCursor;
+    private activeDrawWorkShape;
     private runAnimation;
     sendEvent(point: [number | undefined, number | undefined], viewId: string): void;
     collectServiceCursor(data: IMainMessage): void;
