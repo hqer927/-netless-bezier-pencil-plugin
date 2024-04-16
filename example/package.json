@@ -11,16 +11,18 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
-    "@hqer/bezier-pencil-plugin": "^0.0.37",
+    "@hqer/bezier-pencil-plugin": "^0.0.39",
     "@netless/app-slide": "^0.2.55",
     "@netless/cursor-tool": "^0.1.1",
+    "@netless/player-controller": "^0.0.9",
     "@netless/window-manager": "^0.4.71-beta.0",
     "antd": "^5.11.4",
+    "polly-js": "^1.8.3",
     "react": "^17",
     "react-dom": "^17",
     "react-router": "^6.22.3",
     "react-router-dom": "^6.22.3",
-    "white-react-sdk": "^2.16.48"
+    "white-web-sdk": "^2.16.48"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

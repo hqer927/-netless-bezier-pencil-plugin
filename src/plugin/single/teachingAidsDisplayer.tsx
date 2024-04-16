@@ -14,6 +14,7 @@ export class TeachingAidsSigleWrapper extends React.Component<DisplayerProps, Di
     static emiter: EventEmitter2;
     mainViewRef:HTMLDivElement|null = null;
     componentDidMount() {
+        // console.log('TeachingAidsSigleWrapper')
         if (!TeachingAidsSigleWrapper.emiter) {
             TeachingAidsSigleWrapper.emiter = TeachingAidsSingleManager.InternalMsgEmitter;
         }

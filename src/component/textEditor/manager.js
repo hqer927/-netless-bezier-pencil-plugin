@@ -5,7 +5,6 @@ import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../co
 import { requestAsyncCallBack } from "../../core/utils";
 import { ProxyMap } from "../../core/utils/proxy";
 export class TextEditorManagerImpl {
-    // private activeIdCache?:string;
     constructor(props) {
         Object.defineProperty(this, "internalMsgEmitter", {
             enumerable: true,
@@ -14,12 +13,6 @@ export class TextEditorManagerImpl {
             value: void 0
         });
         Object.defineProperty(this, "control", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "collector", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -60,8 +53,10 @@ export class TextEditorManagerImpl {
             return _delete.call(this, key);
         };
         this.editors = this.proxyMap.createProxy(_editors);
-        this.collector = control.collector;
         // this.internalMsgEmitter.on([InternalMsgEmitterType.TextEditor, EmitEventType.SetEditorData],this.bindEventEditor.bind(this));
+    }
+    get collector() {
+        return this.control.collector;
     }
     filterEditor(viewId) {
         const filterMap = new Map();
@@ -75,10 +70,13 @@ export class TextEditorManagerImpl {
     get interceptors() {
         return {
             set: (workId, info) => {
-                const isLocalId = this.collector.isLocalId(workId);
-                const key = isLocalId ? this.collector.transformKey(workId) : workId;
+                if (!this.collector) {
+                    return true;
+                }
+                const isLocalId = this.collector?.isLocalId(workId);
+                const key = isLocalId ? this.collector?.transformKey(workId) : workId;
                 const { viewId, scenePath } = info;
-                const curStore = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] && this.collector.storage[viewId][scenePath][key] || undefined;
+                const curStore = this.collector?.storage[viewId] && this.collector.storage[viewId][scenePath] && this.collector.storage[viewId][scenePath][key] || undefined;
                 // console.log('interceptors - set', info, workId)
                 if (!curStore) {
                     if (info.type === ETextEditorType.Text) {
@@ -143,11 +141,14 @@ export class TextEditorManagerImpl {
                 }
             },
             delete: (workId) => {
-                const isLocalId = this.collector.isLocalId(workId);
-                const key = isLocalId ? this.collector.transformKey(workId) : workId;
+                if (!this.collector) {
+                    return true;
+                }
+                const isLocalId = this.collector?.isLocalId(workId);
+                const key = isLocalId ? this.collector?.transformKey(workId) : workId;
                 const info = this.editors.get(workId);
                 const { viewId, scenePath, canSync, canWorker } = info;
-                const curStore = this.collector.storage[viewId][scenePath][key];
+                const curStore = this.collector?.storage[viewId][scenePath][key];
                 if (curStore) {
                     if (curStore.toolsType === EToolsKey.Text) {
                         if (canWorker) {
@@ -268,18 +269,7 @@ export class TextEditorManagerImpl {
     }
     updateForLocalEditor(activeId, info) {
         this.editors.set(activeId, info);
-        // this.effectUpdate();
     }
-    // private effectUpdate(activeId?:string): void {
-    //     if (activeId) {
-    //         if (activeId !== this.activeId) {
-    //             this.checkEmptyTextBlur();
-    //         }
-    //         this.active(activeId);
-    //         return;
-    //     }
-    //     this.checkEmptyTextBlur();
-    // }
     active(workId) {
         const info = this.editors.get(workId);
         if (info && info.viewId) {
@@ -355,6 +345,7 @@ export class TextEditorManagerImpl {
             info.dataType = undefined;
             info.canWorker = false;
             info.canSync = true;
+            //console.log('updateTextForWorker', {..._info, ...info})
             this.editors.set(workId, { ..._info, ...info });
         }
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);

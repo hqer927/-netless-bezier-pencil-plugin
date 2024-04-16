@@ -90,6 +90,7 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             viewId,
                         };
                         if (workState === EvevtWorkState.Done) {
+                            taskData.willRefreshSelector = true;
                             taskData.textUpdateForWoker = true;
                             taskData.willSerializeData = true;
                             taskData.undoTickerId = this.undoTickerId;

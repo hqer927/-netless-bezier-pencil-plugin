@@ -12,6 +12,7 @@ export class TeachingAidsSigleWrapper extends React.Component {
         });
     }
     componentDidMount() {
+        // console.log('TeachingAidsSigleWrapper')
         if (!TeachingAidsSigleWrapper.emiter) {
             TeachingAidsSigleWrapper.emiter = TeachingAidsSingleManager.InternalMsgEmitter;
         }

@@ -20,21 +20,17 @@ export class BaseMsgMethod {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "serviceColloctor", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
     }
     static dispatch(emtType, emitEventType, value) {
         BaseTeachingAidsManager.InternalMsgEmitter?.emit([emtType, emitEventType], value);
+    }
+    get serviceColloctor() {
+        return this.control.collector;
     }
     registerForMainEngine(emtType, control) {
         this.emtType = emtType;
         this.control = control;
         this.mainEngine = control.worker;
-        this.serviceColloctor = control.collector;
         this.mainEngine.internalMsgEmitter.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }

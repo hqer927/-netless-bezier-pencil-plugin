@@ -6,6 +6,8 @@ import { Layer } from "./layer"
 import { FillColors, StrokeColors, TextColors } from "./colors"
 import { DisplayerContext } from "../../plugin/displayerView";
 import { TextOptions } from "../../component/textEditor"
+import { FontStyleBtn } from "./fontStyle"
+import { FontSizeBtn } from "./fontSize"
 
 enum EOpenType {
   none,
@@ -13,7 +15,9 @@ enum EOpenType {
   StrokeColor,
   FillColor,
   TextColor,
-  TextBgColor
+  TextBgColor,
+  FontStyle,
+  FontSize
 }
 
 export const FloatBtns = React.memo((props:{
@@ -76,6 +80,32 @@ export const FloatBtns = React.memo((props:{
   //   }
   //   return null;
   // }, [textOpt, openType, floatBarColors, workIds])
+  const useFontStyle = useMemo(()=>{
+    if(textOpt && maranger?.viewId) {
+      return <FontStyleBtn open={openType === EOpenType.FontStyle} setOpen={(bol: boolean) => {
+        if (bol === true) {
+          setOpenType(EOpenType.FontStyle)
+        } else {
+          setOpenType(EOpenType.none)
+        }
+      } } textOpt={textOpt} workIds={workIds}/>
+    }
+    return null;
+  }, [textOpt, openType, workIds, maranger])
+
+  const useFontSize = useMemo(()=>{
+    if(textOpt && maranger?.viewId) {
+      return <FontSizeBtn open={openType === EOpenType.FontSize} setOpen={(bol: boolean) => {
+        if (bol === true) {
+          setOpenType(EOpenType.FontSize)
+        } else {
+          setOpenType(EOpenType.none)
+        }
+      } } textOpt={textOpt} workIds={workIds}/>
+    }
+    return null;
+  }, [textOpt, openType, workIds, maranger])
+
   const useLayer = useMemo(()=>{
     if(noLayer) {
       return null;
@@ -97,6 +127,8 @@ export const FloatBtns = React.memo((props:{
       {maranger && <Del workIds={workIds} maranger={maranger}/>}
       {useLayer}
       {!!maranger?.viewId && <Duplicate workIds={workIds} viewId={maranger.viewId}/>}
+      {useFontSize}
+      {useFontStyle}
       {useTextColors}
       {/* {useTextBgColors} */}
       {useStrokeColors}

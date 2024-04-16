@@ -11,6 +11,8 @@ import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
 import { LocalWorkForSubWorker } from "./subWorkerLocal";
 import { Storage_ViewId_ALL } from "../../collector/const";
+import { BaseCollectorReducerAction } from "../../collector/types";
+import { TextOptions } from "../../component/textEditor";
 export enum EWorkThreadType {
     Full = "full",
     Sub = "sub"
@@ -130,7 +132,8 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
         this.methodBuilder = new MethodBuilderWorker([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode
+            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.SetFontStyle,
+            EmitEventType.SetPoint
         ]).registerForWorker(this.localWork,this.serviceWork);
         this.vNodes.init(this.fullLayer, this.drawLayer);
     }
@@ -205,7 +208,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
         if (rsp?.length) {
             msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
         }
-        if (msg.drawCount || msg.workerTasksqueueCount || rsp?.length || newRender?.length) {
+        if (msg.drawCount || msg.workerTasksqueueCount || msg.sp?.length || newRender?.length) {
             // console.log('post', this.fullLayer.children.map(c=>c.name), 
             //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.name),
             //     (this.fullLayer.parent as Layer)?.children?.map(c=>c.id),
@@ -245,6 +248,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
             case EPostMessageType.UpdateNode:
             case EPostMessageType.FullWork:
                 this.consumeFull(dataType, msg)
+                
                 break;
             case EPostMessageType.RemoveNode:
                 this.removeNode(msg);
@@ -506,6 +510,10 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
             }
             msg.render = newRender;
         }
+        const rsp = msg.sp?.filter(s=>(s.type !== EPostMessageType.None || Object.keys(s).filter(f=>f === 'type').length));
+        if (rsp?.length) {
+            msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
+        }
         if (msg.sp?.length || msg.drawCount || newRender?.length) {
             this._post(msg, transfers);
             if (transfers?.length) {
@@ -623,18 +631,23 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
             this.localWork.fullLayer = this.snapshotFullLayer;
             this.localWork.drawLayer = this.fullLayer;
             let rect:IRectType|undefined;
+            const willRenderMap:Map<string,BaseCollectorReducerAction> = new Map();
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
+                            const {toolsType, opt} = value;
+                            if (toolsType === EToolsKey.Text && opt && ((opt as TextOptions).lineThrough || (opt as TextOptions).underline)) {
+                                willRenderMap.set(key,value);
+                            }
                             const r = this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service,
                                 viewId:this.viewId
-                            });
+                            }, toolsType === EToolsKey.Text);
                             rect = computRect(rect,r);
                             break;
                         }
@@ -652,20 +665,41 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                     resizeHeight: h,
                 }
             }
-            (this.snapshotFullLayer.parent as Layer).render();
-            const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options)
-            if(imageBitmap){
-                await this.post({
-                    sp:[{
-                        type: EPostMessageType.Snapshot,
-                        scenePath,
-                        imageBitmap,
-                    }]
-                },[imageBitmap]);
-                imageBitmap.close();
-                this.snapshotFullLayer.removeAllChildren();
-                this.setCameraOpt(curCameraOpt as ICameraOpt, this.fullLayer);
+            await new Promise((resolve)=>{
+                setTimeout(resolve,500);
+            })
+            this.willRenderSpecialLabel(willRenderMap);
+            await this.getSnapshotRender({scenePath,curCameraOpt,options, willRenderMap})
+        }
+    }
+    private willRenderSpecialLabel(willRenderMap:Map<string,BaseCollectorReducerAction>){
+        for (const [key,value] of willRenderMap.entries()) {
+            const labelGroup = this.snapshotFullLayer?.getElementsByName(key)[0] as Group;
+            if (labelGroup && value.opt) {
+                this.localWork.updateLabels(labelGroup, value);
             }
+        }
+    }
+    private async getSnapshotRender(data:{
+        scenePath:string,
+        curCameraOpt?:ICameraOpt,
+        options?:ImageBitmapOptions,
+        willRenderMap:Map<string,BaseCollectorReducerAction>
+    }){
+        const {scenePath, curCameraOpt, options} = data;
+        (this.snapshotFullLayer?.parent as Layer).render();
+        const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options)
+        if(imageBitmap){
+            await this.post({
+                sp:[{
+                    type: EPostMessageType.Snapshot,
+                    scenePath,
+                    imageBitmap,
+                }]
+            },[imageBitmap]);
+            imageBitmap.close();
+            this.snapshotFullLayer?.removeAllChildren();
+            this.setCameraOpt(curCameraOpt as ICameraOpt, this.fullLayer);
         }
     }
     private async getBoundingRect(data:IWorkerMessage){

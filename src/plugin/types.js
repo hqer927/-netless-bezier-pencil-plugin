@@ -71,6 +71,10 @@ export var EmitEventType;
     EmitEventType["CommandEditor"] = "CommandEditor";
     /** 设置editor */
     EmitEventType["SetEditorData"] = "SetEditorData";
+    /** 设置文字样式 */
+    EmitEventType["SetFontStyle"] = "SetFontStyle";
+    /** 设置坐标 */
+    EmitEventType["SetPoint"] = "SetPoint";
 })(EmitEventType || (EmitEventType = {}));
 export var InternalMsgEmitterType;
 (function (InternalMsgEmitterType) {

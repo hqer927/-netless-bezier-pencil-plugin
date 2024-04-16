@@ -61,5 +61,7 @@ export declare class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
     private updateCamera;
     setCameraOpt(cameraOpt: ICameraOpt, layer?: Group): void;
     private getSnapshot;
+    private willRenderSpecialLabel;
+    private getSnapshotRender;
     private getBoundingRect;
 }

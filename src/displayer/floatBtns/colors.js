@@ -66,7 +66,7 @@ const OpacityBtn = (props) => {
 };
 export const StrokeColors = (props) => {
     const { open: showSubBtn, setOpen: setShowSubBtn } = props;
-    const { floatBarData, floatBarColors, maranger, position } = useContext(DisplayerContext);
+    const { floatBarData, floatBarColors, maranger, position, setFloatBarData } = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(open);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
@@ -87,10 +87,14 @@ export const StrokeColors = (props) => {
                     maranger.control.room.disableDeviceInputs = false;
                 }
                 setOpacity(curOpacity);
-                // console.log('curOpacity1', curOpacity)
-                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor: activeColor && hexToRgba(curColor, curOpacity), workState, viewId: maranger?.viewId });
+                const strokeColor = hexToRgba(curColor, curOpacity);
+                if (floatBarData?.strokeColor) {
+                    floatBarData.strokeColor = strokeColor;
+                    setFloatBarData({ strokeColor });
+                }
+                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor, workState, viewId: maranger?.viewId });
             } });
-    }, [activeColor, opacity, maranger]);
+    }, [opacity, activeColor, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
@@ -108,18 +112,28 @@ export const StrokeColors = (props) => {
                     return (React.createElement(ColorBtn, { key: index, color: curColor, activeColor: activeColor, onTouchEndHandler: (e) => {
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const strokeColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.strokeColor) {
+                                floatBarData.strokeColor = strokeColor;
+                                setFloatBarData({ strokeColor });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor, viewId: maranger?.viewId });
                         }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const strokeColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.strokeColor) {
+                                floatBarData.strokeColor = strokeColor;
+                                setFloatBarData({ strokeColor });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor, viewId: maranger?.viewId });
                         } }));
                 }),
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger]);
+    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData, maranger?.viewId, setFloatBarData]);
     const RingBar = useMemo(() => {
         if (activeColor) {
             return (React.createElement("div", { className: "color-bar-ring", style: { backgroundColor: hexToRgba(activeColor, opacity) } },
@@ -142,7 +156,7 @@ export const StrokeColors = (props) => {
 };
 export const FillColors = (props) => {
     const { open: showSubBtn, setOpen: setShowSubBtn } = props;
-    const { floatBarData, floatBarColors, maranger, position } = useContext(DisplayerContext);
+    const { floatBarData, floatBarColors, maranger, position, setFloatBarData } = useContext(DisplayerContext);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
     useEffect(() => {
@@ -162,11 +176,16 @@ export const FillColors = (props) => {
                         maranger.control.room.disableDeviceInputs = false;
                     }
                     setOpacity(curOpacity);
+                    const fillColor = hexToRgba(curColor, curOpacity);
+                    if (floatBarData?.fillColor) {
+                        floatBarData.fillColor = fillColor;
+                        setFloatBarData({ fillColor });
+                    }
                     MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor: activeColor && hexToRgba(curColor, curOpacity), workState, viewId: maranger?.viewId });
                 } });
         }
         return null;
-    }, [activeColor, opacity, maranger]);
+    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
@@ -182,30 +201,50 @@ export const FillColors = (props) => {
                 React.createElement(NoneColorBtn, { activeColor: activeColor, onTouchEndHandler: (e) => {
                         e.stopPropagation();
                         setColor('transparent');
-                        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor: 'transparent', viewId: maranger?.viewId });
+                        const fillColor = 'transparent';
+                        if (floatBarData?.fillColor) {
+                            floatBarData.fillColor = fillColor;
+                            setFloatBarData({ fillColor });
+                        }
+                        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor, viewId: maranger?.viewId });
                     }, onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setColor('transparent');
-                        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor: 'transparent', viewId: maranger?.viewId });
+                        const fillColor = 'transparent';
+                        if (floatBarData?.fillColor) {
+                            floatBarData.fillColor = fillColor;
+                            setFloatBarData({ fillColor });
+                        }
+                        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor, viewId: maranger?.viewId });
                     } }),
                 floatBarColors.map((c, index) => {
                     const curColor = rgbToHex(...c);
                     return (React.createElement(ColorBtn, { key: index, color: curColor, activeColor: activeColor, onTouchEndHandler: (e) => {
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const fillColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.fillColor) {
+                                floatBarData.fillColor = fillColor;
+                                setFloatBarData({ fillColor });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor, viewId: maranger?.viewId });
                         }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const fillColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.fillColor) {
+                                floatBarData.fillColor = fillColor;
+                                setFloatBarData({ fillColor });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], fillColor, viewId: maranger?.viewId });
                         } }));
                 }),
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, position]);
+    }, [showSubBtn, position, activeColor, floatBarColors, SubOpacityBtn, floatBarData, maranger?.viewId, setFloatBarData, opacity]);
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (React.createElement("div", { className: "color-bar-fill" },
@@ -226,7 +265,7 @@ export const FillColors = (props) => {
 };
 export const TextColors = (props) => {
     const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds } = props;
-    const { floatBarColors, maranger, position } = useContext(DisplayerContext);
+    const { floatBarColors, maranger, position, setFloatBarData, floatBarData } = useContext(DisplayerContext);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
     useEffect(() => {
@@ -247,16 +286,21 @@ export const TextColors = (props) => {
                         maranger.control.room.disableDeviceInputs = false;
                     }
                     setOpacity(curOpacity);
+                    const fontColor = hexToRgba(curColor, curOpacity);
+                    if (floatBarData?.textOpt) {
+                        floatBarData.textOpt.fontColor = fontColor;
+                        setFloatBarData({ textOpt: floatBarData.textOpt });
+                    }
                     MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, {
                         workIds: workIds || [Storage_Selector_key],
-                        fontColor: activeColor && hexToRgba(curColor, curOpacity),
+                        fontColor: activeColor && fontColor,
                         workState,
                         viewId: maranger?.viewId
                     });
                 } });
         }
         return null;
-    }, [activeColor, opacity, workIds, maranger]);
+    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds, setFloatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
@@ -274,18 +318,28 @@ export const TextColors = (props) => {
                     return (React.createElement(ColorBtn, { key: index, color: curColor, activeColor: activeColor, onTouchEndHandler: (e) => {
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const fontColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.textOpt) {
+                                floatBarData.textOpt.fontColor = fontColor;
+                                setFloatBarData({ textOpt: floatBarData.textOpt });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: workIds || [Storage_Selector_key], fontColor, viewId: maranger?.viewId });
                         }, onClickHandler: (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             setColor(curColor);
-                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: workIds || [Storage_Selector_key], fontColor: hexToRgba(curColor, opacity), viewId: maranger?.viewId });
+                            const fontColor = hexToRgba(curColor, opacity);
+                            if (floatBarData?.textOpt) {
+                                floatBarData.textOpt.fontColor = fontColor;
+                                setFloatBarData({ textOpt: floatBarData.textOpt });
+                            }
+                            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: workIds || [Storage_Selector_key], fontColor, viewId: maranger?.viewId });
                         } }));
                 }),
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, workIds, maranger, position]);
+    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData?.textOpt, workIds, maranger?.viewId, setFloatBarData]);
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (React.createElement("div", { className: "color-bar" },

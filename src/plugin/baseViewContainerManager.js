@@ -92,6 +92,7 @@ export class ViewContainerManager {
     destroyAppView(viewId) {
         const viewInfo = this.appViews.get(viewId);
         if (viewInfo) {
+            this.control.textEditorManager.clear(viewId);
             viewInfo.displayer.destroy();
             this.appViews.delete(viewId);
         }
@@ -170,6 +171,7 @@ export class ViewContainerManager {
         else {
             this.focuedView = viewId && this.appViews?.get(viewId) || undefined;
         }
+        this.control.cursor.onFocusViewChange();
     }
     setViewFocusScenePath(viewId, scenePath) {
         let info;
@@ -217,15 +219,11 @@ export class ViewContainerManager {
         }
     }
     /** 激活刷新指针 */
-    setActiveCursor(cursorInfo) {
-        for (const item of cursorInfo) {
-            const { viewId, ...info } = item;
-            const view = this.getView(viewId);
-            const vDom = view?.displayer.vDom;
-            if (vDom) {
-                // console.log('setActiveCursor', viewId, info);
-                vDom.setActiveCursor([info]);
-            }
+    setActiveCursor(viewId, cursorInfo) {
+        const view = this.getView(viewId);
+        const vDom = view?.displayer.vDom;
+        if (vDom) {
+            vDom.setActiveCursor(cursorInfo);
         }
     }
     /** 激活刷新文字编辑器 */
@@ -440,9 +438,12 @@ export class AppViewDisplayerManager {
         }
     }
     getPoint(e) {
-        if (e instanceof TouchEvent && e.targetTouches[0]) {
-            const point = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-            return point;
+        if (e instanceof TouchEvent) {
+            const event = e.targetTouches[0] || e.changedTouches[0];
+            if (event) {
+                const point = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
+                return point;
+            }
         }
         if (isNumber(e.pageX) && isNumber(e.pageY)) {
             const point = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
@@ -535,6 +536,7 @@ export class MainViewDisplayerManager {
             writable: true,
             value: (e) => {
                 if (e.button === 0) {
+                    this.reflashContainerOffset();
                     const point = this.getPoint(e);
                     this.cachePoint = point;
                     point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point, this.viewId);
@@ -568,6 +570,7 @@ export class MainViewDisplayerManager {
             configurable: true,
             writable: true,
             value: (e) => {
+                this.reflashContainerOffset();
                 const point = this.getPoint(e);
                 this.cachePoint = point;
                 point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point, this.viewId);
@@ -632,11 +635,12 @@ export class MainViewDisplayerManager {
     }
     mountView() {
         this.setCanvassStyle();
+        // console.log('mountView --- 1')
         this.control.viewContainerManager.mountView(this.viewId);
     }
     updateSize() {
         this.setCanvassStyle();
-        this.reflashContainerOffset();
+        // this.reflashContainerOffset();
     }
     reflashContainerOffset() {
         if (this.eventTragetElement) {
@@ -647,11 +651,15 @@ export class MainViewDisplayerManager {
         if (this.eventTragetElement) {
             this.removeDisplayerEvent(this.eventTragetElement);
         }
+        this.vDom = undefined;
     }
     getPoint(e) {
-        if (e instanceof TouchEvent && e.targetTouches[0]) {
-            const point = [e.targetTouches[0].pageX - this.containerOffset.x, e.targetTouches[0].pageY - this.containerOffset.y];
-            return point;
+        if (e instanceof TouchEvent) {
+            const event = e.targetTouches[0] || e.changedTouches[0];
+            if (event) {
+                const point = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
+                return point;
+            }
         }
         if (isNumber(e.pageX) && isNumber(e.pageY)) {
             const point = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];

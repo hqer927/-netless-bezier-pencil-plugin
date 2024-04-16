@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ETextEditorType, TextEditorInfo, TextOptions } from "./types";
 import { BaseSubWorkModuleProps} from "../../plugin/types";
-import { Collector } from "../../collector";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState, ICameraOpt, IWorkerMessage } from "../../core";
 import { requestAsyncCallBack } from "../../core/utils";
 import { ProxyMap } from "../../core/utils/proxy";
@@ -12,7 +11,6 @@ import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
 export interface TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
-    readonly collector: Collector;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
     /** 本地更新文本编辑器 */
@@ -52,11 +50,9 @@ export interface TextEditorManager {
 export class TextEditorManagerImpl implements TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
-    readonly collector: Collector;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
     private proxyMap:ProxyMap<string,TextEditorInfo>;
-    // private activeIdCache?:string;
     constructor(props:BaseSubWorkModuleProps){
         const {control, internalMsgEmitter } = props;
         this.control = control;
@@ -75,8 +71,10 @@ export class TextEditorManagerImpl implements TextEditorManager {
             return _delete.call(this, key);
         }
         this.editors = this.proxyMap.createProxy(_editors);
-        this.collector = control.collector;
         // this.internalMsgEmitter.on([InternalMsgEmitterType.TextEditor, EmitEventType.SetEditorData],this.bindEventEditor.bind(this));
+    }
+    get collector(){
+        return this.control.collector
     }
     filterEditor(viewId: string): Map<string, TextEditorInfo> {
         const filterMap: Map<string, TextEditorInfo> = new Map();
@@ -90,10 +88,13 @@ export class TextEditorManagerImpl implements TextEditorManager {
     get interceptors() {
         return {
             set:(workId:string, info:TextEditorInfo)=>{
-                const isLocalId = this.collector.isLocalId(workId);
-                const key = isLocalId ? this.collector.transformKey(workId) : workId;
+                if (!this.collector) {
+                    return true;
+                }
+                const isLocalId = this.collector?.isLocalId(workId);
+                const key = isLocalId ? this.collector?.transformKey(workId) : workId;
                 const { viewId, scenePath} = info;
-                const curStore = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] && this.collector.storage[viewId][scenePath][key] || undefined;
+                const curStore = this.collector?.storage[viewId] && this.collector.storage[viewId][scenePath] && this.collector.storage[viewId][scenePath][key] || undefined;
                 // console.log('interceptors - set', info, workId)
                 if (!curStore) {
                     if (info.type === ETextEditorType.Text) {
@@ -155,11 +156,14 @@ export class TextEditorManagerImpl implements TextEditorManager {
                 }
             },
             delete:(workId:string) => {
-                const isLocalId = this.collector.isLocalId(workId);
-                const key = isLocalId ? this.collector.transformKey(workId) : workId;
+                if (!this.collector) {
+                    return true;
+                }
+                const isLocalId = this.collector?.isLocalId(workId);
+                const key = isLocalId ? this.collector?.transformKey(workId) : workId;
                 const info = this.editors.get(workId) as TextEditorInfo;
                 const {viewId, scenePath, canSync, canWorker} = info;
-                const curStore = this.collector.storage[viewId][scenePath][key];
+                const curStore = this.collector?.storage[viewId][scenePath][key];
                 if (curStore) {
                     if (curStore.toolsType === EToolsKey.Text) {
                         if (canWorker) {
@@ -280,18 +284,7 @@ export class TextEditorManagerImpl implements TextEditorManager {
     }
     updateForLocalEditor(activeId:string, info:TextEditorInfo): void {
         this.editors.set(activeId,info);
-        // this.effectUpdate();
     }
-    // private effectUpdate(activeId?:string): void {
-    //     if (activeId) {
-    //         if (activeId !== this.activeId) {
-    //             this.checkEmptyTextBlur();
-    //         }
-    //         this.active(activeId);
-    //         return;
-    //     }
-    //     this.checkEmptyTextBlur();
-    // }
     active(workId: string): void {
         const info = this.editors.get(workId);
         if (info && info.viewId) {
@@ -364,6 +357,7 @@ export class TextEditorManagerImpl implements TextEditorManager {
             info.dataType = undefined;
             info.canWorker = false;
             info.canSync = true;
+            //console.log('updateTextForWorker', {..._info, ...info})
             this.editors.set(workId, {..._info, ...info});
         }
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId)

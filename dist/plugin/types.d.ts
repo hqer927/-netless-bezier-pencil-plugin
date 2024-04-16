@@ -8,6 +8,7 @@ import type { BaseTeachingAidsManager } from "./baseTeachingAidsManager";
 import type { AppViewDisplayerManager, MainViewDisplayerManager } from "./baseViewContainerManager";
 import type { TeachingAidsPlugin } from "./teachingAidsPlugin";
 import type { CursorTool } from "@netless/cursor-tool";
+import type { WindowManager } from "@netless/window-manager";
 export type TeachingAidsPluginLike = TeachingAidsPlugin;
 export type TeachingAidsManagerLike = TeachingAidsMultiManager | TeachingAidsSingleManager | BaseTeachingAidsManager;
 export type TeachingAidsViewManagerLike = AppViewDisplayerManager | MainViewDisplayerManager;
@@ -22,6 +23,7 @@ export type TeachingAidsAdaptor = {
 };
 export interface DisplayerForPlugin {
     readonly displayer: Displayer;
+    readonly windowmanager?: WindowManager;
     /**
      * 获取某个场景里包含所有元素的矩形
      */
@@ -56,8 +58,6 @@ export type TeachingAidsPluginOptions = {
     syncOpt?: SyncOpt;
     /** 画布配置项 */
     canvasOpt?: CanvasOpt;
-    /** 是否开启多窗口 */
-    useMultiViews?: boolean;
 };
 /** attributes 会被实时同步 */
 export interface TeachingAidsPluginAttributes {
@@ -134,6 +134,8 @@ export type MemberState = _MemberState & {
     textAlign?: "left" | "center" | "right";
     /** 垂直对齐方式 */
     verticalAlign?: "top" | "middle" | "bottom";
+    /** 位置 */
+    placement?: SpeechBalloonPlacement;
 };
 export type SyncOpt = {
     /** 同步间隔 */
@@ -177,7 +179,11 @@ export declare enum EmitEventType {
     /** 控制editor */
     CommandEditor = "CommandEditor",
     /** 设置editor */
-    SetEditorData = "SetEditorData"
+    SetEditorData = "SetEditorData",
+    /** 设置文字样式 */
+    SetFontStyle = "SetFontStyle",
+    /** 设置坐标 */
+    SetPoint = "SetPoint"
 }
 export declare enum InternalMsgEmitterType {
     DisplayState = "DisplayState",

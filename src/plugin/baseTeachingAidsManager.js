@@ -3,7 +3,7 @@ import { EStrokeType, ShapeType } from "./types";
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManagerImpl } from "../component/textEditor";
-import { ApplianceNames, isRoom, toJS } from "white-web-sdk";
+import { ApplianceNames, isPlayer, isRoom, toJS } from "white-web-sdk";
 import { CursorManagerImpl } from "../cursors";
 import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
@@ -11,7 +11,7 @@ import { rgbToRgba } from "../collector/utils/color";
 import throttle from "lodash/throttle";
 /** 插件管理器 */
 export class BaseTeachingAidsManager {
-    constructor(plugin, options) {
+    constructor(params) {
         Object.defineProperty(this, "plugin", {
             enumerable: true,
             configurable: true,
@@ -24,6 +24,18 @@ export class BaseTeachingAidsManager {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "play", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "collector", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "pluginOptions", {
             enumerable: true,
             configurable: true,
@@ -31,12 +43,6 @@ export class BaseTeachingAidsManager {
             value: void 0
         });
         Object.defineProperty(this, "roomMember", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "collector", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -118,11 +124,12 @@ export class BaseTeachingAidsManager {
                 this.worker?.updateCamera(viewId, cameraOpt);
             }
         });
+        const { displayer, plugin, options } = params;
         this.plugin = plugin;
-        this.room = isRoom(plugin.displayer) ? plugin.displayer : undefined;
+        this.room = isRoom(displayer) ? displayer : undefined;
+        this.play = isPlayer(displayer) ? displayer : undefined;
         this.pluginOptions = options;
         this.roomMember = new RoomMemberManager();
-        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
         const props = {
             control: this,
             internalMsgEmitter: BaseTeachingAidsManager.InternalMsgEmitter
@@ -130,6 +137,15 @@ export class BaseTeachingAidsManager {
         this.cursor = new CursorManagerImpl(props);
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
+    }
+    bindPlugin(plugin) {
+        this.plugin = plugin;
+        if (this.collector) {
+            this.collector.removeStorageStateListener();
+        }
+        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
+        this.cursor.activeCollector();
+        this.activePlugin();
     }
     /** 销毁 */
     destroy() {
@@ -218,13 +234,14 @@ export class BaseTeachingAidsManager {
         };
         switch (toolsKey) {
             case EToolsKey.Text:
+                opt.fontFamily = window.getComputedStyle(document.documentElement).getPropertyValue('font-family');
                 opt.fontSize = memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
                 opt.textAlign = memberState?.textAlign || 'left';
                 opt.verticalAlign = memberState?.verticalAlign || 'middle';
                 opt.fontColor = memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || opt.strokeColor || 'rgba(0,0,0,1)';
                 opt.fontBgColor = Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent';
-                opt.fontWeight = memberState?.bold && 'bold' || undefined;
-                opt.fontStyle = memberState?.italic && 'italic' || undefined;
+                opt.bold = memberState?.bold && 'bold' || undefined;
+                opt.italic = memberState?.italic && 'italic' || undefined;
                 opt.underline = memberState?.underline || undefined;
                 opt.lineThrough = memberState?.lineThrough || undefined;
                 opt.text = "";
@@ -247,10 +264,7 @@ export class BaseTeachingAidsManager {
             case EToolsKey.Polygon:
             case EToolsKey.SpeechBalloon:
                 if (toolsKey === EToolsKey.Star) {
-                    if (memberState.shapeType === ShapeType.SpeechBalloon) {
-                        opt.placement = 'bottomLeft';
-                    }
-                    else if (memberState.shapeType === ShapeType.Pentagram) {
+                    if (memberState.shapeType === ShapeType.Pentagram) {
                         opt.vertices = 10;
                         opt.innerVerticeStep = 2;
                         opt.innerRatio = 0.4;
@@ -273,20 +287,23 @@ export class BaseTeachingAidsManager {
                     }
                 }
                 opt.fillColor = memberState?.fillColor && rgbToRgba(memberState.fillColor[0], memberState.fillColor[1], memberState.fillColor[2], memberState?.fillOpacity) || 'transparent';
-                if (toolsKey !== EToolsKey.Rectangle) {
-                    opt.textOpt = {
-                        strokeColor: opt.strokeColor,
-                        fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
-                        textAlign: memberState?.textAlign || 'left',
-                        verticalAlign: memberState?.verticalAlign || 'middle',
-                        fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
-                        fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
-                        fontWeight: memberState?.bold && 'bold' || undefined,
-                        fontStyle: memberState?.italic && 'italic' || undefined,
-                        underline: memberState?.underline || undefined,
-                        lineThrough: memberState?.lineThrough || undefined,
-                        text: ''
-                    };
+                // if (toolsKey !== EToolsKey.Rectangle) {
+                //     (opt as PolygonOptions).textOpt = {
+                //         strokeColor: opt.strokeColor,
+                //         fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
+                //         textAlign: memberState?.textAlign || 'left',
+                //         verticalAlign: memberState?.verticalAlign || 'middle',
+                //         fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
+                //         fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
+                //         bold: memberState?.bold && 'bold' || undefined,
+                //         italic: memberState?.italic && 'italic' || undefined,
+                //         underline: memberState?.underline || undefined,
+                //         lineThrough: memberState?.lineThrough || undefined,
+                //         text: ''
+                //     }
+                // }
+                if (toolsKey === EToolsKey.SpeechBalloon) {
+                    opt.placement = memberState.placement || 'bottomLeft';
                 }
                 break;
             default:
@@ -356,7 +373,7 @@ export class BaseTeachingAidsManager {
     }
     /** 异步获取指定路径下的缩略图 */
     async scenePreview(scenePath, img) {
-        const viewId = this.collector.getViewIdBySecenPath(scenePath);
+        const viewId = this.collector?.getViewIdBySecenPath(scenePath);
         if (!viewId) {
             return;
         }

@@ -28,6 +28,7 @@ export declare class SelectorShape extends BaseShapeTool {
     private drawSelector;
     private draw;
     private getSelecteorInfo;
+    getChildrenPoints(): [number, number][] | undefined;
     consume(props: {
         data: IWorkerMessage;
     }): IMainMessage;
@@ -54,7 +55,7 @@ export declare class SelectorShape extends BaseShapeTool {
         willSyncService: boolean;
     };
     private getRightServiceId;
-    selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>): IRectType | undefined;
+    selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>, isService: boolean): IRectType | undefined;
     reRenderSelector(): IRectType | undefined;
     updateSelectIds(nextSelectIds: string[]): {
         bgRect: IRectType | undefined;

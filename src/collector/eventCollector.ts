@@ -11,7 +11,7 @@ import cloneDeep from "lodash/cloneDeep";
  * 服务端事件/状态同步收集器
  */ 
 export class EventCollector extends BaseCollector<ISerializableEventData> {
-    static syncInterval: number = 500;
+    static syncInterval: number = 100;
     static namespace: string = 'PluginEvent';
     serviceStorage: ISerializableEventData = {};
     storage: ISerializableEventData = {};

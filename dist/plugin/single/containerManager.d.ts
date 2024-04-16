@@ -8,7 +8,7 @@ export declare class ViewContainerSingleManager extends ViewContainerManager {
     control: TeachingAidsSingleManager;
     focuedView?: ViewInfo;
     constructor(props: BaseSubWorkModuleProps);
-    private listener;
+    bindMainView(): void;
     mountView(viewId: string): void;
     setFocuedViewCameraOpt(cameraState: CameraState): void;
     transformToOriginPoint(p: [number, number], viewId: string): [number, number];

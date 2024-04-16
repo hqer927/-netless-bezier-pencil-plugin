@@ -1,5 +1,4 @@
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { Collector } from "../../collector";
 import { IWorkerMessage } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { requestAsyncCallBack } from "../utils";
@@ -14,12 +13,13 @@ export abstract class BaseMsgMethod {
     emtType!: InternalMsgEmitterType;
     control!: BaseTeachingAidsManager;
     mainEngine!: MasterController;
-    serviceColloctor?: Collector;
+    get serviceColloctor(){
+        return this.control.collector;
+    }
     registerForMainEngine(emtType: InternalMsgEmitterType, control: BaseTeachingAidsManager) {
         this.emtType = emtType;
         this.control = control;
         this.mainEngine = control.worker;
-        this.serviceColloctor = control.collector;
         this.mainEngine.internalMsgEmitter.on([this.emtType, this.emitEventType], this.collect.bind(this));
         return this;
     }

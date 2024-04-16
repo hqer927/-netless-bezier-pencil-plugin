@@ -25,14 +25,25 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "checkScaleTimer", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "onMainViewMounted", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: (bindMainView) => {
-                let checkScaleTimer;
+                console.log('onMainViewMounted', bindMainView);
                 const container = bindMainView.divElement;
                 if (!container || !bindMainView.focusScenePath) {
+                    return;
+                }
+                const focusScenePath = bindMainView.focusScenePath || bindMainView.scenePath;
+                if (!focusScenePath) {
+                    // console.log('onMainViewMounted--0', focusScenePath)
                     return;
                 }
                 const displayer = new MainViewMultiDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
@@ -66,7 +77,15 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     scale: scale === Infinity ? 1 : scale
                 };
                 this.focuedViewId = MainViewMultiDisplayerManager.viewId;
-                // console.log('ContainerManager - bindMainView', bindMainView.size, opt, bindMainView.focusScenePath)
+                // console.log('ContainerManager - bindMainView', container)
+                if (this.mainView && this.mainView.displayer) {
+                    this.mainView.displayer.destroy();
+                    const nodes = container.getElementsByClassName('teaching-aids-plugin-main-view-displayer');
+                    for (const node of nodes) {
+                        node.remove();
+                    }
+                    this.mainView = undefined;
+                }
                 this.createMianView({
                     id: MainViewMultiDisplayerManager.viewId,
                     container,
@@ -77,36 +96,52 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 });
                 this.focuedView = this.mainView;
                 displayer.createMainViewDisplayer(container);
-                // console.log('ContainerManager - bindMainView', bindMainView.size, bindMainView.camera, opt)
-                bindMainView.callbacks.on('onSizeUpdated', (size) => {
-                    // console.log('bindMainView-size', size)
-                    if (this.mainView) {
+                bindMainView.callbacks.on('onSizeUpdated', this.onMainViewSizeUpdated);
+                bindMainView.callbacks.on('onCameraUpdated', this.onMainViewCameraUpdated);
+            }
+        });
+        Object.defineProperty(this, "onMainViewSizeUpdated", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: async () => {
+                Promise.resolve().then(() => {
+                    if (this.mainView && this.mainView.viewData) {
+                        const size = this.mainView.viewData.size;
+                        // console.log('mainview size updated', size)
                         const cameraOpt = this.mainView.cameraOpt;
                         if (cameraOpt) {
-                            // console.log('onSizeUpdated', size)
                             this.mainView.displayer.updateSize();
                             this.mainView.cameraOpt = ({ ...cameraOpt, ...size });
                         }
                     }
                 });
-                bindMainView.callbacks.on('onCameraUpdated', (camera) => {
-                    // console.log('bindMainView-onCameraUpdated', camera)
-                    if (this.mainView) {
+            }
+        });
+        Object.defineProperty(this, "onMainViewCameraUpdated", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: async () => {
+                Promise.resolve().then(() => {
+                    if (this.mainView && this.mainView.viewData) {
+                        const camera = this.mainView.viewData.camera;
+                        // console.log('mainview camera updated', camera)
                         const cameraOpt = this.mainView.cameraOpt;
                         if (cameraOpt) {
                             const scale = camera.scale === Infinity ? 1 : camera.scale;
                             const centerX = camera.centerX || 0;
                             const centerY = camera.centerY || 0;
                             this.mainView.cameraOpt = ({ ...cameraOpt, scale, centerX, centerY });
-                            if (checkScaleTimer && camera.scale == Infinity) {
-                                clearTimeout(checkScaleTimer);
-                                checkScaleTimer = undefined;
+                            if (this.checkScaleTimer && camera.scale == Infinity) {
+                                clearTimeout(this.checkScaleTimer);
+                                this.checkScaleTimer = undefined;
                             }
-                            if (!checkScaleTimer && camera.scale === Infinity && this.mainView.viewData && this.mainView.viewData.camera.scale === Infinity) {
-                                checkScaleTimer = setTimeout(() => {
+                            if (!this.checkScaleTimer && camera.scale === Infinity && this.mainView.viewData && this.mainView.viewData.camera.scale === Infinity) {
+                                this.checkScaleTimer = setTimeout(() => {
                                     this.mainView?.viewData?.moveCamera({ scale, centerX, centerY, animationMode: 'immediately' });
                                     // console.log('moveCamera - end', this.mainView?.viewData?.camera)
-                                    checkScaleTimer = undefined;
+                                    this.checkScaleTimer = undefined;
                                 }, 500);
                             }
                         }
@@ -159,11 +194,19 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     viewData: view
                 });
                 displayer.createAppViewDisplayer(appId, container);
-                // displayer.reflashContainerOffset();
-                view.callbacks.on('onSizeUpdated', (size) => {
-                    // console.log('ContainerManager - bindAppView-size',size)
+                view.callbacks.on('onSizeUpdated', this.onAppViewSizeUpdated.bind(this, appId));
+                view.callbacks.on('onCameraUpdated', this.onAppViewCameraUpdated.bind(this, appId));
+            }
+        });
+        Object.defineProperty(this, "onAppViewSizeUpdated", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: async (appId) => {
+                Promise.resolve().then(() => {
                     const view = this.appViews.get(appId);
-                    if (view) {
+                    if (view && view.viewData) {
+                        const size = view.viewData.size;
                         const cameraOpt = view.cameraOpt;
                         if (cameraOpt) {
                             view.displayer.updateSize();
@@ -171,10 +214,17 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                         }
                     }
                 });
-                view.callbacks.on('onCameraUpdated', (camera) => {
-                    // console.log('ContainerManager - bindAppView-onCameraUpdated', appId, camera)
+            }
+        });
+        Object.defineProperty(this, "onAppViewCameraUpdated", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: async (appId) => {
+                Promise.resolve().then(() => {
                     const view = this.appViews.get(appId);
-                    if (view) {
+                    if (view && view.viewData) {
+                        const camera = view.viewData.camera;
                         const cameraOpt = view.cameraOpt;
                         if (cameraOpt) {
                             const scale = camera.scale === Infinity ? 1 : camera.scale;
@@ -225,7 +275,7 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 this.control.activeWorker();
             }
             this.control.worker?.createViewWorker(viewId, opt);
-            if (viewInfo.focusScenePath) {
+            if (viewInfo.focusScenePath && this.control.collector) {
                 // console.log('pullServiceData', viewId, viewInfo.focusScenePath)
                 this.control.worker.pullServiceData(viewId, viewInfo.focusScenePath);
             }
@@ -256,8 +306,9 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 const view = this.getView(focuedViewId);
                 if (view) {
                     view.displayer.reflashContainerOffset();
-                    this.focuedView = view;
-                    this.focuedViewId = focuedViewId;
+                    this.setFocuedViewId(focuedViewId);
+                    // this.focuedView = view;
+                    // this.focuedViewId = focuedViewId;
                 }
             }
         });
@@ -302,9 +353,8 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             // console.log('ContainerManager - onBoxClose', payload);
             const view = this.appViews.get(payload.appId);
             if (view) {
+                this.destroyAppView(payload.appId);
                 this.control.worker.destroyViewWorker(payload.appId);
-                view.displayer.destroy();
-                this.appViews.delete(payload.appId);
             }
         });
         windowManager.emitter.on('onBoxStateChange', (payload) => {
@@ -327,205 +377,11 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             }
         });
     }
-    // private listenerExternalManager(){
-    //     this.control.externalManager.on('bindMainView', (bindMainView: View) => {
-    // const container = bindMainView.divElement;
-    // if(!container || !bindMainView.focusScenePath){
-    //     return;
-    // }
-    // const displayer = new MainViewMultiDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
-    // // console.log('ContainerManager - bindMainView', mainViewContainer)
-    // const {width, height, dpr} = displayer;
-    // const opt = {
-    //     dpr,
-    //     originalPoint: [width/2, height/2],
-    //     offscreenCanvasOpt: {
-    //         ...ViewContainerMultiManager.defaultScreenCanvasOpt,
-    //         width,
-    //         height,
-    //     },
-    //     layerOpt: {
-    //         ...ViewContainerMultiManager.defaultLayerOpt,
-    //         width,
-    //         height,
-    //     },
-    //     cameraOpt: {
-    //         ...ViewContainerMultiManager.defaultCameraOpt,
-    //         width,
-    //         height,
-    //     }
-    // }  as ViewWorkerOptions;
-    // this.focuedViewId = MainViewMultiDisplayerManager.viewId;
-    // // console.log('ContainerManager - bindMainView', opt)
-    // this.createMianView({
-    //     id: MainViewMultiDisplayerManager.viewId,
-    //     container,
-    //     displayer,
-    //     focusScenePath: bindMainView.focusScenePath,
-    //     cameraOpt: opt.cameraOpt,
-    //     viewData: bindMainView
-    // })
-    // this.focuedView = this.mainView;
-    // displayer.createMainViewDisplayer(container);
-    // bindMainView.callbacks.on('onSizeUpdated',(size:Size)=>{
-    //     // console.log('bindMainView-size', size)
-    //     if (this.mainView) {
-    //         const cameraOpt = this.mainView.cameraOpt;
-    //         if (cameraOpt) {
-    //             // console.log('onSizeUpdated', size)
-    //             this.mainView.displayer.updateSize();
-    //             this.mainView.cameraOpt = ({...cameraOpt,...size});
-    //         }
-    //     }
-    // })
-    // bindMainView.callbacks.on('onCameraUpdated',(camera:Camera)=>{
-    //     // console.log('bindMainView-onCameraUpdated', camera)
-    //     if (this.mainView) {
-    //         const cameraOpt = this.mainView.cameraOpt;
-    //         if (cameraOpt) {
-    //             const scale = camera.scale === Infinity ? 1 : camera.scale;
-    //             const centerX = camera.centerX || 0;
-    //             const centerY = camera.centerY || 0;
-    //             // console.log('onCameraUpdated', camera.scale === Infinity ? 1 : camera.scale,  {...cameraOpt,...camera, scale: Number.isFinite(camera.scale) && 1 || camera.scale})
-    //             this.mainView.cameraOpt = ({...cameraOpt, scale, centerX, centerY});
-    //         }
-    //     }
-    // })
-    //     })
-    //     this.control.externalManager.on('mountAppView', (viewId:string, bindAppView: View) => {
-    //         const container = bindAppView.divElement;
-    //         if (!container || !bindAppView.focusScenePath) {
-    //             return;
-    //         }
-    //         const displayer = new AppViewDisplayerManagerImpl(viewId, this.control, BaseTeachingAidsManager.InternalMsgEmitter);
-    //         // console.log('ContainerManager - mountAppView', viewId, bindAppView.size, bindAppView.camera)
-    //         const {width, height, dpr} = displayer;
-    //         const opt = {
-    //             dpr,
-    //             originalPoint: [width/2, height/2],
-    //             offscreenCanvasOpt: {
-    //                 ...ViewContainerMultiManager.defaultScreenCanvasOpt,
-    //                 width,
-    //                 height,
-    //             },
-    //             layerOpt: {
-    //                 ...ViewContainerMultiManager.defaultLayerOpt,
-    //                 width,
-    //                 height,
-    //             },
-    //             cameraOpt: {
-    //                 ...ViewContainerMultiManager.defaultCameraOpt,
-    //                 width,
-    //                 height,
-    //             }
-    //         }  as ViewWorkerOptions;
-    //         // console.log('ContainerManager - mountAppView--1', bindAppView)
-    //         this.createAppView({
-    //             id: viewId,
-    //             container,
-    //             displayer,
-    //             cameraOpt: opt.cameraOpt,
-    //             focusScenePath: bindAppView.focusScenePath,
-    //             viewData: bindAppView
-    //         })
-    //         displayer.createAppViewDisplayer(viewId, container);
-    //         bindAppView.callbacks.on('onSizeUpdated',(size:Size)=>{
-    //             // console.log('ContainerManager - bindAppView-size',viewId,size)
-    //             const view = this.appViews.get(viewId);
-    //             if (view) {
-    //                 const cameraOpt = view.cameraOpt;
-    //                 if (cameraOpt) {
-    //                     view.displayer.updateSize();
-    //                     view.cameraOpt = ({...cameraOpt,...size});
-    //                 }
-    //             }
-    //         })
-    //         bindAppView.callbacks.on('onCameraUpdated',(camera:Camera)=>{
-    //             // console.log('ContainerManager - bindAppView-onCameraUpdated', viewId, bindAppView.camera, camera)
-    //             const view = this.appViews.get(viewId);
-    //             if (view) {
-    //                 const cameraOpt = view.cameraOpt;
-    //                 if (cameraOpt) {
-    //                     const scale = camera.scale === Infinity ? 1 : camera.scale;
-    //                     const centerX = camera.centerX || 0;
-    //                     const centerY = camera.centerY || 0;
-    //                     view.cameraOpt = ({...cameraOpt, scale, centerX, centerY});
-    //                 }
-    //             }
-    //         })
-    //     })
-    //     this.control.externalManager.on('setupApp', (appId:string) => {
-    //         // console.log('ContainerManager - setupApp', appId, this.appViews.size)
-    //         const view = this.appViews.get(appId);
-    //         if (view && view.displayer) {
-    //             // console.log('ContainerManager - setupApp', appId, view.viewData?.camera, view.viewData?.size)
-    //             view.displayer.reflashContainerOffset();
-    //         }    
-    //     })
-    //     this.control.externalManager.on('onBoxMove', (payload:any) => {
-    //         // console.log('ContainerManager - onBoxMove', payload);
-    //         const view = this.getView(payload.appId);
-    //         if (view) {
-    //             view.displayer.reflashContainerOffset();
-    //         }
-    //     })
-    //     this.control.externalManager.on('onBoxResize', (payload:any) => {
-    //         // console.log('ContainerManager - onBoxResize', payload);
-    //         const view = this.getView(payload.appId);
-    //         if (view) {
-    //             view.displayer.reflashContainerOffset();
-    //         }
-    //     })
-    //     this.control.externalManager.on('onBoxFocus', (payload:any) => {
-    //         // console.log('ContainerManager - onBoxFocus', payload);
-    //         const view = this.getView(payload.appId);
-    //         if (view) {
-    //             view.displayer.reflashContainerOffset();
-    //         }
-    //     })
-    //     this.control.externalManager.on('onBoxClose', (payload:any) => {
-    //         // console.log('ContainerManager - onBoxClose', payload);
-    //         const view = this.appViews.get(payload.appId);
-    //         if (view) {
-    //             this.control.worker.destroyViewWorker(payload.appId);
-    //             view.displayer.destroy();
-    //             this.appViews.delete(payload.appId);
-    //         }
-    //     })
-    //     this.control.externalManager.on('onBoxStateChange', (payload:any) => {
-    //         console.log('ContainerManager - onBoxStateChange', payload);
-    //         const view = this.getView(payload.appId);
-    //         if (view) {
-    //             view.displayer.reflashContainerOffset();
-    //         }
-    //     })
-    //     this.control.externalManager.on('onAppScenePathChange', (viewId:string, viewData:View) => {
-    //         console.log('ContainerManager - onAppScenePathChange', viewId, viewData.focusScenePath, viewData);
-    //         const view = this.getView(viewId);
-    //         if (view) {
-    //             const scenePath = viewData.focusScenePath;
-    //             if (scenePath) {
-    //                 view.focusScenePath = scenePath;
-    //             }
-    //             // console.log('ContainerManager - onScenePathChange', view.focusScenePath)
-    //         }
-    //     })
-    // }
     transformToOriginPoint(p, viewId) {
-        // const view = this.getView(viewId);
-        // if (view?.viewData) {
-        //     const _p = view.viewData.convertToPointOnScreen(p[0],p[1]);
-        //     console.log('transformToOriginPoint',_p, p, this.mainView?.displayer.containerOffset)
-        //     return [_p.x,_p.y];
-        // }
         const view = this.getView(viewId);
-        if (view && view.cameraOpt && view?.viewData) {
-            const point = [p[0], p[1]];
-            const { scale, centerX, centerY, width, height } = view.cameraOpt;
-            point[0] = (p[0] - centerX) * scale + width / 2;
-            point[1] = (p[1] - centerY) * scale + height / 2;
+        if (view?.viewData) {
             const _p = view.viewData.convertToPointOnScreen(p[0], p[1]);
-            // console.log('transformToOriginPoint', point, _p, view.cameraOpt)
+            // console.log('transformToOriginPoint',_p, p, this.mainView?.displayer.containerOffset)
             return [_p.x, _p.y];
         }
         return p;
@@ -533,19 +389,9 @@ export class ViewContainerMultiManager extends ViewContainerManager {
     transformToScenePoint(p, viewId) {
         const view = this.getView(viewId);
         // console.log('transformToScenePoint ---1', p, this.mainView?.displayer.containerOffset)
-        // if (view?.viewData) {
-        //     const _p = view.viewData.convertToPointInWorld({x:p[0],y:p[1]});
-        //     // console.log('transformToScenePoint ---2',_p )
-        //     // return [_p.x,_p.y];
-        // }
-        // const view = this.getView(viewId);
-        if (view && view?.viewData) {
-            // const point:[number,number] = [p[0],p[1]];
-            // const {scale, centerX, centerY, width, height} = view.cameraOpt;
-            // point[0] = (p[0] - width / 2) / scale + centerX;
-            // point[1] = (p[1] - height / 2) / scale + centerY;
+        if (view?.viewData) {
             const _p = view.viewData.convertToPointInWorld({ x: p[0], y: p[1] });
-            // console.log('transformToScenePoint', point, _p, view.cameraOpt)
+            // console.log('transformToScenePoint ---2',_p )
             return [_p.x, _p.y];
         }
         return p;

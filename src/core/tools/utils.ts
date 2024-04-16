@@ -12,12 +12,12 @@ import { EllipseOptions, EllipseShape } from "./ellipse";
 import { PolygonOptions, PolygonShape } from "./polygon";
 import { RectangleOptions, RectangleShape } from "./rectangle";
 import { VNodeManager } from "../worker/vNodeManager";
+import { SpeechBalloonOptions, SpeechBalloonShape } from "./speechBalloon";
 import { TextShape } from "./text";
 import { TextOptions } from "../../component/textEditor";
-// import { TextOptions } from "../../component/textEditor";
 
-export type ShapeTools = typeof PencilShape | typeof LaserPenShape | typeof EraserShape | typeof StarShape | typeof SelectorShape | typeof ArrowShape | typeof EllipseShape | typeof RectangleShape | typeof StarShape | typeof PolygonShape | typeof TextShape;
-export type ShapeOptions = PencilOptions | LaserPenOptions | EraserOptions | StarOptions | SelectorOptions | ArrowOptions | EllipseOptions | RectangleOptions | StarOptions | PolygonOptions | StraightOptions | TextOptions;
+export type ShapeTools = typeof PencilShape | typeof LaserPenShape | typeof EraserShape | typeof StarShape | typeof SelectorShape | typeof ArrowShape | typeof EllipseShape | typeof RectangleShape | typeof StarShape | typeof PolygonShape | typeof TextShape | typeof SpeechBalloonShape;
+export type ShapeOptions = PencilOptions | LaserPenOptions | EraserOptions | StarOptions | SelectorOptions | ArrowOptions | EllipseOptions | RectangleOptions | StarOptions | PolygonOptions | StraightOptions | TextOptions | SpeechBalloonOptions;
 export type ShapeNodes =  Group | Path | Polyline | Rect | Ellipse;
 
 export interface CombineConsumeResult {
@@ -47,8 +47,8 @@ export function getShapeTools(toolsType:EToolsKey) {
             return StarShape
         case EToolsKey.Rectangle:
             return RectangleShape
-        // case EToolsKey.SpeechBalloon:
-        //     return SpeechBalloonShape
+        case EToolsKey.SpeechBalloon:
+            return SpeechBalloonShape
         case EToolsKey.Text:
             return TextShape
         case EToolsKey.LaserPen:
@@ -85,8 +85,8 @@ export function getShapeInstance(param:{
             return new StarShape(props);
         case EToolsKey.Rectangle:
             return new RectangleShape(props);
-        // case EToolsKey.SpeechBalloon:
-        //     return new SpeechBalloonShape(props);
+        case EToolsKey.SpeechBalloon:
+            return new SpeechBalloonShape(props);
         case EToolsKey.Text:
             return new TextShape(props);
         case EToolsKey.LaserPen:

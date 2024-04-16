@@ -9,7 +9,8 @@ import { transformToSerializableData } from "../../collector/utils";
 import { VNodeManager } from "../worker/vNodeManager";
 import { ShapeNodes } from "./utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
-// import { TextShape } from "./text";
+import { TextOptions } from "../../component/textEditor";
+import isBoolean from "lodash/isBoolean";
 
 export interface RectangleOptions extends BaseShapeOptions {
     thickness: number;
@@ -277,7 +278,9 @@ export class RectangleShape extends BaseShapeTool{
         willSerializeData?: boolean
     }){
         const {node, opt, vNodes} = param;
-        const {strokeColor, fillColor} = opt;
+        const {strokeColor, fillColor, fontColor, fontBgColor, bold,
+            italic, lineThrough, underline, fontSize
+        } = opt;
         const nodeOpt = vNodes.get(node.name);
         let n = node;
         if (node.tagName === 'GROUP') {
@@ -297,6 +300,34 @@ export class RectangleShape extends BaseShapeTool{
             }
             if (nodeOpt?.opt?.fillColor ) {
                 nodeOpt.opt.fillColor = fillColor;
+            }
+        }
+        if (nodeOpt?.opt.textOpt) {
+            const _textOpt = nodeOpt.opt.textOpt as TextOptions;
+            if (fontColor) {
+                if (_textOpt.fontColor ) {
+                    _textOpt.fontColor = fontColor;
+                }
+            }
+            if (fontBgColor) {
+                if (_textOpt.fontBgColor ) {
+                    _textOpt.fontBgColor = fontBgColor;
+                }
+            }
+            if (bold) {
+                _textOpt.bold = bold;
+            }
+            if (italic) {
+                _textOpt.italic = italic;
+            }
+            if (isBoolean(lineThrough)) {
+                _textOpt.lineThrough = lineThrough;
+            }
+            if (isBoolean(underline)) {
+                _textOpt.underline = underline;
+            }
+            if (fontSize) {
+                _textOpt.fontSize = fontSize;
             }
         }
         nodeOpt && vNodes.setInfo(node.name, nodeOpt);

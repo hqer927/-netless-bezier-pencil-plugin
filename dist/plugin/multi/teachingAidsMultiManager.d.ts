@@ -1,14 +1,13 @@
 import { WindowManager } from "@netless/window-manager";
-import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
-import { TeachingAidsPluginOptions } from "../types";
+import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
 import { ViewContainerMultiManager } from "./containerManager";
-import type { TeachingAidsPlugin } from "../teachingAidsPlugin";
 export declare class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     windowManager?: WindowManager;
     viewContainerManager: ViewContainerMultiManager;
-    constructor(plugin: TeachingAidsPlugin, options?: TeachingAidsPluginOptions);
+    constructor(params: BaseTeachingAidsManagerProps);
     init(): void;
     destroy(): void;
+    activePlugin(): void;
     activeWorker(): void;
     setWindowManager(windowManager: WindowManager): void;
 }

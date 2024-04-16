@@ -10,3 +10,6 @@ export const BarMargin = Object.freeze({
     left: 12,
     right: 12,
 });
+export const FontSizeList = Object.freeze([
+    12, 14, 18, 24, 36, 48, 64, 80, 144, 288,
+]);

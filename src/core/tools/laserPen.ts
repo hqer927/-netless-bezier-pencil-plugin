@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Path, Node} from "spritejs";
+import { Path, Node, Group} from "spritejs";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType } from "../types";
@@ -35,8 +35,8 @@ export class LaserPenShape extends BaseShapeTool {
         super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
-    consume(props:{data: IWorkerMessage, isFullWork:boolean}): IMainMessage{
-        const {data, isFullWork} = props;
+    consume(props:{data: IWorkerMessage, isFullWork:boolean, isSubWorker?:boolean}): IMainMessage{
+        const {data, isSubWorker} = props;
         const {workId, op }= data;
         if(op?.length === 0){
           return { type: EPostMessageType.None}
@@ -63,7 +63,6 @@ export class LaserPenShape extends BaseShapeTool {
             lineWidth: thickness,
             anchor: [0.5, 0.5],
         }
-        //console.log('attrs',attrs, strokeType)
         const tasks = this.getTaskPoints(points);
         if (tasks.length) {
             const now = Date.now();
@@ -72,7 +71,7 @@ export class LaserPenShape extends BaseShapeTool {
                 this.syncTimestamp = now;
                 this.syncIndex = this.tmpPoints.length;
             }
-            !isFullWork && this.draw({attrs, tasks, isDot:false});
+            isSubWorker && this.draw({attrs, tasks, isDot:false, layer: this.drawLayer || this.fullLayer});
         }
         const nop:number[] = [];
         this.tmpPoints.slice(index).forEach(p=>{
@@ -121,7 +120,7 @@ export class LaserPenShape extends BaseShapeTool {
             }
             const tasks = this.getTaskPoints(points);
             if (tasks.length) {
-                this.draw({attrs, tasks, isDot});
+                this.draw({attrs, tasks, isDot, layer: this.drawLayer || this.fullLayer});
             }
         }
         const nop:number[] = [];
@@ -148,9 +147,11 @@ export class LaserPenShape extends BaseShapeTool {
         this.syncIndex = 0;
     }
     consumeService(props:{
-        op: number[]
+        op: number[],
+        isFullWork?:boolean,
+        replaceId?: string,
     }): IRectType | undefined {
-        const {op} = props;
+        const {op, replaceId, isFullWork} = props;
         const {strokeColor, thickness, strokeType} = this.workOptions;
         if (!op.length) {
             const r = getRectFromPoints(this.tmpPoints, thickness)
@@ -188,7 +189,8 @@ export class LaserPenShape extends BaseShapeTool {
         }
         const tasks = this.getTaskPoints(points);
         if (tasks.length) {
-            this.draw({attrs, tasks, isDot});
+            const layer = isFullWork ? this.fullLayer : this.drawLayer || this.fullLayer;
+            this.draw({attrs, tasks, isDot, replaceId, layer});
         }
         return {
             x:rect.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
@@ -221,13 +223,14 @@ export class LaserPenShape extends BaseShapeTool {
         attrs: Record<string, any>;
         tasks: Array<{ pos: [number, number]; points: Point2d[] }>;
         isDot: boolean;
+        layer: Group;
+        replaceId?: number|string;
     }) {
-        const {attrs, tasks, isDot } = data;
-        const layer = this.fullLayer;
+        const {attrs, tasks, isDot, layer } = data;
         const {duration} = this.workOptions;
-        const node = new Path();
-        for (let i=0; i < tasks.length; i++) {
-            const {pos, points} = tasks[i];
+        for (const task of tasks) {
+            const node = new Path();
+            const {pos, points} = task;
             let d:string;
             if (isDot) {
                 d = getSvgPathFromPoints(points, true);
@@ -250,11 +253,12 @@ export class LaserPenShape extends BaseShapeTool {
                 node.setProgram(program);
             }
             layer.appendChild(node);
-            await node.transition(duration).attr({
+            node.transition(duration).attr({
                 scale: isDot ? [0.1, 0.1] : [1 , 1],
                 lineWidth: isDot ? 0 : 1
+            }).then(()=>{
+                node.remove();
             });
-            node.remove();
         }
     }
     private getTaskPoints(newPoints: Point2d[]) {

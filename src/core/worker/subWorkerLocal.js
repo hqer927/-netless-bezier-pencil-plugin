@@ -36,14 +36,15 @@ export class LocalWorkForSubWorker extends LocalWork {
             value: 0
         });
     }
-    runFullWork(data) {
+    runFullWork(data, isDrawLabel) {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
             const rect = workShape.consumeService({
                 op,
                 isFullWork: true,
-                replaceId: workShape.getWorkId()?.toString()
+                replaceId: workShape.getWorkId()?.toString(),
+                isDrawLabel
             });
             const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt);
             data.workId && this.workShapes.delete(data.workId);
@@ -53,7 +54,7 @@ export class LocalWorkForSubWorker extends LocalWork {
     runSelectWork(data) {
         const workShape = this.setFullWork(data);
         if (workShape && data.selectIds?.length && data.workId) {
-            workShape.selectServiceNode(data.workId.toString(), { selectIds: data.selectIds });
+            workShape.selectServiceNode(data.workId.toString(), { selectIds: data.selectIds }, false);
         }
     }
     consumeDraw(data) {
@@ -118,11 +119,12 @@ export class LocalWorkForSubWorker extends LocalWork {
                                     canDel: false,
                                     isRect: true,
                                 });
-                                this.runLaserPenAnimation();
+                                this.runLaserPenAnimation(result);
                             }
-                            this._post({
-                                sp: [result]
-                            });
+                            // console.log('consumeDrawAll', result)
+                            // this._post({
+                            //     sp: [result]
+                            // });
                         }
                         const duration = workShapeNode.getWorkOptions()?.duration;
                         this.closeAnimationTime = duration ? duration * 1000 + 100 : this.closeAnimationTime;
@@ -133,7 +135,9 @@ export class LocalWorkForSubWorker extends LocalWork {
                             if (rectData) {
                                 rectData.canDel = true;
                             }
+                            // console.log('consumeDrawAll--1', workShapeNode.getWorkOptions().syncUnitTime || this.closeAnimationTime)
                             setTimeout(() => {
+                                // console.log('consumeDrawAll--2')
                                 this._post({
                                     sp: [{
                                             removeIds: [workId.toString()],
@@ -162,14 +166,37 @@ export class LocalWorkForSubWorker extends LocalWork {
         }
         return;
     }
-    runLaserPenAnimation() {
+    updateLabels(labelGroup, value) {
+        labelGroup.children.forEach((label) => {
+            if (label.tagName === 'LABEL') {
+                const name = label.name;
+                const { width } = label.getBoundingClientRect();
+                const [scaleX] = labelGroup.worldScaling;
+                // console.log('textOpt.text--3', width);
+                const { underline, lineThrough } = value.opt;
+                if (underline) {
+                    const underlineNode = labelGroup.getElementsByName(`${name}_underline`)[0];
+                    underlineNode.attr({
+                        points: [0, 0, width / scaleX, 0],
+                    });
+                }
+                if (lineThrough) {
+                    const lineThroughNode = labelGroup.getElementsByName(`${name}_lineThrough`)[0];
+                    lineThroughNode.attr({
+                        points: [0, 0, width / scaleX, 0],
+                    });
+                }
+            }
+        });
+    }
+    runLaserPenAnimation(result) {
         if (!this.animationId) {
             this.animationId = requestAnimationFrame(() => {
                 this.animationId = undefined;
                 this.runLaserPenStep++;
                 if (this.runLaserPenStep > 1) {
                     this.runLaserPenStep = 0;
-                    this.runLaserPenAnimation();
+                    this.runLaserPenAnimation(result);
                     return;
                 }
                 let rect;
@@ -196,6 +223,9 @@ export class LocalWorkForSubWorker extends LocalWork {
                     this.runLaserPenAnimation();
                 }
                 if (rect) {
+                    if (result) {
+                        sp.push(result);
+                    }
                     this._post({
                         render: [{
                                 rect,

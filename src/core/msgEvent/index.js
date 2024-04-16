@@ -8,6 +8,8 @@ import { TranslateNodeMethod } from './translateNode/forMain';
 import { DeleteNodeMethod } from './deleteNode/forMain';
 import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
+import { SetFontStyleMethod } from './setFont/forMain';
+import { SetPointMethod } from './setPoint/forMain';
 export { ZIndexNodeMethod };
 export class MethodBuilderMain {
     constructor(emitTypes) {
@@ -37,6 +39,10 @@ export class MethodBuilderMain {
                 return new ScaleNodeMethod();
             case EmitEventType.RotateNode:
                 return new RotateNodeMethod();
+            case EmitEventType.SetFontStyle:
+                return new SetFontStyleMethod();
+            case EmitEventType.SetPoint:
+                return new SetPointMethod();
         }
         return undefined;
     }

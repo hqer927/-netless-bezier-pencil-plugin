@@ -31,7 +31,7 @@ export class DeleteNodeMethod extends BaseMsgMethod {
                 continue;
             }
             const curKeyStr = curKey.toString()
-            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
+            const isLocalId:boolean = this.serviceColloctor.isLocalId(curKeyStr);
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
             const curStore = store[viewId][scenePath][key];
             if (curStore) {

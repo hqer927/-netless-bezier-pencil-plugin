@@ -1,14 +1,13 @@
 /// <reference types="lodash" />
-import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
-import { ViewContainerManager } from "../baseViewContainerManager";
-import { TeachingAidsPluginOptions } from "../types";
+import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
 import type { CameraState } from "white-web-sdk";
-import type { TeachingAidsPlugin } from "../teachingAidsPlugin";
+import { ViewContainerSingleManager } from "./containerManager";
 export declare class TeachingAidsSingleManager extends BaseTeachingAidsManager {
-    viewContainerManager: ViewContainerManager;
-    constructor(plugin: TeachingAidsPlugin, options?: TeachingAidsPluginOptions);
+    viewContainerManager: ViewContainerSingleManager;
+    divMainView?: HTMLDivElement;
+    constructor(params: BaseTeachingAidsManagerProps);
     init(): void;
-    private displayStateListener;
+    activePlugin(): void;
     activeWorker(): void;
     onCameraChange: import("lodash").DebouncedFunc<(cameraState: CameraState) => void>;
 }

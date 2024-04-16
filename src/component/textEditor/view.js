@@ -9,7 +9,7 @@ export const TextView = (props) => {
     const { data } = props;
     const { opt, scale, translate, x, y } = data;
     const transform = `scale(${scale || 1}) ${translate && 'translate(' + translate[0] + 'px,' + translate[1] + 'px)' || ''}`;
-    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight, workState } = opt;
+    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight, workState, bold, italic } = opt;
     const size = fontSize;
     const _lineHeight = lineHeight || size * 1.2;
     const style = {
@@ -17,13 +17,19 @@ export const TextView = (props) => {
         lineHeight: `${_lineHeight}px`,
         color: fontColor,
         borderColor: strokeColor,
-        minHeight: `${_lineHeight}px`,
+        minHeight: `${_lineHeight}px`
     };
     if (fontFamily) {
         style.fontFamily = `${fontFamily}`;
     }
     if (lineThrough || underline) {
-        style.textDecoration = `${lineThrough && 'line-through'}${underline && ' underline'}`;
+        style.textDecoration = `${lineThrough && 'line-through' || ''}${underline && ' underline' || ''}`;
+    }
+    if (bold) {
+        style.fontWeight = `${bold}`;
+    }
+    if (italic) {
+        style.fontStyle = `${italic}`;
     }
     if (textAlign) {
         style.textAlign = `${textAlign}`;
@@ -58,7 +64,7 @@ export const TextSelectorView = React.memo((props) => {
         }
     }, [workId, selectIds]);
     const transform = `scale(${scale || 1}) ${translate && 'translate(' + translate[0] + 'px,' + translate[1] + 'px)' || ''}`;
-    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight } = opt;
+    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight, bold, italic } = opt;
     const size = fontSize;
     const _lineHeight = lineHeight || size * 1.2;
     const style = {
@@ -72,10 +78,16 @@ export const TextSelectorView = React.memo((props) => {
         style.fontFamily = `${fontFamily}`;
     }
     if (lineThrough || underline) {
-        style.textDecoration = `${lineThrough && 'line-through'}${underline && ' underline'}`;
+        style.textDecoration = `${lineThrough && 'line-through' || ''}${underline && ' underline' || ''}`;
     }
     if (textAlign) {
         style.textAlign = `${textAlign}`;
+    }
+    if (bold) {
+        style.fontWeight = `${bold}`;
+    }
+    if (italic) {
+        style.fontStyle = `${italic}`;
     }
     let html = '';
     if (opt?.text) {
@@ -97,7 +109,7 @@ export const TextSelectorView = React.memo((props) => {
         React.createElement("div", { className: 'editor readOnly', style: style, dangerouslySetInnerHTML: { __html: html } })));
 });
 export const TextEditor = (props) => {
-    const { data, workId, isSelect, handleKeyUp, handleFocus } = props;
+    const { data, workId, isSelect, handleKeyUp, handleFocus, updateOptInfo } = props;
     const { opt, scale, translate, x, y } = data;
     const [html, setHtml] = useState('');
     const ref = useRef(null);
@@ -122,8 +134,20 @@ export const TextEditor = (props) => {
             }
         });
     }, []);
+    useEffect(() => {
+        // console.log('TextEditor---1', ref.current?.offsetWidth, ref.current?.offsetHeight);
+        if (ref.current?.offsetWidth && ref.current?.offsetHeight) {
+            updateOptInfo({
+                activeTextId: workId,
+                update: {
+                    boxSize: [ref.current.offsetWidth, ref.current.offsetHeight],
+                    workState: EvevtWorkState.Doing
+                }
+            });
+        }
+    });
     const transform = `scale(${scale || 1}) ${translate && 'translate(' + translate[0] + 'px,' + translate[1] + 'px)' || ''}`;
-    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight } = opt;
+    const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight, bold, italic } = opt;
     const size = fontSize;
     const _lineHeight = lineHeight || size * 1.2;
     const style = {
@@ -137,10 +161,16 @@ export const TextEditor = (props) => {
         style.fontFamily = `${fontFamily}`;
     }
     if (lineThrough || underline) {
-        style.textDecoration = `${lineThrough && 'line-through'}${underline && ' underline'}`;
+        style.textDecoration = `${lineThrough && 'line-through' || ''} ${underline && ' underline' || ''}`;
     }
     if (textAlign) {
         style.textAlign = `${textAlign}`;
+    }
+    if (bold) {
+        style.fontWeight = `${bold}`;
+    }
+    if (italic) {
+        style.fontStyle = `${italic}`;
     }
     function handleClick() {
         if (ref.current) {
@@ -193,7 +223,7 @@ export const TextEditor = (props) => {
             return true;
         } },
         !isSelect && React.createElement(FloatBtns, { textOpt: opt, workIds: [workId], noLayer: true, position: { x, y } }),
-        React.createElement("div", { contentEditable: true, className: 'editor', ref: ref, style: style, dangerouslySetInnerHTML: { __html: html }, onKeyDown: handleKeyDown, onKeyUp: handleKeyUp, onClick: handleClick, onFocus: handleFocus })));
+        React.createElement("div", { contentEditable: true, className: 'editor', ref: ref, style: style, dangerouslySetInnerHTML: { __html: html }, onKeyDown: handleKeyDown, onKeyUp: handleKeyUp, onClick: handleClick, onTouchEnd: handleClick, onFocus: handleFocus })));
 };
 export class TextViewInSelector extends React.Component {
     constructor(props) {
@@ -214,16 +244,19 @@ export class TextViewInSelector extends React.Component {
         return texts;
     }
     updateOptInfo(param) {
-        const { activeTextId, update } = param;
+        const { activeTextId, update, syncData } = param;
         const _info = activeTextId && cloneDeep(this.props.editors?.get(activeTextId));
         if (_info && _info.opt) {
             _info.opt = {
                 ..._info.opt,
                 ...update
             };
-            // this.props.manage?.set(activeTextId,_info);
+            if (syncData) {
+                _info.canSync = syncData.canSync;
+                _info.canWorker = syncData.canWorker;
+            }
+            // console.log('updateOptInfo', activeTextId, update, cloneDeep(_info));
             this.props.manager.control.textEditorManager.updateForLocalEditor(activeTextId, _info);
-            // this.props.manager.internalMsgEmitter.emit([InternalMsgEmitterType.TextEditor, EmitEventType.SetEditorData],activeTextId);
         }
     }
     get editorUI() {
@@ -243,12 +276,7 @@ export class TextViewInSelector extends React.Component {
         return null;
     }
     render() {
-        return React.createElement("div", { ref: this.props.textRef, onClick: (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                const point = this.props.manager.getPoint(e);
-                point && this.props.manager.control.textEditorManager.computeTextActive(point, this.props.manager.viewId);
-            } }, this.editorUI);
+        return React.createElement("div", { ref: this.props.textRef }, this.editorUI);
     }
 }
 export class TextEditorContainer extends TextViewInSelector {
@@ -257,15 +285,19 @@ export class TextEditorContainer extends TextViewInSelector {
     }
     handleKeyUp(e) {
         const texts = this.getInnerText(e.nativeEvent.target);
-        // console.log('handleKeyUp', texts)
         const activeTextId = this.props.activeTextId;
         if (activeTextId) {
+            // console.log('handleKeyUp', texts, e.nativeEvent.target.offsetWidth)
             this.updateOptInfo({
                 activeTextId,
                 update: {
                     text: texts.toString(),
                     boxSize: [e.nativeEvent.target.offsetWidth, e.nativeEvent.target.offsetHeight],
                     workState: EvevtWorkState.Doing
+                },
+                syncData: {
+                    canSync: true,
+                    canWorker: true,
                 }
             });
         }
@@ -279,6 +311,10 @@ export class TextEditorContainer extends TextViewInSelector {
                 update: {
                     boxSize: [e.nativeEvent.target.offsetWidth, e.nativeEvent.target.offsetHeight],
                     workState: EvevtWorkState.Doing
+                },
+                syncData: {
+                    canSync: true,
+                    canWorker: true,
                 }
             });
         }
@@ -290,7 +326,7 @@ export class TextEditorContainer extends TextViewInSelector {
                 const notShow = this.props.selectIds.includes(key) && this.props.activeTextId !== key;
                 if (!notShow) {
                     const isActive = this.props.activeTextId == key;
-                    const editor = isActive ? React.createElement(TextEditor, { key: key, data: value, workId: key, handleFocus: this.handleFocus.bind(this), handleKeyUp: this.handleKeyUp.bind(this) }) : React.createElement(TextView, { key: key, data: value, workId: key });
+                    const editor = isActive ? React.createElement(TextEditor, { key: key, data: value, workId: key, handleFocus: this.handleFocus.bind(this), handleKeyUp: this.handleKeyUp.bind(this), updateOptInfo: this.updateOptInfo.bind(this) }) : React.createElement(TextView, { key: key, data: value, workId: key });
                     editors.push(editor);
                 }
             });

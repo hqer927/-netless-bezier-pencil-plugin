@@ -136,7 +136,7 @@ export abstract class BaseShapeTool {
         targetNode?: BaseNodeMapItem,
     }): IRectType | undefined {
         const {node, opt, vNodes, willSerializeData, targetNode} = param;
-        const {zIndex, translate, angle, box, boxScale, boxTranslate} = opt;
+        const {zIndex, translate, angle, box, boxScale, boxTranslate, pointMap} = opt;
         let rect:IRectType|undefined;
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt) return;
@@ -191,6 +191,15 @@ export abstract class BaseShapeTool {
             if (targetNode) {
                 rect = getRectRotated(nodeOpt.rect, angle);
                 nodeOpt.rect = rect;
+            }
+        }
+        if (pointMap) {
+            const op = pointMap.get(node.name);
+            if (op) {
+                for (let i = 0, j=0; i < nodeOpt.op.length; i+=3,j++) {
+                    nodeOpt.op[i] = op[j][0];
+                    nodeOpt.op[i+1] = op[j][1];
+                }
             }
         }
         if (willSerializeData) {

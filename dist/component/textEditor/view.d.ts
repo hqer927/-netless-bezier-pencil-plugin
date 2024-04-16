@@ -28,6 +28,10 @@ export interface TextSelectorViewProps extends TextViewProps {
 export interface TextEditorProps extends TextViewProps {
     handleKeyUp: KeyboardEventHandler<HTMLDivElement>;
     handleFocus: FocusEventHandler<HTMLDivElement>;
+    updateOptInfo: (param: {
+        activeTextId: string;
+        update: Partial<TextOptions>;
+    }) => void;
 }
 export declare const TextView: (props: TextViewProps) => React.JSX.Element;
 export declare const TextSelectorView: React.MemoExoticComponent<(props: TextSelectorViewProps) => React.JSX.Element>;
@@ -38,6 +42,7 @@ export declare class TextViewInSelector extends React.Component<TextEditorManage
     updateOptInfo(param: {
         activeTextId: string;
         update: Partial<TextOptions>;
+        syncData?: Pick<TextEditorInfo, 'canSync' | 'canWorker'>;
     }): void;
     get editorUI(): JSX.Element[] | null;
     render(): React.JSX.Element;

@@ -26,7 +26,6 @@ export declare class StraightShape extends BaseShapeTool {
     }): IMainMessage;
     consumeAll(props: {
         data?: IWorkerMessage | undefined;
-        vNodes: VNodeManager;
     }): IMainMessage;
     private draw;
     private computDrawPoints;

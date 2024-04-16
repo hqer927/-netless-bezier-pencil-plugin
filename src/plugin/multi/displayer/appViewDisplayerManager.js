@@ -102,7 +102,9 @@ export class AppViewDisplayerManagerImpl extends AppViewDisplayerManager {
                 floatBarRef: this.floatBarRef,
                 floatBarCanvasRef: this.floatBarCanvasRef
             } }), appViewDisplayer);
-        this.bindDisplayerEvent(this.eventTragetElement);
+        if (this.control.room) {
+            this.bindDisplayerEvent(this.eventTragetElement);
+        }
         return this;
     }
 }

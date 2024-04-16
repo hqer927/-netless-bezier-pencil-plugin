@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Rect, Group, Label } from "spritejs";
+import { Rect, Group, Label, Polyline, Layer } from "spritejs";
 import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
 import { EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
@@ -9,6 +9,7 @@ import { ShapeNodes } from "./utils";
 import cloneDeep from "lodash/cloneDeep";
 import { getRectScaleed, getRectTranslated } from "../utils";
 import { VNodeManager } from "../worker/vNodeManager";
+import isBoolean from "lodash/isBoolean";
 
 export class TextShape extends BaseShapeTool {
     readonly canRotate: boolean = false;
@@ -34,11 +35,12 @@ export class TextShape extends BaseShapeTool {
     private draw(props:{
         workId:string;
         layer: Group;
+        isDrawLabel?:boolean;
     }):IRectType | undefined{
-        const {workId, layer} = props;
+        const {workId, layer, isDrawLabel} = props;
         this.fullLayer.getElementsByName(workId).map(o=>o.remove());
         this.drawLayer?.getElementsByName(workId).map(o=>o.remove());
-        const {boxSize, boxPoint, strokeColor} = this.workOptions;
+        const {boxSize, boxPoint} = this.workOptions;
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
         if (!boxPoint || !boxSize) {
@@ -49,9 +51,7 @@ export class TextShape extends BaseShapeTool {
             id: workId, 
             pos: [boxPoint[0] + boxSize[0] / 2, boxPoint[1] + boxSize[1] / 2],
             anchor: [0.5, 0.5],
-            size: boxSize,
-            bgcolor: strokeColor,
-            opacity: 0.1
+            size: boxSize
         });
         const rect = {
             x: boxPoint[0],
@@ -59,17 +59,13 @@ export class TextShape extends BaseShapeTool {
             w: boxSize[0],
             h: boxSize[1]
         }
-        // console.log('boxSize', boxSize, rect)
         const node = new Rect({
             normalize: true,
             pos: [0, 0],
             size: boxSize,
-            // fillColor: strokeColor,
-            lineWidth:0,
-          });
-          group.appendChild(node);
-        // const labels = TextShape.createLabels(this.workOptions, rect)
-        // group.append(...labels);
+        });
+        const labels = isDrawLabel && TextShape.createLabels(this.workOptions, layer) || [];
+        group.append(...labels, node);
         layer.append(group);
         return {
             x: Math.floor(rect.x * worldScaling[0] + worldPosition[0]),
@@ -78,15 +74,15 @@ export class TextShape extends BaseShapeTool {
             h: Math.floor(rect.h * worldScaling[1])
         };
     }
-    consumeService(props:{isFullWork:boolean, replaceId?:string}): IRectType | undefined {
+    consumeService(props:{isFullWork:boolean, replaceId?:string, isDrawLabel?:boolean}): IRectType | undefined {
         const workId = this.workId?.toString();
         if (!workId) {
             return;
         }
-        const {isFullWork, replaceId}= props;
+        const {isFullWork, replaceId, isDrawLabel}= props;
         this.oldRect = replaceId && this.vNodes.get(replaceId)?.rect || undefined;
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const rect = this.draw({workId,layer})
+        const rect = this.draw({workId,layer, isDrawLabel})
         this.vNodes.setInfo(workId, {
             rect,
             op:[],
@@ -104,7 +100,7 @@ export class TextShape extends BaseShapeTool {
             return;
         }
         const workId = this.workId.toString();
-        const {fontColor,fontBgColor} = updateNodeOpt;
+        const {fontColor,fontBgColor, bold, italic, lineThrough, underline} = updateNodeOpt;
         const info = this.vNodes.get(workId);
         if (!info) {
             return;
@@ -115,10 +111,26 @@ export class TextShape extends BaseShapeTool {
         if (fontBgColor) {
             info.opt.fontBgColor = fontBgColor;
         }
+        if (bold) {
+            (info.opt as TextOptions).bold = bold;
+        }
+        if (italic) {
+            (info.opt as TextOptions).italic = italic;
+        }
+        if (isBoolean(lineThrough)) {
+            (info.opt as TextOptions).lineThrough = lineThrough;
+        }
+        if (isBoolean(underline)) {
+            (info.opt as TextOptions).underline = underline;
+        }
+        if (fontBgColor) {
+            info.opt.fontBgColor = fontBgColor;
+        }
         this.oldRect = info.rect;
         const rect = this.draw({
             workId,
-            layer: this.fullLayer
+            layer: this.fullLayer,
+            isDrawLabel: false
         })
         this.vNodes.setInfo(workId, {
             rect,
@@ -134,40 +146,88 @@ export class TextShape extends BaseShapeTool {
     clearTmpPoints(): void {
         this.tmpPoints.length = 0;
     }
-    static createLabels(textOpt:TextOptions, rect: IRectType){
-        const labels:Label[] = [];
-        const length = textOpt.text.length;
+    static getFontWidth(param:{
+        text: string,
+        ctx:OffscreenCanvasRenderingContext2D,
+        opt: TextOptions,
+        worldScaling:number[]
+    }){
+        const {ctx,opt, text}= param;
+        const {bold, italic, fontSize, fontFamily} = opt;
+        ctx.font = `${bold} ${italic} ${fontSize}px ${fontFamily}`;
+        return ctx.measureText(text).width;
+    }
+    static createLabels(textOpt:TextOptions, layer: Group){
+        const labels:Array<Label|Polyline> = [];
+        const arr = textOpt.text.split(',');
+        const length = arr.length;
+        // console.log('textOpt.text', textOpt.text, textOpt.boxSize, layer.worldScaling)
         for (let i = 0; i < length; i++) {
-            const text = textOpt.text[i];
-            const attr:any = {
-                anchor: [0.5, 0.5],
-                text,
-                // size:[rect.w,textOpt.fontSize],
-                fontSize: textOpt.fontSize,
-                lineHeight: textOpt.fontSize,
-                fontFamily: textOpt.fontFamily,
-                fontStyle: textOpt.fontStyle,
-                fillColor: textOpt.fontColor,
-                bgcolor: textOpt.fontBgColor,
-                textAlign: textOpt.textAlign,
-                fontWeight: textOpt.fontWeight,
-            };
-            const pos:[number,number] = [0,0];
-            if (textOpt.verticalAlign === 'middle') {
-                const center = (length - 1) / 2;
-                pos[1] = (i - center) * attr.lineHeight;
+            const text = arr[i];
+            const {fontSize,lineHeight, bold,textAlign,italic, boxSize, fontFamily, verticalAlign, fontColor, underline, lineThrough} = textOpt;
+            const _lineHeight = lineHeight || fontSize * 1.2;
+            const ctx = layer && (layer.parent as Layer).canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+            const width = ctx && TextShape.getFontWidth({text,opt:textOpt,ctx, worldScaling:layer.worldScaling});
+            if (width) {
+                const attr:any = {
+                    anchor: [0, 0.5],
+                    text,
+                    fontSize: fontSize,
+                    lineHeight: _lineHeight,
+                    fontFamily: fontFamily,
+                    fontWeight: bold,
+                    // fillColor: '#000',
+                    fillColor: fontColor,
+                    // bgcolor: textOpt.fontBgColor,
+                    textAlign: textAlign,
+                    fontStyle: italic,
+                    name:i.toString(),
+                    className:'label'
+                };
+                const pos:[number,number] = [0,0];
+                if (verticalAlign === 'middle') {
+                    const center = (length - 1) / 2;
+                    pos[1] = (i - center) * _lineHeight;
+                }
+                if (textAlign === 'left') {
+                    pos[0] = boxSize && -boxSize[0] / 2 + 5 || 0;
+                }
+                // if (textOpt.textAlign === 'right') {
+                //     pos[0] = rect.w / 2;
+                //     attr.anchor = [0.5, 0.5];
+                // }
+                attr.pos = pos;
+                const label = new Label(attr);
+                labels.push(label);
+                if (underline) {
+                    // console.log('textOpt.text--1', attr.pos)
+                    const underlineAttr = {
+                        normalize:false,
+                        pos:[attr.pos[0], attr.pos[1] + fontSize / 2],
+                        lineWidth:2,
+                        points:[0,0,width,0],
+                        strokeColor: fontColor,
+                        name:`${i}_underline`,
+                        className:'underline'
+                    }
+                    const underlineNode = new Polyline(underlineAttr)
+                    labels.push(underlineNode);
+                }
+                if (lineThrough) {
+                    const lineThroughAttr = {
+                        normalize:false,
+                        pos: attr.pos,
+                        lineWidth:2,
+                        points:[0,0,width,0],
+                        strokeColor: fontColor,
+                        name:`${i}_lineThrough`,
+                        className:'lineThrough'
+                    }
+                    const lineThroughNode = new Polyline(lineThroughAttr)
+                    labels.push(lineThroughNode);
+                }
+                // console.log('textOpt.text--1', text, width, label.getBoundingClientRect());
             }
-            if (textOpt.textAlign === 'left') {
-                pos[0] = - rect.w / 2;
-                attr.anchor = [0, 0.5];
-            }
-            // if (textOpt.textAlign === 'right') {
-            //     pos[0] = rect.w / 2;
-            // }
-            attr.pos = pos;
-            const label = new Label(attr);
-            // console.log('labels', label.getBoundingClientRect(), rect);
-            labels.push(label);
         }
         return labels;
     }
@@ -179,7 +239,7 @@ export class TextShape extends BaseShapeTool {
         targetNode?: BaseNodeMapItem,
     }): IRectType | undefined {
         const {node, opt, vNodes, targetNode} = param;
-        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, workState} = opt;
+        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, workState, bold, italic, lineThrough, underline, fontSize} = opt;
         // let rect:IRectType|undefined;
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt) return;
@@ -195,6 +255,33 @@ export class TextShape extends BaseShapeTool {
         if (fontBgColor) {
             if (_Opt.fontBgColor ) {
                 _Opt.fontBgColor = fontBgColor;
+            }
+        }
+        if (bold) {
+            _Opt.bold = bold;
+        }
+        if (italic) {
+            _Opt.italic = italic;
+        }
+        if (isBoolean(lineThrough)) {
+            _Opt.lineThrough = lineThrough;
+        }
+        if (isBoolean(underline)) {
+            _Opt.underline = underline;
+        }
+        if (fontSize) {
+            const {boxSize} = _Opt;
+            const scale = fontSize / _Opt.fontSize;
+            const newBoxSize:[number,number] | undefined = boxSize && [boxSize[0] * scale, boxSize[1] * scale];
+            if (newBoxSize) {
+                _Opt.boxSize = newBoxSize;
+                _Opt.fontSize = fontSize;
+                nodeOpt.rect = {
+                    x: nodeOpt.rect.x,
+                    y: nodeOpt.rect.y,
+                    w: newBoxSize[0],
+                    h: newBoxSize[1],
+                }
             }
         }
         if (box && boxTranslate && boxScale) {

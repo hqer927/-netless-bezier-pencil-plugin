@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
-import { ETextEditorType, TextOptions } from '../component/textEditor/types';
+import { ETextEditorType, FontStyleType, FontWeightType, TextOptions } from '../component/textEditor/types';
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EScaleType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool, ShapeOptions } from './tools';
 
@@ -74,6 +74,12 @@ export interface IUpdateNodeOpt {
     selectScale?: number[];
     boxScale?:[number,number];
     boxTranslate?:[number,number];
+    bold?: FontWeightType;
+    italic?: FontStyleType;
+    underline?:boolean;
+    lineThrough?:boolean;
+    fontSize?:number;
+    pointMap?:Map<string,[number,number][]>;
 }
 
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
@@ -161,6 +167,7 @@ export interface IMainMessage extends INormalPushMsg {
     scaleType?: EScaleType;
     textOpt?:TextOptions;
     viewId?:string;
+    points?:[number,number][];
 }
 export interface IMainMessageRenderData {
     viewId: string

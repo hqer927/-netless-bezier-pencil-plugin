@@ -62,8 +62,9 @@ export class SelectorShape extends BaseShapeTool {
         subNodeMap: Map<string, BaseNodeMapItem>;
         layer: Group;
         selectorId?: string;
+        isService: boolean;
     }){
-        const {drawRect, subNodeMap, selectorId, layer} = data; 
+        const {drawRect, subNodeMap, selectorId, layer, isService} = data; 
         const group = new Group({
             pos: [drawRect.x, drawRect.y],
             anchor: [0, 0],
@@ -73,16 +74,18 @@ export class SelectorShape extends BaseShapeTool {
             zIndex: 1000
         })
         const childrenNode:Path[] = []
-        const rectNode = new Rect({
-            normalize: true,
-            pos:[drawRect.w / 2, drawRect.h / 2],
-            lineWidth: 1,
-            strokeColor: this.workOptions.strokeColor,
-            width: drawRect.w - 2,
-            height: drawRect.h - 2,
-            name: SelectorShape.selectorBorderId
-        })
-        childrenNode.push(rectNode)
+        if (isService) {
+            const rectNode = new Rect({
+                normalize: true,
+                pos:[drawRect.w / 2, drawRect.h / 2],
+                lineWidth: 1,
+                strokeColor: this.workOptions.strokeColor,
+                width: drawRect.w,
+                height: drawRect.h,
+                name: SelectorShape.selectorBorderId
+            })
+            childrenNode.push(rectNode)
+        }
         subNodeMap.forEach((item, key) => {
             const rectPos = [
                 item.rect.x + item.rect.w / 2 - drawRect.x,
@@ -103,7 +106,7 @@ export class SelectorShape extends BaseShapeTool {
         childrenNode && group.append(...childrenNode);
         (layer?.parent as Layer).appendChild(group);
     }
-    private draw(selectorId:string, layer:Group, data:ComputSelectorResult) {
+    private draw(selectorId:string, layer:Group, data:ComputSelectorResult, isService:boolean= false) {
         const {intersectRect, subNodeMap } = data;
         (layer.parent as Layer)?.getElementById(selectorId)?.remove();
         if (intersectRect) {
@@ -111,13 +114,16 @@ export class SelectorShape extends BaseShapeTool {
                 drawRect: intersectRect, 
                 subNodeMap, 
                 selectorId,
-                layer
+                layer,
+                isService
             })
         }
     }
     private getSelecteorInfo(subNodeMap: Map<string, BaseNodeMapItem>){
+        this.scaleType = EScaleType.all;
+        this.canRotate = false;
         for (const item of subNodeMap.values()) {
-            const {opt, canRotate, scaleType,toolsType}= item;
+            const {opt, canRotate, scaleType, toolsType}= item;
             this.selectorColor = this.workOptions.strokeColor;
             this.strokeColor = opt.strokeColor;
             if (opt.fillColor) {
@@ -140,6 +146,19 @@ export class SelectorShape extends BaseShapeTool {
             }
         }
     }
+    getChildrenPoints(){
+        if(this.scaleType === EScaleType.both && this.selectIds){
+            const chilrenId = this.selectIds[0];
+            const op = this.vNodes.get(chilrenId)?.op;
+            if (op) {
+                const points:[number,number][] = [];
+                for (let i = 0; i < op.length; i+=3) {
+                    points.push([op[i],op[i+1]]);
+                }
+                return points;
+            }
+        }
+    }
     consume(props:{data: IWorkerMessage}): IMainMessage {
         const { op, workState }= props.data;
         let oldRect:IRectType|undefined = this.oldSelectRect;
@@ -159,6 +178,7 @@ export class SelectorShape extends BaseShapeTool {
         this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, result);
         this.getSelecteorInfo(result.subNodeMap);
         this.oldSelectRect = rect;
+        const points = this.getChildrenPoints();
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
@@ -173,7 +193,8 @@ export class SelectorShape extends BaseShapeTool {
             canTextEdit: this.canTextEdit,
             canRotate: this.canRotate,
             scaleType: this.scaleType,
-            willSyncService: true
+            willSyncService: true,
+            points
             
         }
     }
@@ -182,6 +203,7 @@ export class SelectorShape extends BaseShapeTool {
             this.sealToDrawLayer(this.selectIds);
         }
         if (this.oldSelectRect) {
+            const points = this.getChildrenPoints();
             return {
                 type: EPostMessageType.Select,
                 dataType: EDataType.Local,
@@ -195,7 +217,8 @@ export class SelectorShape extends BaseShapeTool {
                 canTextEdit: this.canTextEdit,
                 canRotate: this.canRotate,
                 scaleType: this.scaleType,
-                willSyncService: false
+                willSyncService: false,
+                points
             }
         }
         return {
@@ -356,7 +379,8 @@ export class SelectorShape extends BaseShapeTool {
                         })
                         if (info && worker && (
                                 (willSerializeData && (itemOpt.angle || itemOpt.translate)) ||
-                                (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start)
+                                (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start) ||
+                                (itemOpt.pointMap && itemOpt.pointMap.has(name))
                         )){
                             const workShape = worker.createWorkShapeNode({
                                 toolsType,
@@ -414,7 +438,7 @@ export class SelectorShape extends BaseShapeTool {
     private getRightServiceId(serviceWorkId:string) {
         return serviceWorkId.replace("++",'-');
     }
-    selectServiceNode(workId:string, workItem: Pick<IServiceWorkItem, 'selectIds'>) {
+    selectServiceNode(workId:string, workItem: Pick<IServiceWorkItem, 'selectIds'>, isService:boolean) {
         const {selectIds} = workItem;
         const rightWorkId = this.getRightServiceId(workId);
         const oldRect:IRectType | undefined = this.getSelectorRect(this.fullLayer, rightWorkId);
@@ -431,8 +455,8 @@ export class SelectorShape extends BaseShapeTool {
         this.draw(rightWorkId,this.fullLayer, {
             intersectRect,
             selectIds: selectIds || [],
-            subNodeMap
-        })
+            subNodeMap,
+        }, isService)
         return computRect(intersectRect, oldRect);
     }
     reRenderSelector(){
@@ -440,7 +464,10 @@ export class SelectorShape extends BaseShapeTool {
         const subNodeMap:Map<string,BaseNodeMapItem> = new Map();
         this.selectIds?.forEach((name:string) => {
             const nodeMap = this.vNodes.get(name);
-            intersectRect = computRect(intersectRect, nodeMap?.rect);
+            if(nodeMap){
+                intersectRect = computRect(intersectRect, nodeMap.rect);
+                subNodeMap.set(name, nodeMap);
+            }
         },this);
         this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, {
             intersectRect,

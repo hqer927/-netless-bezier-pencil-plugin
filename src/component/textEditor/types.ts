@@ -7,6 +7,8 @@ export enum ETextEditorType {
  }
  export type VerticalAlignType = "top" | "middle" | "bottom";
  export type TextAlignType = "left" | "center" | "right";
+ export type FontWeightType = 'bold' | 'normal';
+ export type FontStyleType = 'italic' | 'normal';
 
  export interface TextOptions extends BaseShapeOptions {
     fontColor: string;
@@ -16,8 +18,8 @@ export enum ETextEditorType {
     verticalAlign: VerticalAlignType;
     lineHeight?: number;
     fontFamily?: string;
-    fontWeight?: string;
-    fontStyle?: string;
+    bold?: FontWeightType;
+    italic?: FontStyleType;
     fontBgColor?: string;
     /** 是否显示下划线 */
     underline?: boolean;

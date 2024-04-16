@@ -9,6 +9,7 @@ import { StraightShape } from "./straight";
 import { EllipseShape } from "./ellipse";
 import { PolygonShape } from "./polygon";
 import { RectangleShape } from "./rectangle";
+import { SpeechBalloonShape } from "./speechBalloon";
 import { TextShape } from "./text";
 export function getShapeTools(toolsType) {
     switch (toolsType) {
@@ -28,8 +29,8 @@ export function getShapeTools(toolsType) {
             return StarShape;
         case EToolsKey.Rectangle:
             return RectangleShape;
-        // case EToolsKey.SpeechBalloon:
-        //     return SpeechBalloonShape
+        case EToolsKey.SpeechBalloon:
+            return SpeechBalloonShape;
         case EToolsKey.Text:
             return TextShape;
         case EToolsKey.LaserPen:
@@ -59,8 +60,8 @@ export function getShapeInstance(param) {
             return new StarShape(props);
         case EToolsKey.Rectangle:
             return new RectangleShape(props);
-        // case EToolsKey.SpeechBalloon:
-        //     return new SpeechBalloonShape(props);
+        case EToolsKey.SpeechBalloon:
+            return new SpeechBalloonShape(props);
         case EToolsKey.Text:
             return new TextShape(props);
         case EToolsKey.LaserPen:

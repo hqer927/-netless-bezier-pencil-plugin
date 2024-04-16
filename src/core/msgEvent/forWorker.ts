@@ -12,6 +12,8 @@ import { ScaleNodeMethodForWorker } from './scaleNode/forWorker';
 import { RotateNodeMethodForWorker } from './rotateNode/forWorker';
 import { LocalWorkForFullWorker } from '../worker/fullWorkerLocal';
 import { ServiceWorkForFullWorker } from '../worker/fullWorkerService';
+import { SetFontStyleMethodForWorker } from './setFont/forWorker';
+import { SetPointMethodForWorker } from './setPoint/forWorker';
 
 export type MsgMethodForWorker<T extends BaseMsgMethodForWorker> = T;
 export class MethodBuilderWorker {
@@ -36,7 +38,11 @@ export class MethodBuilderWorker {
             case EmitEventType.ScaleNode:
                 return new ScaleNodeMethodForWorker();
             case EmitEventType.RotateNode:
-                return new RotateNodeMethodForWorker();        
+                return new RotateNodeMethodForWorker();      
+            case EmitEventType.SetFontStyle:
+                return new SetFontStyleMethodForWorker();
+            case EmitEventType.SetPoint:
+                return new SetPointMethodForWorker();    
        }
        return undefined
     }

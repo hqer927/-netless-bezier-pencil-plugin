@@ -61,7 +61,7 @@ export class PencilShape extends BaseShapeTool {
     consume(props:{
       data: IWorkerMessage, isFullWork?:boolean, isClearAll?:boolean, isSubWorker?:boolean
     }): IMainMessage{
-        const {data,isFullWork, isClearAll, isSubWorker}= props;
+        const {data, isFullWork, isClearAll, isSubWorker}= props;
         if(data.op?.length === 0){
           return { type: EPostMessageType.None}
         }

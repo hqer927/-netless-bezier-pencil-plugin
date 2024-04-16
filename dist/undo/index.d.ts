@@ -1,6 +1,6 @@
 /// <reference types="lodash" />
 import EventEmitter2 from "eventemitter2";
-import { BaseCollectorReducerAction, Collector } from "../collector";
+import { BaseCollectorReducerAction } from "../collector";
 import type { Room } from "white-web-sdk";
 import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
 import { MasterController } from "../core/mainEngine";
@@ -37,7 +37,6 @@ export declare class UndoRedoMethod {
     undoStack: IUndoStackItem[];
     redoStack: IUndoStackItem[];
     worker: MasterController;
-    collector: Collector;
     control: TeachingAidsManagerLike;
     room: Room;
     private isTicking;
@@ -47,6 +46,7 @@ export declare class UndoRedoMethod {
     private tickStartStorerCache?;
     private excludeIds;
     constructor(props: UndoRedoMethodProps);
+    get collector(): import("../collector").Collector | undefined;
     addExcludeIds(ids: string[]): void;
     undoTickerStart(id: number, scenePath: string): void;
     undoTickerEnd: import("lodash").DebouncedFunc<(id: number, viewId: string, scenePath: string) => void>;

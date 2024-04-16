@@ -3,37 +3,43 @@ import { BaseSubWorkModuleProps, EStrokeType, MemberState, ShapeType, TeachingAi
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManager, TextEditorManagerImpl, TextOptions } from "../component/textEditor";
-import type { Camera, Rectangle, Room, RoomMember } from "white-web-sdk";
-import { ApplianceNames, isRoom, toJS } from "white-web-sdk";
+import type { Camera, Displayer, DisplayerCallbacks, Player, Rectangle, Room, RoomMember } from "white-web-sdk";
+import { ApplianceNames, isPlayer, isRoom, toJS } from "white-web-sdk";
 import { CursorManager, CursorManagerImpl } from "../cursors";
 import { ViewContainerManager } from "./baseViewContainerManager";
 import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools/base";
 import { rgbToRgba } from "../collector/utils/color";
-import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOptions } from "../core/tools";
-import { SpeechBalloonOptions } from "../core/tools/speechBalloon";
+import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOptions, SpeechBalloonOptions } from "../core/tools";
 import { ICameraOpt } from "../core/types";
 import throttle from "lodash/throttle";
 
+export interface BaseTeachingAidsManagerProps {
+    displayer: Displayer<DisplayerCallbacks>
+    plugin?: TeachingAidsPluginLike, 
+    options?: TeachingAidsPluginOptions
+}
 /** 插件管理器 */
 export abstract class BaseTeachingAidsManager {
     static InternalMsgEmitter: EventEmitter2 = new EventEmitter2();
-    readonly plugin: TeachingAidsPluginLike;
+    plugin?: TeachingAidsPluginLike;
     room?: Room;
+    play?: Player;
+    collector?: Collector;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
-    readonly collector: Collector;
     readonly cursor: CursorManager;
     readonly textEditorManager: TextEditorManager;
     readonly worker: MasterControlForWorker;
     abstract readonly viewContainerManager: ViewContainerManager;
-    constructor(plugin: TeachingAidsPluginLike, options?: TeachingAidsPluginOptions) {
+    constructor(params:BaseTeachingAidsManagerProps) {
+        const {displayer, plugin, options}=params;
         this.plugin = plugin;
-        this.room = isRoom(plugin.displayer) ? plugin.displayer as Room : undefined;
+        this.room = isRoom(displayer) ? displayer as Room : undefined;
+        this.play = isPlayer(displayer) ? displayer as Player : undefined;
         this.pluginOptions = options;
         this.roomMember = new RoomMemberManager();
-        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
         const props:BaseSubWorkModuleProps = {
             control: this,
             internalMsgEmitter: BaseTeachingAidsManager.InternalMsgEmitter
@@ -42,6 +48,17 @@ export abstract class BaseTeachingAidsManager {
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
     }
+    bindPlugin(plugin:TeachingAidsPluginLike){
+        this.plugin = plugin;
+        if (this.collector) {
+            this.collector.removeStorageStateListener();
+        }
+        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
+        this.cursor.activeCollector();
+        this.activePlugin();
+    }
+    /** 激活 plugin */
+    abstract activePlugin():void;
     /** 初始化 */
     abstract init():void;
     /** 激活worker */
@@ -160,13 +177,14 @@ export abstract class BaseTeachingAidsManager {
         };
         switch (toolsKey) {
             case EToolsKey.Text:
+                (opt as TextOptions).fontFamily = window.getComputedStyle(document.documentElement).getPropertyValue('font-family');
                 (opt as TextOptions).fontSize = memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
                 (opt as TextOptions).textAlign = memberState?.textAlign || 'left';
                 (opt as TextOptions).verticalAlign = memberState?.verticalAlign || 'middle';
                 (opt as TextOptions).fontColor = memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || opt.strokeColor  || 'rgba(0,0,0,1)';
                 (opt as TextOptions).fontBgColor = Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent';
-                (opt as TextOptions).fontWeight = memberState?.bold && 'bold' || undefined;
-                (opt as TextOptions).fontStyle = memberState?.italic && 'italic' || undefined;
+                (opt as TextOptions).bold = memberState?.bold && 'bold' || undefined;
+                (opt as TextOptions).italic = memberState?.italic && 'italic' || undefined;
                 (opt as TextOptions).underline = memberState?.underline || undefined;
                 (opt as TextOptions).lineThrough = memberState?.lineThrough || undefined;
                 (opt as TextOptions).text = "";
@@ -189,9 +207,7 @@ export abstract class BaseTeachingAidsManager {
             case EToolsKey.Polygon:
             case EToolsKey.SpeechBalloon:
                 if (toolsKey === EToolsKey.Star) {
-                    if (memberState.shapeType === ShapeType.SpeechBalloon) {
-                        (opt as SpeechBalloonOptions).placement = 'bottomLeft';
-                    } else if (memberState.shapeType === ShapeType.Pentagram) {
+                    if (memberState.shapeType === ShapeType.Pentagram) {
                         (opt as StarOptions).vertices = 10;
                         (opt as StarOptions).innerVerticeStep = 2;
                         (opt as StarOptions).innerRatio = 0.4;
@@ -211,21 +227,24 @@ export abstract class BaseTeachingAidsManager {
                     }  
                 }
                 (opt as PolygonOptions).fillColor = memberState?.fillColor && rgbToRgba(memberState.fillColor[0], memberState.fillColor[1], memberState.fillColor[2], memberState?.fillOpacity) || 'transparent';
-                if (toolsKey !== EToolsKey.Rectangle) {
-                    (opt as PolygonOptions).textOpt = {
-                        strokeColor: opt.strokeColor,
-                        fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
-                        textAlign: memberState?.textAlign || 'left',
-                        verticalAlign: memberState?.verticalAlign || 'middle',
-                        fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
-                        fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
-                        fontWeight: memberState?.bold && 'bold' || undefined,
-                        fontStyle: memberState?.italic && 'italic' || undefined,
-                        underline: memberState?.underline || undefined,
-                        lineThrough: memberState?.lineThrough || undefined,
-                        text: ''
-                    }
-                }
+                // if (toolsKey !== EToolsKey.Rectangle) {
+                //     (opt as PolygonOptions).textOpt = {
+                //         strokeColor: opt.strokeColor,
+                //         fontSize: memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize),
+                //         textAlign: memberState?.textAlign || 'left',
+                //         verticalAlign: memberState?.verticalAlign || 'middle',
+                //         fontColor: memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || 'rgba(0,0,0,1)',
+                //         fontBgColor: Array.isArray(memberState?.textBgColor) && rgbToRgba(memberState.textBgColor[0], memberState.textBgColor[1], memberState.textBgColor[2], memberState.textBgOpacity || 1) || 'transparent',
+                //         bold: memberState?.bold && 'bold' || undefined,
+                //         italic: memberState?.italic && 'italic' || undefined,
+                //         underline: memberState?.underline || undefined,
+                //         lineThrough: memberState?.lineThrough || undefined,
+                //         text: ''
+                //     }
+                // }
+                if (toolsKey === EToolsKey.SpeechBalloon) {
+                    (opt as SpeechBalloonOptions).placement = memberState.placement || 'bottomLeft';
+                } 
                 break;
             default:
                 break;
@@ -303,7 +322,7 @@ export abstract class BaseTeachingAidsManager {
     }
     /** 异步获取指定路径下的缩略图 */
     async scenePreview(scenePath: string, img: HTMLImageElement): Promise<void> {
-        const viewId = this.collector.getViewIdBySecenPath(scenePath);
+        const viewId = this.collector?.getViewIdBySecenPath(scenePath);
         if (!viewId) {
             return;
         }

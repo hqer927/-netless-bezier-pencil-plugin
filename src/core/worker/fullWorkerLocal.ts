@@ -288,7 +288,6 @@ export class LocalWorkForFullWorker extends LocalWork {
         });
         const selectRect:IRectType|undefined = res?.selectRect;
         const newServiceStore:Map<string,{
-            // op?: number[];
             opt: BaseShapeOptions;
             toolsType: EToolsKey;
             ops?: string;
@@ -336,7 +335,8 @@ export class LocalWorkForFullWorker extends LocalWork {
                         selectIds: workShapeNode.selectIds,
                         selectRect,
                         willSyncService: true,
-                        isSync
+                        isSync,
+                        points: workShapeNode.getChildrenPoints()
                     })
                 }
                 if (emitEventType === EmitEventType.ScaleNode && workState === EvevtWorkState.Done) {
@@ -345,11 +345,45 @@ export class LocalWorkForFullWorker extends LocalWork {
                         selectIds: workShapeNode.selectIds,
                         selectRect,
                         willSyncService: false,
-                        isSync
+                        isSync,
+                        points: workShapeNode.getChildrenPoints()
                     })
+                }
+                if (emitEventType === EmitEventType.TranslateNode && workState === EvevtWorkState.Done) {
+                    const points = workShapeNode.getChildrenPoints();
+                    if (points) {
+                        sp.push({
+                            type: EPostMessageType.Select,
+                            selectIds: workShapeNode.selectIds,
+                            selectRect,
+                            willSyncService: false,
+                            isSync,
+                            points
+                        })
+                    }
                 }
             } 
             else {
+                if (updateSelectorOpt.fontSize) {
+                    sp.push({
+                        type: EPostMessageType.Select,
+                        selectIds: workShapeNode.selectIds,
+                        selectRect,
+                        willSyncService: true,
+                        isSync,
+                        points: workShapeNode.getChildrenPoints()
+                    })
+                }
+                if (updateSelectorOpt.pointMap) {
+                    sp.push({
+                        type: EPostMessageType.Select,
+                        selectIds: workShapeNode.selectIds,
+                        selectRect,
+                        willSyncService: false,
+                        isSync,
+                        points: workShapeNode.getChildrenPoints()
+                    })
+                }
                 if (emitEventType === EmitEventType.ScaleNode && workState === EvevtWorkState.Start) {
                     sp.push({
                         type: EPostMessageType.Select,
@@ -357,7 +391,8 @@ export class LocalWorkForFullWorker extends LocalWork {
                         selectRect,
                         canvasWidth: (this.fullLayer.parent as Layer).width,
                         canvasHeight: (this.fullLayer.parent as Layer).height,
-                        willSyncService: false
+                        willSyncService: false,
+                        points: workShapeNode.getChildrenPoints()
                     })
                 }
             }
@@ -384,7 +419,7 @@ export class LocalWorkForFullWorker extends LocalWork {
             }
         }
         if (render.length || sp.length) {
-            // console.log('updateSelector', cloneDeep(render), sp)
+            // console.log('updateSelector', render, sp, cloneDeep(this.vNodes.curNodeMap))
             this._post({ render, sp });
         }
     }
@@ -444,7 +479,8 @@ export class LocalWorkForFullWorker extends LocalWork {
                         selectIds: workShapeNode.selectIds,
                         selectRect: newRect,
                         willSyncService: false,
-                        viewId: this.viewId
+                        viewId: this.viewId,
+                        points: workShapeNode.getChildrenPoints()
                     }]
                 });
             }
@@ -497,7 +533,8 @@ export class LocalWorkForFullWorker extends LocalWork {
                 scaleType: workShapeNode.scaleType,
                 type: EPostMessageType.Select,
                 selectRect: bgRect || selectRect,
-                willSyncService: false
+                willSyncService: false,
+                points: workShapeNode.getChildrenPoints()
             })
             this._post(_postData);
         }
