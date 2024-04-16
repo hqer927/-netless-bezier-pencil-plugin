@@ -2,45 +2,35 @@
 import type { Camera, Cursor, RenderEngine, Room, RoomState} from "white-web-sdk";
 import { WindowManager } from "@netless/window-manager";
 import { InvisiblePlugin, isRoom, Displayer, isPlayer, RoomPhase, ApplianceNames } from "white-web-sdk";
-import { TeachingAidsPluginAttributes, TeachingAidsPluginOptions, DisplayerForPlugin, Logger, MemberState, TeachingAidsAdaptor } from "./types";
+import { TeachingAidsPluginAttributes, TeachingAidsPluginOptions, DisplayerForPlugin, Logger, MemberState, TeachingAidsAdaptor, TeachingAidsManagerLike } from "./types";
 import { computRectangle } from "../core/utils";
 import { CursorTool } from "@netless/cursor-tool";
 import { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
 import { TeachingAidsMultiManager } from "./multi/teachingAidsMultiManager";
+import { ECanvasContextType } from "../core/enum";
 
-async function createTeachingAidsPlugin(d:Room, kind:string):Promise<TeachingAidsPlugin> {
-    await (d as Room).createInvisiblePlugin(
-        TeachingAidsPlugin,
-        {}
-    );
-    let teachingAidsPlugin = d.getInvisiblePlugin(kind) as TeachingAidsPlugin | undefined;
-    if (!teachingAidsPlugin) {
-        teachingAidsPlugin = await createTeachingAidsPlugin(d,kind);
-    }
-    return teachingAidsPlugin;
-}
-function createTeachingAidsPluginManager(plugin: TeachingAidsPlugin, options:TeachingAidsPluginOptions, remake?:WindowManager) {
-    if (plugin && options) {
-        const displayer = plugin.displayer;
-        plugin.init(displayer, options, remake);
-    }
-}
 export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttributes, any> {
     // 组件类型，该组件的唯一识别符。应该取一个独特的名字，以和其他组件区分。
     static readonly kind: string = "teaching-aids-plugin";
-    static cursorAdapter: CursorTool;
-    static remake?: WindowManager;
-    static currentManager?: TeachingAidsSingleManager | TeachingAidsMultiManager;
+    static cursorAdapter?: CursorTool;
+    static windowManager?: WindowManager;
+    static currentManager?: TeachingAidsManagerLike;
     public static logger: Logger = {
         info: console.log,
         warn: console.warn,
         error: console.error,
     };
-    public static options?: TeachingAidsPluginOptions;
-    public static async getInstance(remake: Displayer | WindowManager, adaptor?: TeachingAidsAdaptor): Promise<DisplayerForPlugin> {
-        if (remake instanceof WindowManager) {
-            TeachingAidsPlugin.remake = remake;
+    public static options: TeachingAidsPluginOptions = {
+        syncOpt: {
+            interval: 300,
+        },
+        canvasOpt: {
+            contextType: ECanvasContextType.Canvas2d
         }
+    }
+    public static async getInstance(remake: Displayer | WindowManager, adaptor?: TeachingAidsAdaptor): Promise<DisplayerForPlugin> {
+        const isMulti = remake instanceof WindowManager;
+        TeachingAidsPlugin.windowManager = isMulti && remake || undefined;
         if (adaptor?.logger) {
             TeachingAidsPlugin.logger = adaptor.logger;
         }
@@ -51,26 +41,28 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
             TeachingAidsPlugin.cursorAdapter = adaptor.cursorAdapter;
             TeachingAidsPlugin.effectInstance();
         }
-        const _d = remake instanceof WindowManager ? (remake as WindowManager).displayer : remake;
-        let teachingAidsPlugin = _d.getInvisiblePlugin(TeachingAidsPlugin.kind);
-        if (!teachingAidsPlugin && isRoom(_d) ) {
-            teachingAidsPlugin = await createTeachingAidsPlugin(_d as Room, TeachingAidsPlugin.kind);
-            if (remake instanceof WindowManager) {
-                if (!TeachingAidsPlugin.options?.useMultiViews) {
-                    TeachingAidsPlugin.logger.error(`[TeachingAidsPlugin plugin] getInstance has Invalid parameter, please use options.useMultiViews = true`);
-                }
-            }
+        const _d = isMulti ? (remake as WindowManager).displayer : remake;
+        let teachingAidsPlugin = _d.getInvisiblePlugin(TeachingAidsPlugin.kind) as TeachingAidsPlugin | undefined;
+        // console.log('teachingAidsPlugin', teachingAidsPlugin, _d, TeachingAidsPlugin.windowManager)
+        if (_d) {
+            TeachingAidsPlugin.createCurrentManager(_d, TeachingAidsPlugin.options, 
+                teachingAidsPlugin, TeachingAidsPlugin.windowManager);
         }
-        if (teachingAidsPlugin && TeachingAidsPlugin.options && !TeachingAidsPlugin.currentManager) {
-            // console.log('getInstance', TeachingAidsPlugin.options);
-            createTeachingAidsPluginManager(teachingAidsPlugin as TeachingAidsPlugin, TeachingAidsPlugin.options, TeachingAidsPlugin.remake);
+        if (!teachingAidsPlugin && isRoom(_d)) {
+            teachingAidsPlugin = await TeachingAidsPlugin.createTeachingAidsPlugin(_d as Room, TeachingAidsPlugin.kind);
+        }
+        if (teachingAidsPlugin && TeachingAidsPlugin.currentManager) {
+            // console.log('teachingAidsPlugin--1', teachingAidsPlugin, _d, TeachingAidsPlugin.windowManager)
+            TeachingAidsPlugin.currentManager.bindPlugin(teachingAidsPlugin);
+            teachingAidsPlugin.init(_d);
         }
         const origin = {
             plugin: teachingAidsPlugin,
             displayer: _d,
+            windowManager: isMulti && remake || undefined,
             getBoundingRectAsync: async function (scenePath: string) {
                 TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] getBoundingRect`);
-                const originRect = this.displayer.getBoundingRect(scenePath);
+                const originRect = (this.windowManager && this.windowManager.mainView || this.displayer).getBoundingRect(scenePath);
                 const pluginRect = await TeachingAidsPlugin.currentManager?.getBoundingRect(scenePath);
                 return computRectangle(originRect, pluginRect)
             },
@@ -81,7 +73,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
                 canvas.width = width * (ratio || 1);
                 canvas.height = height * (ratio || 1);
                 if (limitContext) {
-                    this.displayer.screenshotToCanvas(limitContext, scenePath, width, height, camera, ratio);
+                    (this.windowManager && this.windowManager.mainView || this.displayer).screenshotToCanvas(limitContext, scenePath, width, height, camera, ratio);
                     context.drawImage(canvas, 0, 0, width * (ratio || 1), height * (ratio || 1), 0, 0, width, height);
                     canvas.remove();
                 }
@@ -91,7 +83,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
             },
             scenePreviewAsync: async function (scenePath: string, div: HTMLElement, width?: number, height?: number, engine?: RenderEngine) {
                 TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] scenePreview`);
-                this.displayer.scenePreview(scenePath, div, width, height, engine);
+                (this.windowManager && this.windowManager.mainView || this.displayer).scenePreview(scenePath, div, width, height, engine);
                 const img = document.createElement("img");
                 img.style.position = "absolute";
                 img.style.top = "0px";
@@ -164,10 +156,47 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
         };
     }
     static onCreate(plugin: InvisiblePlugin<TeachingAidsPluginAttributes, any> ) {
-        if (TeachingAidsPlugin.options && !TeachingAidsPlugin.currentManager) {
-            // console.log('onCreate', TeachingAidsPlugin.options);
-            createTeachingAidsPluginManager(plugin as TeachingAidsPlugin, TeachingAidsPlugin.options, TeachingAidsPlugin.remake);
+        console.log('onCreate', plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.windowManager);
+        if (plugin && TeachingAidsPlugin.currentManager) {
+            // console.log('teachingAidsPlugin--2', plugin, plugin.displayer, TeachingAidsPlugin.windowManager)
+            TeachingAidsPlugin.currentManager.bindPlugin(plugin as TeachingAidsPlugin);
+            (plugin as TeachingAidsPlugin).init(plugin.displayer);
         }
+    }
+    static async createTeachingAidsPlugin(d:Room, kind:string):Promise<TeachingAidsPlugin> {
+        await (d as Room).createInvisiblePlugin(
+            TeachingAidsPlugin,
+            {}
+        );
+        // console.log('createTeachingAidsPlugin--1')
+        let teachingAidsPlugin = d.getInvisiblePlugin(kind) as TeachingAidsPlugin | undefined;
+        if (!teachingAidsPlugin) {
+            // console.log('createTeachingAidsPlugin')
+            teachingAidsPlugin = await TeachingAidsPlugin.createTeachingAidsPlugin(d,kind);
+        }
+        return teachingAidsPlugin;
+    }
+    static createCurrentManager = (displayer:Displayer, options:TeachingAidsPluginOptions, plugin?:TeachingAidsPlugin, remake?:WindowManager) => {
+        if (TeachingAidsPlugin.currentManager) {
+            // console.log('currentManager--destroy')
+            TeachingAidsPlugin.currentManager.destroy();
+        }
+        let bezierManager: TeachingAidsMultiManager | TeachingAidsSingleManager;
+        const param = {
+            plugin,
+            displayer,
+            options
+        }
+        if (options && remake) {
+            bezierManager = new TeachingAidsMultiManager(param);
+            TeachingAidsPlugin.logger.info(`[TeachingAidsPlugin plugin] refresh TeachingAidsMultiManager object`);
+            bezierManager.setWindowManager(remake);
+        } else {
+            bezierManager = new TeachingAidsSingleManager(param);
+            bezierManager.init();
+            TeachingAidsPlugin.logger.info(`[TeachingAidsPlugin plugin] refresh TeachingAidsSingleManager object`);
+        }
+        TeachingAidsPlugin.currentManager = bezierManager;
     }
     // static onDestroy(plugin: TeachingAidsPlugin) {}
     /**
@@ -176,7 +205,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
      */
     static effectInstance() {
         if (TeachingAidsPlugin.cursorAdapter) {
-            if (TeachingAidsPlugin.options && TeachingAidsPlugin.options.useMultiViews) {
+            if (TeachingAidsPlugin.options && TeachingAidsPlugin.windowManager) {
                 TeachingAidsPlugin.logger.warn(`[TeachingAidsPlugin plugin] cursorAdapter is Invalid configuration data in MultiView`);
                 return;
             }
@@ -211,8 +240,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
     private get callbackName(): string {
         return this.isReplay ? "onPlayerStateChanged" : "onRoomStateChanged";
     }
-    init(displayer: Displayer, options: TeachingAidsPluginOptions, remake?:WindowManager){
-        this.createCurrentManager(options, remake);
+    init(displayer: Displayer){
         if (isRoom(displayer)) {
             const state = (displayer as Room).state;
             if (state?.memberState) {
@@ -228,7 +256,8 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
             this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
             this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
             this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
-            TeachingAidsPlugin.currentManager?.destroy();
+            // console.log('onPhaseChanged');
+            this.destroy();
         }
     };
     private updateRoomWritable = () => {
@@ -253,24 +282,12 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
             TeachingAidsPlugin.currentManager?.onRoomMembersChange(state.roomMembers);
         }
     }
-    private createCurrentManager = (options:TeachingAidsPluginOptions, remake?:WindowManager) => {
-        if (TeachingAidsPlugin.currentManager) {
-            TeachingAidsPlugin.currentManager.destroy();
-        }
-        let bezierManager: TeachingAidsMultiManager | TeachingAidsSingleManager;
-        if (options && options.useMultiViews && remake) {
-            bezierManager = new TeachingAidsMultiManager(this, options);
-            TeachingAidsPlugin.logger.info(`[TeachingAidsPlugin plugin] refresh TeachingAidsMultiManager object`);
-            bezierManager.setWindowManager(remake);
-        } else {
-            bezierManager = new TeachingAidsSingleManager(this, options);
-            bezierManager.init();
-            TeachingAidsPlugin.logger.info(`[TeachingAidsPlugin plugin] refresh TeachingAidsSingleManager object`);
-        }
-        TeachingAidsPlugin.currentManager = bezierManager;
-    }
     override destroy(): void {
-        super.destroy();
+        // console.log('currentManager--destroy -- 1')
         TeachingAidsPlugin.currentManager?.destroy();
+        TeachingAidsPlugin.currentManager = undefined;
+        TeachingAidsPlugin.windowManager = undefined;
+        TeachingAidsPlugin.cursorAdapter = undefined;
+        // super.destroy();
     }
 }

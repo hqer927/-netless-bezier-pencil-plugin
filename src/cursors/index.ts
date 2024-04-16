@@ -29,11 +29,11 @@ export abstract class CursorManager {
     /** 插件管理器 */
     abstract readonly control: BaseTeachingAidsManager;
     /** 事件收集器 */
-    abstract readonly eventCollector: EventCollector;
+    abstract eventCollector?: EventCollector;
     /** 房间成员管理器 */
     abstract readonly roomMember: RoomMemberManager;
-    /** 关联 worker工作引擎 */
-    // abstract injectWorker(worker: MasterController):void;
+    /** 激活事件收集器 */
+    abstract activeCollector():void;
     /** 同步事件 */
     abstract sendEvent(point:[number|undefined,number|undefined], viewId:string):void;
     /** 收集服务端cursor事件 */
@@ -42,56 +42,82 @@ export abstract class CursorManager {
     abstract unable(): void;
     /** 销毁cursor管理器 */
     abstract destroy(): void;
+    /** 激活获焦的focusViewId */
+    abstract onFocusViewChange():void;
 }
 export class CursorManagerImpl implements CursorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
-    readonly eventCollector: EventCollector;
+    eventCollector?: EventCollector;
     readonly roomMember: RoomMemberManager;
     private animationId?: number | undefined;
     private removeTimerId?: number | undefined;
     private animationPointWorkers: Map<string, IServiceWorkItem> = new Map();
     private animationDrawWorkers: Map<string, IServiceWorkItem> = new Map();
-    // private worker?: MasterController;
     constructor(props:BaseSubWorkModuleProps){
         const {control, internalMsgEmitter } = props;
         this.internalMsgEmitter = internalMsgEmitter;
         this.control = control;
         this.roomMember = control.roomMember;
-        this.eventCollector = new EventCollector(control.plugin, this.control.pluginOptions?.syncOpt?.interval);
-        this.eventCollector.addStorageStateListener((event:Map<string,Array<BaseEventCollectorReducerAction | undefined>>)=>{
-            // console.log('addStorageStateListener- eventCollector', event)
-            event.forEach((value, uid)=>{
-                if (this.eventCollector.uid !== uid) {
-                    const ops:Map<string,(number|undefined)[]> = new Map();
-                    value?.forEach(v=> {
-                        if (v && v.type === EventMessageType.Cursor && v.op && v.viewId) {
-                            const op = [];
-                            for (let i = 0; i < v.op.length; i+=2) {
-                                const op1 = v.op[i];
-                                const op2 = v.op[i+1];
-                                if (isNumber(op1) && isNumber(op2)) {
-                                    const _op = this.control.viewContainerManager.transformToOriginPoint([op1,op2], v.viewId);
-                                    op.push(_op[0],_op[1]);
-                                } else {
-                                    op.push(op1,op2);
+    }
+    activeCollector() {
+        if (this.control.plugin) {
+            this.eventCollector = new EventCollector(this.control.plugin, Math.min(this.control.pluginOptions?.syncOpt?.interval || 100, 100) );
+            this.eventCollector.addStorageStateListener((event:Map<string,Array<BaseEventCollectorReducerAction | undefined>>)=>{
+                event.forEach((value, uid)=>{
+                    if (this.eventCollector?.uid !== uid) {
+                        const ops:Map<string,(number|undefined)[]> = new Map();
+                        value?.forEach(v=> {
+                            if (v && v.type === EventMessageType.Cursor && v.op && v.viewId) {
+                                const op = [];
+                                for (let i = 0; i < v.op.length; i+=2) {
+                                    const op1 = v.op[i];
+                                    const op2 = v.op[i+1];
+                                    if (isNumber(op1) && isNumber(op2)) {
+                                        const _op = this.control.viewContainerManager.transformToOriginPoint([op1,op2], v.viewId);
+                                        op.push(_op[0],_op[1]);
+                                    } else {
+                                        op.push(op1,op2);
+                                    }
                                 }
+                                ops.set(v.viewId, op);
                             }
-                            ops.set(v.viewId, op);
+                        })
+                        if(ops.size){
+                            this.activePointWorkShape(uid, ops);
+                            this.runAnimation();
                         }
-                    })
-                    if(ops.size){
-                        // console.log('activePointWorkShape', ops)
-                        this.activePointWorkShape(uid, ops);
-                        this.runAnimation();
-                        if (this.removeTimerId) {
-                            clearTimeout(this.removeTimerId);
-                            this.removeTimerId = undefined;
-                        }
-                    }
-                }  
+                    }  
+                })
             })
-        })
+        }
+
+    }
+    onFocusViewChange(){
+        const focuedViewId = this.control.viewContainerManager.focuedViewId;
+        for (const key of this.animationDrawWorkers.keys()) {
+            const u = this.getUidAndviewId(key).uid;
+            const v = this.getUidAndviewId(key).viewId;
+            if (v !== focuedViewId) {
+                this.activeDrawWorkShape(u, [undefined, undefined] , EvevtWorkState.Done, v);
+            }
+        }
+        const opsU:Map<string,Map<string,(number|undefined)[]>> = new Map();
+        for (const key of this.animationPointWorkers.keys()) {
+            const u = this.getUidAndviewId(key).uid;
+            const v = this.getUidAndviewId(key).viewId;
+            if (v !== focuedViewId) {
+                const ops = opsU.get(u) || new Map();
+                ops.set(v,[undefined,undefined]);
+                opsU.set(u,ops);
+            }
+        }
+        if (opsU.size) {
+            for (const [uid,ops] of opsU.entries()) {
+                this.activePointWorkShape(uid,ops);
+            }
+        }
+        this.runAnimation();
     }
     private activePointWorkShape(uid:string, ops:Map<string,(number|undefined)[]>) {
         const roomMember = this.roomMember.getRoomMember(uid);
@@ -100,21 +126,56 @@ export class CursorManagerImpl implements CursorManager {
         }
         for (const [viewId,op] of ops.entries()) {
             const key = this.getKey(uid,viewId);
-            const workShape1 = this.animationDrawWorkers.get(key);
+            let freeze: boolean = false;
+            const allViewIds = this.control.viewContainerManager.getAllViews().map(v=>v?.id);
+            for (const v of allViewIds) {
+                if (v && v !== viewId) {
+                    const curKey = this.getKey(uid,v);
+                    const drawWorkShape = this.animationDrawWorkers.get(curKey);
+                    const isDrawing = drawWorkShape?.workState === EvevtWorkState.Start || drawWorkShape?.workState === EvevtWorkState.Doing || false;
+                    if (isDrawing) {
+                        freeze = true;
+                        break;
+                    } else {
+                        if (this.removeTimerId) {
+                            clearTimeout(this.removeTimerId);
+                            this.removeTimerId = undefined;
+                        } 
+                        if (drawWorkShape) {
+                            this.activeDrawWorkShape(uid,[undefined,undefined], EvevtWorkState.Done, v);
+                            this.runAnimation();
+                        } else {
+                            const workShape = this.animationPointWorkers.get(curKey);
+                            if (!workShape) {
+                                const workItem = {
+                                    animationIndex: 0,
+                                    animationWorkData: [undefined,undefined],
+                                    freeze:false
+                                } as IServiceWorkItem;
+                                this.animationPointWorkers.set(curKey, workItem);
+                            } else {
+                                workShape.animationWorkData = [undefined,undefined];
+                                workShape.animationIndex = 0;
+                                workShape.freeze = false;
+                            }  
+                        }
+                    }
+                }             
+            }
             const workShape = this.animationPointWorkers.get(key);
             if (op) {
                 if (!workShape) {
                     const workItem = {
                         animationIndex: 0,
                         animationWorkData: op,
-                        freeze: workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing || false,
+                        freeze
                     } as IServiceWorkItem;
                     this.animationPointWorkers?.set(key, workItem);
                     return;
                 }
                 workShape.animationWorkData = op;
-                workShape.animationIndex = 0
-                workShape.freeze = workShape1?.workState === EvevtWorkState.Start || workShape1?.workState === EvevtWorkState.Doing || false
+                workShape.animationIndex = 0;
+                workShape.freeze = freeze;
             }
         }
     }
@@ -228,39 +289,47 @@ export class CursorManagerImpl implements CursorManager {
         }
     }
     sendEvent(point:[number|undefined,number|undefined], viewId:string){
-        this.eventCollector.dispatch({
+        this.eventCollector?.dispatch({
             type: EventMessageType.Cursor,
             op: isNumber(point[0]) && isNumber(point[1]) && this.control.viewContainerManager.transformToScenePoint(point as [number,number], viewId) || [undefined, undefined],
             viewId
         })
     }
     collectServiceCursor(data:IMainMessage){
-        const {op,uid, workState, viewId}= data;
+        const {op, uid, workState, viewId}= data;
         if(uid && op && workState && viewId) {
-            if (this.removeTimerId) {
-                clearTimeout(this.removeTimerId);
-                this.removeTimerId = undefined;
-            }
-            const _op = isNumber(op[0]) && isNumber(op[1]) && this.control.viewContainerManager.transformToOriginPoint(op as [number,number], viewId) || [undefined,undefined];
-            this.activeDrawWorkShape(uid, _op , workState, viewId);
-            this.runAnimation();
-            if (workState === EvevtWorkState.Done && !this.removeTimerId){
+            const focuedViewId = this.control.viewContainerManager.focuedViewId;
+            if (workState === EvevtWorkState.Done) {
+                if (viewId !== focuedViewId) {
+                    this.activeDrawWorkShape(uid, [undefined, undefined] , workState, viewId); 
+                    this.runAnimation();
+                    return;
+                }
+                if (this.removeTimerId) {
+                    clearTimeout(this.removeTimerId);
+                    this.removeTimerId = undefined;
+                }   
                 this.removeTimerId = setTimeout(()=>{
                     this.removeTimerId = undefined;
                     this.activeDrawWorkShape(uid, [undefined,undefined], EvevtWorkState.Done, viewId);
                     this.runAnimation();
-                }, 3000) as unknown as number;
+                }, 10000) as unknown as number;
+            }          
+            if (isNumber(op[0]) && isNumber(op[1])) {
+                const _op = this.control.viewContainerManager.transformToOriginPoint(op as [number,number], viewId);
+                this.activeDrawWorkShape(uid, _op , workState, viewId);
             }
+            this.runAnimation();
         }
     }
     unable(){
-        this.eventCollector.dispatch({
+        this.eventCollector?.dispatch({
             type: EventMessageType.Cursor,
             op: [undefined,undefined],
             viewId: this.control.viewContainerManager.focuedViewId
         })
     }
     destroy(){
-        this.eventCollector.destroy();
+        this.eventCollector?.destroy();
     }
 }

@@ -71,7 +71,7 @@ export declare abstract class LocalWork {
     setToolsOpt(opt: IActiveToolsDataType): void;
     clearWorkShapeNodeCache(workId: IworkId): void;
     clearAllWorkShapesCache(): void;
-    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt' | 'toolsType'>): BaseShapeTool | import("../tools").LaserPenShape | undefined;
+    setFullWork(data: Pick<IWorkerMessage, 'workId' | 'opt' | 'toolsType'>): BaseShapeTool | import("../tools").LaserPenShape | import("../tools/text").TextShape | undefined;
     abstract consumeDraw(data: IWorkerMessage, serviceWork?: ServiceWork): IMainMessage | undefined;
     abstract consumeDrawAll(data: IWorkerMessage, serviceWork?: ServiceWork): IMainMessage | undefined;
 }

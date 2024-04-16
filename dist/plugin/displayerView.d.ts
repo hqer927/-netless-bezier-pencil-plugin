@@ -34,7 +34,7 @@ export interface BaseDisplayerState {
     editors?: Map<string, TextEditorInfo>;
     activeTextId?: string;
 }
-export declare const DisplayerContext: React.Context<Pick<BaseDisplayerState, "scale" | "zIndex" | "dpr" | "angle" | "position" | "floatBarData" | "operationType"> & {
+export declare const DisplayerContext: React.Context<Pick<BaseDisplayerState, "scale" | "zIndex" | "position" | "angle" | "dpr" | "floatBarData" | "operationType"> & {
     maranger?: TeachingAidsViewManagerLike | undefined;
     floatBarColors: [number, number, number][];
     setPosition: (point: {

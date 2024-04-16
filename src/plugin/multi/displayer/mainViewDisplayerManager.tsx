@@ -41,9 +41,16 @@ export class MainViewMultiDisplayerManager extends MainViewDisplayerManager {
         }
     }
     destroy(){
-        if (this.eventTragetElement) {
-            this.removeDisplayerEvent(this.eventTragetElement)
-        } 
+        super.destroy();
+        if(this.eventTragetElement){
+            const container = this.eventTragetElement.parentElement;
+            if (container) {
+                const mainViewNode = container.querySelectorAll('.teaching-aids-plugin-main-view-displayer');
+                for (const item of mainViewNode) {
+                    item.remove();
+                }
+            }
+        }
     }
     createMainViewDisplayer(mainViewContainer: HTMLDivElement): MainViewDisplayerManager {
         const mainViewDisplayer = document.createElement('div');
@@ -58,7 +65,9 @@ export class MainViewMultiDisplayerManager extends MainViewDisplayerManager {
             floatBarRef: this.floatBarRef,
             floatBarCanvasRef:this.floatBarCanvasRef
         }}/>, mainViewDisplayer);
-        this.bindDisplayerEvent(this.eventTragetElement);
+        if (this.control.room) {
+            this.bindDisplayerEvent(this.eventTragetElement);
+        }
         return this;
     }
 }

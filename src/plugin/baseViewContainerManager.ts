@@ -180,6 +180,7 @@ export abstract class ViewContainerManager {
         } else {
             this.focuedView = viewId && this.appViews?.get(viewId) || undefined;
         }
+        this.control.cursor.onFocusViewChange();
     }
     setViewFocusScenePath(viewId:string, scenePath:string){
         let info:ViewInfo|undefined;
@@ -462,6 +463,7 @@ export abstract class MainViewDisplayerManager {
     }
     mountView(): void {
         this.setCanvassStyle();
+        // console.log('mountView --- 1')
         this.control.viewContainerManager.mountView(this.viewId);
     }
     updateSize(){
@@ -476,7 +478,8 @@ export abstract class MainViewDisplayerManager {
     destroy(){
         if (this.eventTragetElement) {
             this.removeDisplayerEvent(this.eventTragetElement)
-        } 
+        }
+        this.vDom = undefined;
     }
     getPoint(e:any):[number,number]|undefined{
         if (e instanceof TouchEvent) {

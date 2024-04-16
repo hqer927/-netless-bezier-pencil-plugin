@@ -37,7 +37,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 continue;
             }
             const curKeyStr = curKey.toString()
-            const isLocalId = this.serviceColloctor.isLocalId(curKeyStr);
+            const isLocalId:boolean = this.serviceColloctor.isLocalId(curKeyStr);
             const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
             let localWorkId:string | undefined = curKeyStr ;
             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import EventEmitter2 from "eventemitter2";
-import { BaseCollectorReducerAction, Collector, Storage_Selector_key } from "../collector";
+import { BaseCollectorReducerAction, Storage_Selector_key } from "../collector";
 import cloneDeep from "lodash/cloneDeep";
 import debounce from "lodash/debounce";
 import isEqual from "lodash/isEqual";
@@ -42,7 +42,6 @@ export class UndoRedoMethod {
     undoStack: IUndoStackItem[];
     redoStack: IUndoStackItem[];
     worker: MasterController;
-    collector: Collector;
     control:TeachingAidsManagerLike;
     room: Room;
     private isTicking:boolean;
@@ -59,9 +58,11 @@ export class UndoRedoMethod {
         this.redoStack = [];
         this.room = control.room as Room;
         this.worker = control.worker;
-        this.collector = control.collector as Collector;
         this.isTicking = false;
         this.viewId = viewId;
+    }
+    get collector(){
+        return this.control.collector;
     }
     addExcludeIds(ids:string[]){
         if (this.isTicking) {
@@ -75,12 +76,12 @@ export class UndoRedoMethod {
         this.excludeIds.clear();
         this.undoTickerId = id;
         this.scenePath = scenePath;
-        const storage = this.collector.storage[this.viewId] && this.collector.storage[this.viewId][scenePath] || {};
+        const storage = this.collector?.storage[this.viewId] && this.collector?.storage[this.viewId][scenePath] || {};
         this.tickStartStorerCache = new Map(Object.entries(cloneDeep(storage)));
     }
     undoTickerEnd = debounce((id:number, viewId:string, scenePath:string )=> {
         if (id === this.undoTickerId && scenePath === this.scenePath && viewId === this.viewId && this.tickStartStorerCache) {
-            const storage = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] || {};
+            const storage = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] || {};
             const diff = this.diffFun(
                 this.tickStartStorerCache, 
                 new Map(Object.entries(storage))
@@ -230,7 +231,7 @@ export class UndoRedoMethod {
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+        const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -243,7 +244,7 @@ export class UndoRedoMethod {
         if (!keys.includes(key)) {
             return false;
         }
-        const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+        const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
         for (const data of otherSelectorData) {
             if (data?.selectIds?.includes(key)) {
                 return false;
@@ -262,7 +263,7 @@ export class UndoRedoMethod {
         let isOk:boolean;
         const {scenePath} = item;
         const targetData = item.data;
-        if(!targetData){
+        if(!targetData || !this.collector){
             return;
         }
         for (const value of targetData.values()) {
@@ -276,10 +277,10 @@ export class UndoRedoMethod {
                             if (data.updateNodeOpt?.useAnimation) {
                                 data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.collector.getLocalId(key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                            if (this.collector?.getLocalId(key) === Storage_Selector_key && this.collector?.isOwn(value.key)) {
                                 const selectIds = data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -295,10 +296,10 @@ export class UndoRedoMethod {
                                 }  
                             }
                             // console.log('refreshPlugin--1', value.data)
-                            this.collector.updateValue(value.key, data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                            this.collector?.updateValue(value.key, data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         } else if(!isRedo && !Array.isArray(value.data)) {
                             // console.log('refreshPlugin--2', undefined)
-                            this.collector.updateValue(value.key, undefined, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                            this.collector?.updateValue(value.key, undefined, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }   
                     break;
@@ -307,15 +308,15 @@ export class UndoRedoMethod {
                     if (isOk) {
                         if (isRedo && !Array.isArray(data)) {
                             // console.log('refreshPlugin--6', undefined)
-                            this.collector.updateValue(key, undefined, {isAfterUpdate: true,viewId:this.viewId,scenePath});
+                            this.collector?.updateValue(key, undefined, {isAfterUpdate: true,viewId:this.viewId,scenePath});
                         } else if(!isRedo && !Array.isArray(data)) {
                             if (data.updateNodeOpt?.useAnimation) {
                                 data.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                            if (this.collector?.getLocalId(value.key) === Storage_Selector_key && this.collector?.isOwn(value.key)) {
                                 const selectIds = data.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -331,7 +332,7 @@ export class UndoRedoMethod {
                                 }  
                             }
                             // console.log('refreshPlugin--5', value.data)
-                            this.collector.updateValue(value.key, value.data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                            this.collector?.updateValue(value.key, value.data, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }
                     break;
@@ -343,10 +344,10 @@ export class UndoRedoMethod {
                             if (newData.updateNodeOpt?.useAnimation) {
                                 newData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                            if (this.collector?.getLocalId(value.key) === Storage_Selector_key && this.collector?.isOwn(value.key)) {
                                 const selectIds = newData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const _data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -362,16 +363,16 @@ export class UndoRedoMethod {
                                 }  
                             }
                             // console.log('refreshPlugin--4', newData)
-                            this.collector.updateValue(key, newData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                            this.collector?.updateValue(key, newData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         } else if(!isRedo && Array.isArray(data) && data.length === 2) {
                             const oldData = data[0];
                             if (oldData.updateNodeOpt?.useAnimation) {
                                 oldData.updateNodeOpt.useAnimation = false;
                             }
-                            if (this.collector.getLocalId(value.key) === Storage_Selector_key && this.collector.isOwn(value.key)) {
+                            if (this.collector?.getLocalId(value.key) === Storage_Selector_key && this.collector?.isOwn(value.key)) {
                                 const selectIds = oldData.selectIds;
                                 if (selectIds) {
-                                    const otherSelectorData = keys.filter(k=>this.collector.getLocalId(k) === Storage_Selector_key && !this.collector.isOwn(k)).map(key=>this.collector.storage[this.viewId][scenePath][key]);
+                                    const otherSelectorData = keys.filter(k=>this.collector?.getLocalId(k) === Storage_Selector_key && !this.collector?.isOwn(k)).map(key=>this.collector?.storage[this.viewId][scenePath][key]);
                                     let isfalt = false;
                                     for (const _data of otherSelectorData) {
                                         for (let i = 0; i < selectIds.length; i++) {
@@ -387,7 +388,7 @@ export class UndoRedoMethod {
                                 }  
                             }   
                             // console.log('refreshPlugin--3', oldData)
-                            this.collector.updateValue(value.key, oldData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
+                            this.collector?.updateValue(value.key, oldData, {isAfterUpdate: true, viewId:this.viewId, scenePath});
                         }
                     }
                     break;

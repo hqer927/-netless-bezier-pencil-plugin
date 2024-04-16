@@ -1,8 +1,11 @@
+import { Group, Label, Polyline } from "spritejs";
 import { IWorkerMessage, IRectType, IMainMessage, EToolsKey, IworkId, ECanvasShowType, EPostMessageType } from "..";
+import { BaseCollectorReducerAction } from "../../collector/types";
 import { transformToNormalData } from "../../collector/utils";
 import { LaserPenOptions, SelectorShape } from "../tools";
 import { computRect } from "../utils";
 import { LocalWork, ISubWorkerInitOption } from "./base";
+import { TextOptions } from "../../component/textEditor";
 
 export class LocalWorkForSubWorker extends LocalWork {
     private animationWorkRects?: Map<IworkId, {
@@ -17,14 +20,15 @@ export class LocalWorkForSubWorker extends LocalWork {
     constructor(opt:ISubWorkerInitOption){
         super(opt);
     }
-    runFullWork(data: IWorkerMessage): IRectType | undefined {
+    runFullWork(data: IWorkerMessage, isDrawLabel?:boolean): IRectType | undefined {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
             const rect = workShape.consumeService({
                 op, 
                 isFullWork: true,
-                replaceId: workShape.getWorkId()?.toString()
+                replaceId: workShape.getWorkId()?.toString(),
+                isDrawLabel
             });
             const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
             data.workId && this.workShapes.delete(data.workId)
@@ -145,6 +149,29 @@ export class LocalWorkForSubWorker extends LocalWork {
             }
         }
         return ;
+    }
+    updateLabels(labelGroup:Group, value:BaseCollectorReducerAction){
+        labelGroup.children.forEach((label:Label|Polyline)=>{
+            if (label.tagName === 'LABEL') {
+                const name = (label as Label).name;
+                const {width} = label.getBoundingClientRect();
+                const [scaleX] = labelGroup.worldScaling as [number,number];
+                // console.log('textOpt.text--3', width);
+                const {underline,lineThrough}= value.opt as TextOptions;
+                if (underline) {
+                    const underlineNode = labelGroup.getElementsByName(`${name}_underline`)[0] as Polyline;
+                    underlineNode.attr({
+                        points:[0,0,width/scaleX,0],
+                    })
+                }
+                if (lineThrough) {
+                    const lineThroughNode = labelGroup.getElementsByName(`${name}_lineThrough`)[0] as Polyline;
+                    lineThroughNode.attr({
+                        points:[0,0,width/scaleX,0],
+                    })
+                }
+            }
+        })
     }
     private runLaserPenAnimation(result?:IMainMessage) {
         if (!this.animationId) {

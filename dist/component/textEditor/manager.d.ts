@@ -1,13 +1,11 @@
 import { TextEditorInfo, TextOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../../plugin/types";
-import { Collector } from "../../collector";
 import { ICameraOpt, IWorkerMessage } from "../../core";
 import EventEmitter2 from "eventemitter2";
 import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
 export interface TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
-    readonly collector: Collector;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
     /** 本地更新文本编辑器 */
@@ -59,15 +57,15 @@ export interface TextEditorManager {
 export declare class TextEditorManagerImpl implements TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
-    readonly collector: Collector;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
     private proxyMap;
     constructor(props: BaseSubWorkModuleProps);
+    get collector(): import("../../collector").Collector | undefined;
     filterEditor(viewId: string): Map<string, TextEditorInfo>;
     get interceptors(): {
-        set: (workId: string, info: TextEditorInfo) => void;
-        delete: (workId: string) => void;
+        set: (workId: string, info: TextEditorInfo) => true | undefined;
+        delete: (workId: string) => true | undefined;
         clear(): void;
     };
     computeTextActive(point: [number, number], viewId: string): void;

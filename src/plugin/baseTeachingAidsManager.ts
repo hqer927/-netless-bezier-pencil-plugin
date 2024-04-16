@@ -3,8 +3,8 @@ import { BaseSubWorkModuleProps, EStrokeType, MemberState, ShapeType, TeachingAi
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManager, TextEditorManagerImpl, TextOptions } from "../component/textEditor";
-import type { Camera, Rectangle, Room, RoomMember } from "white-web-sdk";
-import { ApplianceNames, isRoom, toJS } from "white-web-sdk";
+import type { Camera, Displayer, DisplayerCallbacks, Player, Rectangle, Room, RoomMember } from "white-web-sdk";
+import { ApplianceNames, isPlayer, isRoom, toJS } from "white-web-sdk";
 import { CursorManager, CursorManagerImpl } from "../cursors";
 import { ViewContainerManager } from "./baseViewContainerManager";
 import { MasterControlForWorker } from "../core/mainEngine";
@@ -15,24 +15,31 @@ import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOpti
 import { ICameraOpt } from "../core/types";
 import throttle from "lodash/throttle";
 
+export interface BaseTeachingAidsManagerProps {
+    displayer: Displayer<DisplayerCallbacks>
+    plugin?: TeachingAidsPluginLike, 
+    options?: TeachingAidsPluginOptions
+}
 /** 插件管理器 */
 export abstract class BaseTeachingAidsManager {
     static InternalMsgEmitter: EventEmitter2 = new EventEmitter2();
-    readonly plugin: TeachingAidsPluginLike;
+    plugin?: TeachingAidsPluginLike;
     room?: Room;
+    play?: Player;
+    collector?: Collector;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
-    readonly collector: Collector;
     readonly cursor: CursorManager;
     readonly textEditorManager: TextEditorManager;
     readonly worker: MasterControlForWorker;
     abstract readonly viewContainerManager: ViewContainerManager;
-    constructor(plugin: TeachingAidsPluginLike, options?: TeachingAidsPluginOptions) {
+    constructor(params:BaseTeachingAidsManagerProps) {
+        const {displayer, plugin, options}=params;
         this.plugin = plugin;
-        this.room = isRoom(plugin.displayer) ? plugin.displayer as Room : undefined;
+        this.room = isRoom(displayer) ? displayer as Room : undefined;
+        this.play = isPlayer(displayer) ? displayer as Player : undefined;
         this.pluginOptions = options;
         this.roomMember = new RoomMemberManager();
-        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
         const props:BaseSubWorkModuleProps = {
             control: this,
             internalMsgEmitter: BaseTeachingAidsManager.InternalMsgEmitter
@@ -41,6 +48,17 @@ export abstract class BaseTeachingAidsManager {
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
     }
+    bindPlugin(plugin:TeachingAidsPluginLike){
+        this.plugin = plugin;
+        if (this.collector) {
+            this.collector.removeStorageStateListener();
+        }
+        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
+        this.cursor.activeCollector();
+        this.activePlugin();
+    }
+    /** 激活 plugin */
+    abstract activePlugin():void;
     /** 初始化 */
     abstract init():void;
     /** 激活worker */
@@ -159,6 +177,7 @@ export abstract class BaseTeachingAidsManager {
         };
         switch (toolsKey) {
             case EToolsKey.Text:
+                (opt as TextOptions).fontFamily = window.getComputedStyle(document.documentElement).getPropertyValue('font-family');
                 (opt as TextOptions).fontSize = memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
                 (opt as TextOptions).textAlign = memberState?.textAlign || 'left';
                 (opt as TextOptions).verticalAlign = memberState?.verticalAlign || 'middle';
@@ -303,7 +322,7 @@ export abstract class BaseTeachingAidsManager {
     }
     /** 异步获取指定路径下的缩略图 */
     async scenePreview(scenePath: string, img: HTMLImageElement): Promise<void> {
-        const viewId = this.collector.getViewIdBySecenPath(scenePath);
+        const viewId = this.collector?.getViewIdBySecenPath(scenePath);
         if (!viewId) {
             return;
         }

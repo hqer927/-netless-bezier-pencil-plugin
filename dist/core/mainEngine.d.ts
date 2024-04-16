@@ -2,7 +2,6 @@ import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction, DiffOne } from "../collector";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpdateNodeOpt, IWorkerMessage, IworkId, ViewWorkerOptions } from "./types";
-import { ViewContainerManager } from "../plugin/baseViewContainerManager";
 import { BaseSubWorkModuleProps } from "../plugin/types";
 import { EPostMessageType, EvevtWorkState } from "./enum";
 export declare abstract class MasterController {
@@ -11,8 +10,6 @@ export declare abstract class MasterController {
     /** 插件管理器 */
     readonly abstract control: BaseTeachingAidsManager;
     readonly abstract internalMsgEmitter: EventEmitter2;
-    /** view容器管理器 */
-    readonly abstract viewContainerManager: ViewContainerManager;
     /** worker线程管理器 */
     /** 本地原始点数据批任务数据池 */
     protected abstract localPointsBatchData: number[];
@@ -72,7 +69,6 @@ export declare class MasterControlForWorker extends MasterController {
     protected currentLocalWorkData: IActiveWorkDataType;
     control: BaseTeachingAidsManager;
     internalMsgEmitter: EventEmitter2;
-    viewContainerManager: ViewContainerManager;
     protected localPointsBatchData: number[];
     taskBatchData: Set<IWorkerMessage>;
     protected dpr: number;
@@ -97,16 +93,17 @@ export declare class MasterControlForWorker extends MasterController {
     private snapshotMap;
     private boundingRectMap;
     private clearAllResolve?;
-    private collector;
     private localEventTimerId?;
     private undoTickerId?;
     private animationId;
     constructor(props: BaseSubWorkModuleProps);
-    init(): void;
+    private get viewContainerManager();
+    private get collector();
     private get isRunSubWork();
     private get isCanDrawWork();
     private get isUseZIndex();
     private get isCanRecordUndoRedo();
+    init(): void;
     on(): void;
     private collectorSyncData;
     private collectorAsyncData;

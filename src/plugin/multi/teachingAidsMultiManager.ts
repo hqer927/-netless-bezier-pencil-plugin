@@ -1,15 +1,14 @@
 import { WindowManager } from "@netless/window-manager";
-import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
-import { BaseSubWorkModuleProps, TeachingAidsPluginOptions } from "../types";
+import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
+import { BaseSubWorkModuleProps } from "../types";
 import { ViewContainerMultiManager } from "./containerManager";
 import { MemberDiff } from "../../members";
-import type { TeachingAidsPlugin } from "../teachingAidsPlugin";
 
 export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     windowManager?: WindowManager;
     viewContainerManager: ViewContainerMultiManager;
-    constructor(plugin: TeachingAidsPlugin, options?: TeachingAidsPluginOptions) {
-        super(plugin,options)
+    constructor(params:BaseTeachingAidsManagerProps) {
+        super(params)
         const props:BaseSubWorkModuleProps = {
             control: this,
             internalMsgEmitter: BaseTeachingAidsManager.InternalMsgEmitter
@@ -24,56 +23,66 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
         this.viewContainerManager?.destroy();
         this.cursor?.destroy();
     }
-    activeWorker(){
-        // console.log('activeWorker')
-        this.worker.init();
-        // this.cursor.injectWorker(this.worker);
-        this.collector.addStorageStateListener((diff)=>{
-            if (this.collector?.storage) {
-                const curKeys = Object.keys(this.collector.storage);
-                if (curKeys.length === 0) {
-                    this.worker?.clearViewScenePath('mainView',true);
-                    return;
-                }
-            }
-            if(diff){
-                Object.keys(diff).forEach((key)=>{
-                    const item = diff[key];
-                    if (item) {
-                        this.worker?.onServiceDerive(key, item);
+    activePlugin(){
+        if(this.collector){
+            this.collector.addStorageStateListener((diff)=>{
+                console.log('addStorageStateListener', diff)
+                if (this.collector?.storage) {
+                    const curKeys = Object.keys(this.collector.storage);
+                    if (curKeys.length === 0) {
+                        this.worker?.clearViewScenePath('mainView',true);
+                        return;
                     }
-                })
-                TeachingAidsMultiManager.InternalMsgEmitter.emit("excludeIds", Object.keys(diff));
-            }
-        })
-        if (this.room) {
-            this.roomMember.onUidChangeHook((diff: MemberDiff)=>{
-                if (this.collector?.serviceStorage) {
-                    const selectors:{key:string,viewId:string,scenePath:string}[] = [];
-                    this.viewContainerManager.getAllViews().forEach(v=>{
-                        if (v && v.focusScenePath && this.collector.serviceStorage[v.id] && this.collector.serviceStorage[v.id][v.focusScenePath]) {
-                            const s = Object.keys(this.collector.serviceStorage[v.id][v.focusScenePath]).
-                            filter(k=>this.collector.isSelector(k)).map(key=>({viewId:v.id, scenePath:v.focusScenePath, key}));
-                            s.length && selectors.push(...s);
-                        }
-                    });
-                    selectors.forEach(({key, viewId, scenePath})=>{
-                        const uid = this.collector?.getUidFromKey(key);
-                        if (uid && !diff.online.includes(uid)) {
-                            this.collector?.updateValue(key, undefined, {isAfterUpdate: true, viewId, scenePath});
-                        }
-                    })
                 }
-                if (this.cursor?.eventCollector.serviceStorage) {
-                    const eventKeys = Object.keys(this.cursor?.eventCollector.serviceStorage);
-                    eventKeys.forEach(uid=>{
-                        if (!diff.online.includes(uid)) {
-                            this.cursor?.eventCollector.clearValue(uid);
+                if(diff){
+                    Object.keys(diff).forEach((key)=>{
+                        const item = diff[key];
+                        if (item) {
+                            this.worker?.onServiceDerive(key, item);
                         }
                     })
+                    BaseTeachingAidsManager.InternalMsgEmitter.emit("excludeIds", Object.keys(diff));
                 }
             })
+            if (this.room) {
+                this.roomMember.onUidChangeHook((diff: MemberDiff)=>{
+                    if (this.collector?.serviceStorage) {
+                        const selectors:{key:string,viewId:string,scenePath:string}[] = [];
+                        this.viewContainerManager.getAllViews().forEach(v=>{
+                            if (v && v.focusScenePath && this.collector?.serviceStorage[v.id] && this.collector.serviceStorage[v.id][v.focusScenePath]) {
+                                const s = Object.keys(this.collector.serviceStorage[v.id][v.focusScenePath]).
+                                filter(k=>this.collector?.isSelector(k)).map(key=>({viewId:v.id, scenePath:v.focusScenePath, key}));
+                                s.length && selectors.push(...s);
+                            }
+                        });
+                        selectors.forEach(({key, viewId, scenePath})=>{
+                            const uid = this.collector?.getUidFromKey(key);
+                            if (uid && !diff.online.includes(uid)) {
+                                this.collector?.updateValue(key, undefined, {isAfterUpdate: true, viewId, scenePath});
+                            }
+                        })
+                    }
+                    if (this.cursor?.eventCollector?.serviceStorage) {
+                        const eventKeys = Object.keys(this.cursor?.eventCollector.serviceStorage);
+                        eventKeys.forEach(uid=>{
+                            if (!diff.online.includes(uid)) {
+                                this.cursor?.eventCollector?.clearValue(uid);
+                            }
+                        })
+                    }
+                })
+            }
+            if (this.worker.isActive) {
+                this.viewContainerManager.getAllViews().forEach(v=>{
+                    if (v && v.focusScenePath) {
+                        this.worker.pullServiceData(v.id,v.focusScenePath);
+                    }
+                })
+            }
         }
+    }
+    activeWorker(){
+        this.worker.init();
     }
     setWindowManager(windowManager:WindowManager){
         this.windowManager = windowManager;

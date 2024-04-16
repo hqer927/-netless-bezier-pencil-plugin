@@ -11,6 +11,8 @@ import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
 import { LocalWorkForSubWorker } from "./subWorkerLocal";
 import { Storage_ViewId_ALL } from "../../collector/const";
+import { BaseCollectorReducerAction } from "../../collector/types";
+import { TextOptions } from "../../component/textEditor";
 export enum EWorkThreadType {
     Full = "full",
     Sub = "sub"
@@ -629,18 +631,23 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
             this.localWork.fullLayer = this.snapshotFullLayer;
             this.localWork.drawLayer = this.fullLayer;
             let rect:IRectType|undefined;
+            const willRenderMap:Map<string,BaseCollectorReducerAction> = new Map();
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
+                            const {toolsType, opt} = value;
+                            if (toolsType === EToolsKey.Text && opt && ((opt as TextOptions).lineThrough || (opt as TextOptions).underline)) {
+                                willRenderMap.set(key,value);
+                            }
                             const r = this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service,
                                 viewId:this.viewId
-                            });
+                            }, toolsType === EToolsKey.Text);
                             rect = computRect(rect,r);
                             break;
                         }
@@ -658,20 +665,41 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                     resizeHeight: h,
                 }
             }
-            (this.snapshotFullLayer.parent as Layer).render();
-            const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options)
-            if(imageBitmap){
-                await this.post({
-                    sp:[{
-                        type: EPostMessageType.Snapshot,
-                        scenePath,
-                        imageBitmap,
-                    }]
-                },[imageBitmap]);
-                imageBitmap.close();
-                this.snapshotFullLayer.removeAllChildren();
-                this.setCameraOpt(curCameraOpt as ICameraOpt, this.fullLayer);
+            await new Promise((resolve)=>{
+                setTimeout(resolve,500);
+            })
+            this.willRenderSpecialLabel(willRenderMap);
+            await this.getSnapshotRender({scenePath,curCameraOpt,options, willRenderMap})
+        }
+    }
+    private willRenderSpecialLabel(willRenderMap:Map<string,BaseCollectorReducerAction>){
+        for (const [key,value] of willRenderMap.entries()) {
+            const labelGroup = this.snapshotFullLayer?.getElementsByName(key)[0] as Group;
+            if (labelGroup && value.opt) {
+                this.localWork.updateLabels(labelGroup, value);
             }
+        }
+    }
+    private async getSnapshotRender(data:{
+        scenePath:string,
+        curCameraOpt?:ICameraOpt,
+        options?:ImageBitmapOptions,
+        willRenderMap:Map<string,BaseCollectorReducerAction>
+    }){
+        const {scenePath, curCameraOpt, options} = data;
+        (this.snapshotFullLayer?.parent as Layer).render();
+        const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options)
+        if(imageBitmap){
+            await this.post({
+                sp:[{
+                    type: EPostMessageType.Snapshot,
+                    scenePath,
+                    imageBitmap,
+                }]
+            },[imageBitmap]);
+            imageBitmap.close();
+            this.snapshotFullLayer?.removeAllChildren();
+            this.setCameraOpt(curCameraOpt as ICameraOpt, this.fullLayer);
         }
     }
     private async getBoundingRect(data:IWorkerMessage){

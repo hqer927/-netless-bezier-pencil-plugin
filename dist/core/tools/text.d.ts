@@ -1,4 +1,4 @@
-import { Group, Label } from "spritejs";
+import { Group, Label, Polyline } from "spritejs";
 import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
 import { EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
@@ -20,10 +20,17 @@ export declare class TextShape extends BaseShapeTool {
     consumeService(props: {
         isFullWork: boolean;
         replaceId?: string;
+        isDrawLabel?: boolean;
     }): IRectType | undefined;
     updataOptService(updateNodeOpt: IUpdateNodeOpt): IRectType | undefined;
     clearTmpPoints(): void;
-    static createLabels(textOpt: TextOptions, rect: IRectType): Label[];
+    static getFontWidth(param: {
+        text: string;
+        ctx: OffscreenCanvasRenderingContext2D;
+        opt: TextOptions;
+        worldScaling: number[];
+    }): number;
+    static createLabels(textOpt: TextOptions, layer: Group): (Polyline | Label)[];
     static updateNodeOpt(param: {
         node: ShapeNodes;
         opt: IUpdateNodeOpt;

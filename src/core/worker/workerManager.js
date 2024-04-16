@@ -700,18 +700,23 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
             this.localWork.fullLayer = this.snapshotFullLayer;
             this.localWork.drawLayer = this.fullLayer;
             let rect;
+            const willRenderMap = new Map();
             for (const [key, value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
+                            const { toolsType, opt } = value;
+                            if (toolsType === EToolsKey.Text && opt && (opt.lineThrough || opt.underline)) {
+                                willRenderMap.set(key, value);
+                            }
                             const r = this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service,
                                 viewId: this.viewId
-                            });
+                            }, toolsType === EToolsKey.Text);
                             rect = computRect(rect, r);
                             break;
                         }
@@ -729,20 +734,36 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                     resizeHeight: h,
                 };
             }
-            this.snapshotFullLayer.parent.render();
-            const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options);
-            if (imageBitmap) {
-                await this.post({
-                    sp: [{
-                            type: EPostMessageType.Snapshot,
-                            scenePath,
-                            imageBitmap,
-                        }]
-                }, [imageBitmap]);
-                imageBitmap.close();
-                this.snapshotFullLayer.removeAllChildren();
-                this.setCameraOpt(curCameraOpt, this.fullLayer);
+            await new Promise((resolve) => {
+                setTimeout(resolve, 500);
+            });
+            this.willRenderSpecialLabel(willRenderMap);
+            await this.getSnapshotRender({ scenePath, curCameraOpt, options, willRenderMap });
+        }
+    }
+    willRenderSpecialLabel(willRenderMap) {
+        for (const [key, value] of willRenderMap.entries()) {
+            const labelGroup = this.snapshotFullLayer?.getElementsByName(key)[0];
+            if (labelGroup && value.opt) {
+                this.localWork.updateLabels(labelGroup, value);
             }
+        }
+    }
+    async getSnapshotRender(data) {
+        const { scenePath, curCameraOpt, options } = data;
+        (this.snapshotFullLayer?.parent).render();
+        const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options);
+        if (imageBitmap) {
+            await this.post({
+                sp: [{
+                        type: EPostMessageType.Snapshot,
+                        scenePath,
+                        imageBitmap,
+                    }]
+            }, [imageBitmap]);
+            imageBitmap.close();
+            this.snapshotFullLayer?.removeAllChildren();
+            this.setCameraOpt(curCameraOpt, this.fullLayer);
         }
     }
     async getBoundingRect(data) {

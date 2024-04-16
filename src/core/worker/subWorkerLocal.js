@@ -36,14 +36,15 @@ export class LocalWorkForSubWorker extends LocalWork {
             value: 0
         });
     }
-    runFullWork(data) {
+    runFullWork(data, isDrawLabel) {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
             const rect = workShape.consumeService({
                 op,
                 isFullWork: true,
-                replaceId: workShape.getWorkId()?.toString()
+                replaceId: workShape.getWorkId()?.toString(),
+                isDrawLabel
             });
             const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt);
             data.workId && this.workShapes.delete(data.workId);
@@ -164,6 +165,29 @@ export class LocalWorkForSubWorker extends LocalWork {
             }
         }
         return;
+    }
+    updateLabels(labelGroup, value) {
+        labelGroup.children.forEach((label) => {
+            if (label.tagName === 'LABEL') {
+                const name = label.name;
+                const { width } = label.getBoundingClientRect();
+                const [scaleX] = labelGroup.worldScaling;
+                // console.log('textOpt.text--3', width);
+                const { underline, lineThrough } = value.opt;
+                if (underline) {
+                    const underlineNode = labelGroup.getElementsByName(`${name}_underline`)[0];
+                    underlineNode.attr({
+                        points: [0, 0, width / scaleX, 0],
+                    });
+                }
+                if (lineThrough) {
+                    const lineThroughNode = labelGroup.getElementsByName(`${name}_lineThrough`)[0];
+                    lineThroughNode.attr({
+                        points: [0, 0, width / scaleX, 0],
+                    });
+                }
+            }
+        });
     }
     runLaserPenAnimation(result) {
         if (!this.animationId) {

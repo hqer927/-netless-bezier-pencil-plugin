@@ -148,7 +148,7 @@ Object.defineProperty(EventCollector, "syncInterval", {
     enumerable: true,
     configurable: true,
     writable: true,
-    value: 500
+    value: 100
 });
 Object.defineProperty(EventCollector, "namespace", {
     enumerable: true,

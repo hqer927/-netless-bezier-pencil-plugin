@@ -131,7 +131,9 @@ export const FloatTools = () => {
                     onClick={async ()=>{
                         const canvas = document.createElement("canvas");
                         const context = canvas.getContext("2d");
-                        const { width, height, ...camera } = window.room.state.cameraState;
+                        const width =  window.manager && window.manager.mainView.size.width || window.room.state.cameraState.width;
+                        const height =  window.manager && window.manager.mainView.size.height || window.room.state.cameraState.height;
+                        const camera = window.manager && window.manager.mainView.camera || window.room.state.cameraState;
                         const rect = await window.pluginRoom.getBoundingRectAsync(window.room.state.sceneState.scenePath);
                         const w = Math.max(rect?.width, width);
                         const h = Math.max(rect?.height, height);

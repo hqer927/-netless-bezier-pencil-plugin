@@ -6,16 +6,24 @@ import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
 import { ZoomController } from './view/zoomController';
 import { EStrokeType, ShapeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
 import { ApplianceNames } from 'white-web-sdk';
+import { TopTools } from './view/topTools';
 export const AppContext = createContext<{
   toolsKey:EToolsKey;
   setToolsKey:(key:EToolsKey)=>void;
+  beginAt:number;
 } >({
   toolsKey: EToolsKey.Clicker,
   setToolsKey: () => {},
+  beginAt: 0
 });
 
 export default function App() { 
   const [toolsKey, setToolsKey] = useState<EToolsKey>(EToolsKey.Clicker);
+  const [beginAt, setBeginAt] = useState<number>(0);
+  useEffect(()=>{
+    console.log('setBeginAt', Date.now())
+    setBeginAt(Date.now());
+  },[])
   useEffect(()=>{
       if (window.room) {
         switch (toolsKey) {
@@ -70,9 +78,9 @@ export default function App() {
             // window.room.disableDeviceInputs = false;
             window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus});
             break;
-        case EToolsKey.SpeechBalloon:
-          window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon});
-          break;
+          case EToolsKey.SpeechBalloon:
+            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon});
+            break;
           case EToolsKey.Hand:
             // window.room.disableDeviceInputs = false;
             window.room.setMemberState({currentApplianceName: ApplianceNames.hand});
@@ -87,9 +95,10 @@ export default function App() {
     <div className='App' onMouseDown={(e)=>{
       e.stopPropagation();
     }}>
-      <AppContext.Provider value={{toolsKey, setToolsKey}}>
+      <AppContext.Provider value={{toolsKey, setToolsKey, beginAt}}>
         <FloatTools/>
         <ZoomController/>
+        <TopTools/>
       </AppContext.Provider>
     </div>
   )

@@ -63,12 +63,6 @@ export class MasterControlForWorker extends MasterController {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "viewContainerManager", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         // protected threadEngine?: WorkerManager | undefined;
         Object.defineProperty(this, "localPointsBatchData", {
             enumerable: true,
@@ -194,12 +188,6 @@ export class MasterControlForWorker extends MasterController {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "collector", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         Object.defineProperty(this, "localEventTimerId", {
             enumerable: true,
             configurable: true,
@@ -220,16 +208,15 @@ export class MasterControlForWorker extends MasterController {
         });
         const { control, internalMsgEmitter } = props;
         this.control = control;
-        this.collector = this.control.collector;
         this.maxLastSyncTime = (this.control.pluginOptions?.syncOpt?.interval || this.maxLastSyncTime) * 0.5;
         this.internalMsgEmitter = internalMsgEmitter;
         this.currentLocalWorkData = { workState: EvevtWorkState.Pending };
     }
-    init() {
-        this.viewContainerManager = this.control.viewContainerManager;
-        this.on();
-        this.internalMsgEmitterListener();
-        this.isActive = true;
+    get viewContainerManager() {
+        return this.control.viewContainerManager;
+    }
+    get collector() {
+        return this.control.collector;
     }
     get isRunSubWork() {
         const { toolsType } = this.currentToolsData;
@@ -291,6 +278,11 @@ export class MasterControlForWorker extends MasterController {
             return true;
         }
         return false;
+    }
+    init() {
+        this.on();
+        this.internalMsgEmitterListener();
+        this.isActive = true;
     }
     on() {
         this.fullWorker = new FullWorker();
@@ -406,7 +398,7 @@ export class MasterControlForWorker extends MasterController {
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
                         const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                        this.collector.dispatch({ type, selectIds, opt, isSync, viewId, scenePath });
+                        this.collector?.dispatch({ type, selectIds, opt, isSync, viewId, scenePath });
                     }
                     break;
                 }
@@ -486,7 +478,7 @@ export class MasterControlForWorker extends MasterController {
             switch (type) {
                 case EPostMessageType.DrawWork: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({
+                    this.collector?.dispatch({
                         type,
                         op,
                         workId,
@@ -499,7 +491,7 @@ export class MasterControlForWorker extends MasterController {
                 }
                 case EPostMessageType.FullWork: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({
+                    this.collector?.dispatch({
                         type,
                         ops,
                         workId,
@@ -514,12 +506,12 @@ export class MasterControlForWorker extends MasterController {
                 }
                 case EPostMessageType.UpdateNode: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({ type, updateNodeOpt, workId, opt, ops, op, isSync, viewId, scenePath });
+                    this.collector?.dispatch({ type, updateNodeOpt, workId, opt, ops, op, isSync, viewId, scenePath });
                     break;
                 }
                 case EPostMessageType.RemoveNode: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({ type, removeIds, isSync, viewId, scenePath });
+                    this.collector?.dispatch({ type, removeIds, isSync, viewId, scenePath });
                     break;
                 }
                 default:
@@ -547,7 +539,7 @@ export class MasterControlForWorker extends MasterController {
             if (this.viewContainerManager?.focuedView) {
                 const { id, focusScenePath } = this.viewContainerManager.focuedView;
                 if (isChangeToolsType && id && focusScenePath) {
-                    if (this.collector.hasSelector(id, focusScenePath)) {
+                    if (this.collector?.hasSelector(id, focusScenePath)) {
                         this.blurSelector(id, focusScenePath);
                     }
                     if (this.control.textEditorManager.activeId) {
@@ -603,7 +595,7 @@ export class MasterControlForWorker extends MasterController {
             isRunSubWork: true,
         });
         this.runAnimation();
-        this.collector.dispatch({
+        this.collector?.dispatch({
             type: EPostMessageType.Clear,
             viewId
         });
@@ -622,14 +614,14 @@ export class MasterControlForWorker extends MasterController {
         }
         if (msgType && workId) {
             const d = msg;
-            d.workId = this.collector.isOwn(workId) ? this.collector.getLocalId(workId) : workId;
+            d.workId = this.collector?.isOwn(workId) ? this.collector?.getLocalId(workId) : workId;
             d.msgType = msgType;
             d.dataType = EDataType.Service;
             d.viewId = viewId;
             d.scenePath = scenePath;
             if (d.selectIds) {
                 d.selectIds = d.selectIds.map(id => {
-                    return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
+                    return this.collector?.isOwn(id) ? this.collector?.getLocalId(id) : id;
                 });
             }
             if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
@@ -654,7 +646,7 @@ export class MasterControlForWorker extends MasterController {
         }
     }
     pullServiceData(viewId, scenePath) {
-        const store = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] || undefined;
+        const store = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] || undefined;
         if (store) {
             let minZIndex;
             let maxZIndex;
@@ -663,7 +655,7 @@ export class MasterControlForWorker extends MasterController {
                 const msgType = store[key]?.type;
                 if (msgType && key) {
                     const data = cloneDeep(store[key]);
-                    data.workId = this.collector.isOwn(key) ? this.collector.getLocalId(key) : key;
+                    data.workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
                     data.viewId = viewId;
@@ -671,7 +663,7 @@ export class MasterControlForWorker extends MasterController {
                     data.useAnimation = false;
                     if (data.selectIds) {
                         data.selectIds = data.selectIds.map(id => {
-                            return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
+                            return this.collector?.isOwn(id) ? this.collector?.getLocalId(id) : id;
                         });
                     }
                     if (data.toolsType === EToolsKey.Text) {
@@ -777,7 +769,12 @@ export class MasterControlForWorker extends MasterController {
         subMsg.size && this.subWorker.postMessage(subMsg);
     }
     destroy() {
-        throw new Error("Method not implemented.");
+        this.unabled();
+        this.taskBatchData.clear();
+        this.localPointsBatchData.length = 0;
+        this.fullWorker.terminate();
+        this.subWorker.terminate();
+        this.isActive = false;
     }
     updateNode(workId, updateNodeOpt, viewId, scenePath) {
         this.taskBatchData.add({
@@ -845,7 +842,7 @@ export class MasterControlForWorker extends MasterController {
         this.runAnimation();
         if (!justLocal) {
             const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-            this.collector.dispatch({
+            this.collector?.dispatch({
                 type: EPostMessageType.Clear,
                 viewId,
                 scenePath
@@ -863,15 +860,13 @@ export class MasterControlForWorker extends MasterController {
         });
     }
     internalMsgEmitterListener() {
-        if (this.collector) {
-            this.methodBuilder = new MethodBuilderMain([
-                EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
-                EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
-                EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
-                EmitEventType.SetFontStyle, EmitEventType.SetPoint
-            ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
-            this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode);
-        }
+        this.methodBuilder = new MethodBuilderMain([
+            EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
+            EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
+            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
+            EmitEventType.SetFontStyle, EmitEventType.SetPoint
+        ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
+        this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode);
     }
     originalEventLintener(workState, point, viewId) {
         switch (workState) {
@@ -1038,7 +1033,7 @@ export class MasterControlForWorker extends MasterController {
         this.control.cursor.sendEvent(point, viewId);
     }
     blurSelector(viewId, scenePath, undoTickerId) {
-        if (this.collector.hasSelector(viewId, scenePath)) {
+        if (this.collector?.hasSelector(viewId, scenePath)) {
             this.taskBatchData.add({
                 workId: Storage_Selector_key,
                 selectIds: [],
@@ -1054,22 +1049,22 @@ export class MasterControlForWorker extends MasterController {
     getBoundingRect(scenePath) {
         const cur = this.boundingRectMap?.get(scenePath);
         if (!cur) {
-            const scenes = this.collector.getScenePathData(scenePath);
+            const scenes = this.collector?.getScenePathData(scenePath);
             if (!scenes) {
                 return;
             }
             Object.keys(scenes).forEach(key => {
-                if (this.collector.getLocalId(key) === Storage_Selector_key) {
+                if (this.collector?.getLocalId(key) === Storage_Selector_key) {
                     delete scenes[key];
                 }
             });
-            if (Object.keys(scenes).length && this.viewContainerManager.mainView) {
+            if (Object.keys(scenes).length && this.viewContainerManager.mainView && this.viewContainerManager.mainView.cameraOpt) {
                 const data = {
                     msgType: EPostMessageType.BoundingBox,
                     dataType: EDataType.Local,
                     scenePath,
                     scenes,
-                    cameraOpt: this.viewContainerManager.mainView.cameraOpt,
+                    cameraOpt: { ...this.viewContainerManager.mainView.cameraOpt },
                     isRunSubWork: true,
                     viewId: this.viewContainerManager.mainView.id
                 };
@@ -1087,16 +1082,16 @@ export class MasterControlForWorker extends MasterController {
     getSnapshot(scenePath, width, height, camera) {
         const cur = this.snapshotMap?.get(scenePath);
         if (!cur) {
-            const viewId = this.collector.getViewIdBySecenPath(scenePath);
+            const viewId = this.collector?.getViewIdBySecenPath(scenePath);
             if (!viewId) {
                 return;
             }
-            const scenes = this.collector.getStorageData(viewId, scenePath);
+            const scenes = this.collector?.getStorageData(viewId, scenePath);
             if (!scenes) {
                 return;
             }
             Object.keys(scenes).forEach(key => {
-                if (this.collector.getLocalId(key) === Storage_Selector_key) {
+                if (this.collector?.getLocalId(key) === Storage_Selector_key) {
                     delete scenes[key];
                 }
             });

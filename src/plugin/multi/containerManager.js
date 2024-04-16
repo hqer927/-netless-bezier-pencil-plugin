@@ -36,8 +36,14 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             configurable: true,
             writable: true,
             value: (bindMainView) => {
+                console.log('onMainViewMounted', bindMainView);
                 const container = bindMainView.divElement;
                 if (!container || !bindMainView.focusScenePath) {
+                    return;
+                }
+                const focusScenePath = bindMainView.focusScenePath || bindMainView.scenePath;
+                if (!focusScenePath) {
+                    // console.log('onMainViewMounted--0', focusScenePath)
                     return;
                 }
                 const displayer = new MainViewMultiDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
@@ -71,7 +77,15 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     scale: scale === Infinity ? 1 : scale
                 };
                 this.focuedViewId = MainViewMultiDisplayerManager.viewId;
-                // console.log('ContainerManager - bindMainView', bindMainView.size, opt, bindMainView.focusScenePath)
+                // console.log('ContainerManager - bindMainView', container)
+                if (this.mainView && this.mainView.displayer) {
+                    this.mainView.displayer.destroy();
+                    const nodes = container.getElementsByClassName('teaching-aids-plugin-main-view-displayer');
+                    for (const node of nodes) {
+                        node.remove();
+                    }
+                    this.mainView = undefined;
+                }
                 this.createMianView({
                     id: MainViewMultiDisplayerManager.viewId,
                     container,
@@ -261,7 +275,7 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 this.control.activeWorker();
             }
             this.control.worker?.createViewWorker(viewId, opt);
-            if (viewInfo.focusScenePath) {
+            if (viewInfo.focusScenePath && this.control.collector) {
                 // console.log('pullServiceData', viewId, viewInfo.focusScenePath)
                 this.control.worker.pullServiceData(viewId, viewInfo.focusScenePath);
             }
@@ -292,8 +306,9 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 const view = this.getView(focuedViewId);
                 if (view) {
                     view.displayer.reflashContainerOffset();
-                    this.focuedView = view;
-                    this.focuedViewId = focuedViewId;
+                    this.setFocuedViewId(focuedViewId);
+                    // this.focuedView = view;
+                    // this.focuedViewId = focuedViewId;
                 }
             }
         });

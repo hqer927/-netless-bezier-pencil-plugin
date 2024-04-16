@@ -342,7 +342,11 @@ export class ServiceWorkForFullWorker {
                                 });
                                 cursorPoints.set(key, {
                                     workState: EvevtWorkState.Done,
-                                    op: [],
+                                    op: workShape.animationWorkData.filter((_v, i) => {
+                                        if (i % 3 !== 2) {
+                                            return true;
+                                        }
+                                    }).slice(-2),
                                 });
                             }
                             else {
@@ -449,7 +453,11 @@ export class ServiceWorkForFullWorker {
                                 });
                                 cursorPoints.set(key, {
                                     workState: EvevtWorkState.Done,
-                                    op: [],
+                                    op: data.filter((_v, i) => {
+                                        if (i % pointUnit !== pointUnit - 1) {
+                                            return true;
+                                        }
+                                    }).slice(-2),
                                 });
                             }
                             isNext = true;

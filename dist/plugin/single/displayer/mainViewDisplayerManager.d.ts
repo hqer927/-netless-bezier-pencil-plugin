@@ -20,6 +20,5 @@ export declare class MainViewSingleDisplayerManager extends MainViewDisplayerMan
     };
     constructor(control: TeachingAidsSingleManager, internalMsgEmitter: EventEmitter2);
     setCanvassStyle(): void;
-    destroy(): void;
     createMainViewDisplayer(mainView: HTMLDivElement): MainViewDisplayerManager;
 }

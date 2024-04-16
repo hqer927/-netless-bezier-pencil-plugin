@@ -4,26 +4,35 @@ import { MemberState, TeachingAidsPluginLike, TeachingAidsPluginOptions } from "
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManager } from "../component/textEditor";
-import type { Camera, Rectangle, Room, RoomMember } from "white-web-sdk";
+import type { Camera, Displayer, DisplayerCallbacks, Player, Rectangle, Room, RoomMember } from "white-web-sdk";
 import { CursorManager } from "../cursors";
 import { ViewContainerManager } from "./baseViewContainerManager";
 import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools/base";
 import { ICameraOpt } from "../core/types";
+export interface BaseTeachingAidsManagerProps {
+    displayer: Displayer<DisplayerCallbacks>;
+    plugin?: TeachingAidsPluginLike;
+    options?: TeachingAidsPluginOptions;
+}
 /** 插件管理器 */
 export declare abstract class BaseTeachingAidsManager {
     static InternalMsgEmitter: EventEmitter2;
-    readonly plugin: TeachingAidsPluginLike;
+    plugin?: TeachingAidsPluginLike;
     room?: Room;
+    play?: Player;
+    collector?: Collector;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
-    readonly collector: Collector;
     readonly cursor: CursorManager;
     readonly textEditorManager: TextEditorManager;
     readonly worker: MasterControlForWorker;
     abstract readonly viewContainerManager: ViewContainerManager;
-    constructor(plugin: TeachingAidsPluginLike, options?: TeachingAidsPluginOptions);
+    constructor(params: BaseTeachingAidsManagerProps);
+    bindPlugin(plugin: TeachingAidsPluginLike): void;
+    /** 激活 plugin */
+    abstract activePlugin(): void;
     /** 初始化 */
     abstract init(): void;
     /** 激活worker */

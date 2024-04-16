@@ -3,7 +3,7 @@ import { EStrokeType, ShapeType } from "./types";
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManagerImpl } from "../component/textEditor";
-import { ApplianceNames, isRoom, toJS } from "white-web-sdk";
+import { ApplianceNames, isPlayer, isRoom, toJS } from "white-web-sdk";
 import { CursorManagerImpl } from "../cursors";
 import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
@@ -11,7 +11,7 @@ import { rgbToRgba } from "../collector/utils/color";
 import throttle from "lodash/throttle";
 /** 插件管理器 */
 export class BaseTeachingAidsManager {
-    constructor(plugin, options) {
+    constructor(params) {
         Object.defineProperty(this, "plugin", {
             enumerable: true,
             configurable: true,
@@ -24,6 +24,18 @@ export class BaseTeachingAidsManager {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "play", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "collector", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "pluginOptions", {
             enumerable: true,
             configurable: true,
@@ -31,12 +43,6 @@ export class BaseTeachingAidsManager {
             value: void 0
         });
         Object.defineProperty(this, "roomMember", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "collector", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -118,11 +124,12 @@ export class BaseTeachingAidsManager {
                 this.worker?.updateCamera(viewId, cameraOpt);
             }
         });
+        const { displayer, plugin, options } = params;
         this.plugin = plugin;
-        this.room = isRoom(plugin.displayer) ? plugin.displayer : undefined;
+        this.room = isRoom(displayer) ? displayer : undefined;
+        this.play = isPlayer(displayer) ? displayer : undefined;
         this.pluginOptions = options;
         this.roomMember = new RoomMemberManager();
-        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
         const props = {
             control: this,
             internalMsgEmitter: BaseTeachingAidsManager.InternalMsgEmitter
@@ -130,6 +137,15 @@ export class BaseTeachingAidsManager {
         this.cursor = new CursorManagerImpl(props);
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
+    }
+    bindPlugin(plugin) {
+        this.plugin = plugin;
+        if (this.collector) {
+            this.collector.removeStorageStateListener();
+        }
+        this.collector = new Collector(plugin, this.pluginOptions?.syncOpt?.interval);
+        this.cursor.activeCollector();
+        this.activePlugin();
     }
     /** 销毁 */
     destroy() {
@@ -218,6 +234,7 @@ export class BaseTeachingAidsManager {
         };
         switch (toolsKey) {
             case EToolsKey.Text:
+                opt.fontFamily = window.getComputedStyle(document.documentElement).getPropertyValue('font-family');
                 opt.fontSize = memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
                 opt.textAlign = memberState?.textAlign || 'left';
                 opt.verticalAlign = memberState?.verticalAlign || 'middle';
@@ -356,7 +373,7 @@ export class BaseTeachingAidsManager {
     }
     /** 异步获取指定路径下的缩略图 */
     async scenePreview(scenePath, img) {
-        const viewId = this.collector.getViewIdBySecenPath(scenePath);
+        const viewId = this.collector?.getViewIdBySecenPath(scenePath);
         if (!viewId) {
             return;
         }

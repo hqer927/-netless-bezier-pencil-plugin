@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import EventEmitter2 from "eventemitter2";
-import { BaseCollectorReducerAction, Collector, DiffOne, Storage_Selector_key, Storage_ViewId_ALL } from "../collector";
+import { BaseCollectorReducerAction, DiffOne, Storage_Selector_key, Storage_ViewId_ALL } from "../collector";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IMainMessage, IMainMessageRenderData, IRectType, IUpdateNodeOpt, IWorkerMessage, IworkId, ViewWorkerOptions } from "./types";
-import { ViewContainerManager } from "../plugin/baseViewContainerManager";
 import { BaseSubWorkModuleProps, EmitEventType, InternalMsgEmitterType } from "../plugin/types";
 import FullWorker from './worker/fullWorker.ts?worker&inline';
 import SubWorker from './worker/subWorker.ts?worker&inline';
@@ -22,8 +21,6 @@ export abstract class MasterController {
     /** 插件管理器 */
     readonly abstract control: BaseTeachingAidsManager;
     readonly abstract internalMsgEmitter: EventEmitter2;
-    /** view容器管理器 */
-    readonly abstract viewContainerManager: ViewContainerManager;
     /** worker线程管理器 */
     // protected abstract threadEngine?: WorkerManager;
     /** 本地原始点数据批任务数据池 */
@@ -91,7 +88,6 @@ export class MasterControlForWorker extends MasterController{
     protected currentLocalWorkData: IActiveWorkDataType;
     control: BaseTeachingAidsManager;
     internalMsgEmitter: EventEmitter2;
-    viewContainerManager!: ViewContainerManager;
     // protected threadEngine?: WorkerManager | undefined;
     protected localPointsBatchData: number[] = [];
     taskBatchData: Set<IWorkerMessage> = new Set();
@@ -117,7 +113,6 @@ export class MasterControlForWorker extends MasterController{
     private snapshotMap:Map<string, (value: ImageBitmap) => void> = new Map();
     private boundingRectMap:Map<string, (value: IRectType) => void> = new Map();
     private clearAllResolve?: (viewId:string) => void;
-    private collector: Collector;
     private localEventTimerId?: number;
     private undoTickerId?: number;
     private animationId: number|undefined;
@@ -125,16 +120,15 @@ export class MasterControlForWorker extends MasterController{
         super();
         const {control, internalMsgEmitter} = props;
         this.control = control;
-        this.collector = this.control.collector;
         this.maxLastSyncTime = (this.control.pluginOptions?.syncOpt?.interval || this.maxLastSyncTime ) * 0.5;
         this.internalMsgEmitter = internalMsgEmitter;
         this.currentLocalWorkData = {workState:EvevtWorkState.Pending};
     }
-    init(){
-        this.viewContainerManager = this.control.viewContainerManager;
-        this.on();
-        this.internalMsgEmitterListener();
-        this.isActive = true;
+    private get viewContainerManager() {
+        return this.control.viewContainerManager;
+    }
+    private get collector() {
+        return this.control.collector;
     }
     private get isRunSubWork(): boolean {
         const {toolsType} = this.currentToolsData;
@@ -204,6 +198,11 @@ export class MasterControlForWorker extends MasterController{
             return true;
         }
         return false
+    }
+    init(){
+        this.on();
+        this.internalMsgEmitterListener();
+        this.isActive = true;
     }
     on(): void {
         this.fullWorker = new FullWorker();
@@ -320,7 +319,7 @@ export class MasterControlForWorker extends MasterController{
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
                         const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                        this.collector.dispatch({type, selectIds, opt, isSync, viewId, scenePath });
+                        this.collector?.dispatch({type, selectIds, opt, isSync, viewId, scenePath });
                     }
                     break; 
                 }
@@ -400,7 +399,7 @@ export class MasterControlForWorker extends MasterController{
             switch (type) {
                 case EPostMessageType.DrawWork: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({
+                    this.collector?.dispatch({
                         type,
                         op,
                         workId,
@@ -413,7 +412,7 @@ export class MasterControlForWorker extends MasterController{
                 } 
                 case EPostMessageType.FullWork:{
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({
+                    this.collector?.dispatch({
                         type, 
                         ops, 
                         workId, 
@@ -428,12 +427,12 @@ export class MasterControlForWorker extends MasterController{
                 }
                 case EPostMessageType.UpdateNode:{
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({type, updateNodeOpt, workId, opt, ops, op, isSync, viewId, scenePath})
+                    this.collector?.dispatch({type, updateNodeOpt, workId, opt, ops, op, isSync, viewId, scenePath})
                     break;
                 }
                 case EPostMessageType.RemoveNode:{
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-                    this.collector.dispatch({type, removeIds, isSync, viewId, scenePath})
+                    this.collector?.dispatch({type, removeIds, isSync, viewId, scenePath})
                     break;
                 }
                 default:
@@ -461,7 +460,7 @@ export class MasterControlForWorker extends MasterController{
             if (this.viewContainerManager?.focuedView) {
                 const {id, focusScenePath} = this.viewContainerManager.focuedView;
                 if (isChangeToolsType && id && focusScenePath ) {
-                    if (this.collector.hasSelector(id, focusScenePath)) {
+                    if (this.collector?.hasSelector(id, focusScenePath)) {
                         this.blurSelector(id,focusScenePath)
                     }
                     if (this.control.textEditorManager.activeId) {
@@ -517,7 +516,7 @@ export class MasterControlForWorker extends MasterController{
             isRunSubWork: true,
         });
         this.runAnimation();
-        this.collector.dispatch({
+        this.collector?.dispatch({
             type: EPostMessageType.Clear,
             viewId
         })
@@ -536,14 +535,14 @@ export class MasterControlForWorker extends MasterController{
         }
         if (msgType && workId) {
             const d: IWorkerMessage & Pick<IWorkerMessage, 'workId'> = msg as IWorkerMessage;
-            d.workId = this.collector.isOwn(workId) ? this.collector.getLocalId(workId) : workId;
+            d.workId = this.collector?.isOwn(workId) ? this.collector?.getLocalId(workId) : workId;
             d.msgType = msgType;
             d.dataType = EDataType.Service;
             d.viewId = viewId;
             d.scenePath = scenePath;
             if (d.selectIds) {
                 d.selectIds = d.selectIds.map(id=>{
-                    return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
+                    return this.collector?.isOwn(id) ? this.collector?.getLocalId(id) : id;
                 })
             }
             if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
@@ -566,7 +565,7 @@ export class MasterControlForWorker extends MasterController{
         }
     }
     pullServiceData(viewId: string, scenePath: string): void {
-        const store = this.collector.storage[viewId] && this.collector.storage[viewId][scenePath] || undefined;
+        const store = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] || undefined;
         if (store) {
             let minZIndex:number|undefined;
             let maxZIndex:number|undefined;
@@ -575,7 +574,7 @@ export class MasterControlForWorker extends MasterController{
                 const msgType = store[key]?.type
                 if (msgType && key) {
                     const data:IWorkerMessage & Pick<IWorkerMessage, 'workId'> = cloneDeep(store[key]) as IWorkerMessage;
-                    data.workId = this.collector.isOwn(key) ? this.collector.getLocalId(key) : key;
+                    data.workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
                     data.viewId = viewId;
@@ -583,7 +582,7 @@ export class MasterControlForWorker extends MasterController{
                     data.useAnimation = false;
                     if (data.selectIds) {
                         data.selectIds = data.selectIds.map(id=>{
-                            return this.collector.isOwn(id) ? this.collector.getLocalId(id) : id;
+                            return this.collector?.isOwn(id) ? this.collector?.getLocalId(id) : id;
                         })
                     }
                     if (data.toolsType === EToolsKey.Text) {
@@ -689,7 +688,12 @@ export class MasterControlForWorker extends MasterController{
         subMsg.size && this.subWorker.postMessage(subMsg);
     }
     destroy(): void {
-        throw new Error("Method not implemented.");
+        this.unabled();
+        this.taskBatchData.clear();
+        this.localPointsBatchData.length = 0;
+        this.fullWorker.terminate();
+        this.subWorker.terminate();
+        this.isActive = false;
     }
     updateNode(workId:IworkId, updateNodeOpt:IUpdateNodeOpt, viewId:string, scenePath:string) {
         this.taskBatchData.add({
@@ -757,7 +761,7 @@ export class MasterControlForWorker extends MasterController{
         this.runAnimation();
         if (!justLocal) {
             const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-            this.collector.dispatch({
+            this.collector?.dispatch({
                 type: EPostMessageType.Clear,
                 viewId,
                 scenePath
@@ -775,15 +779,13 @@ export class MasterControlForWorker extends MasterController{
         })
     }
     private internalMsgEmitterListener () {
-        if (this.collector) {
-            this.methodBuilder = new MethodBuilderMain([
-                EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
-                EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-                EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
-                EmitEventType.SetFontStyle, EmitEventType.SetPoint
-            ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
-            this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
-        }
+        this.methodBuilder = new MethodBuilderMain([
+            EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
+            EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
+            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
+            EmitEventType.SetFontStyle, EmitEventType.SetPoint
+        ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
+        this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
     }
     originalEventLintener(workState: EvevtWorkState, point:[number,number],viewId:string) {
         switch (workState) {
@@ -947,7 +949,7 @@ export class MasterControlForWorker extends MasterController{
         this.control.cursor.sendEvent(point,viewId);
     }
     blurSelector(viewId: string, scenePath:string, undoTickerId?: number) {
-        if (this.collector.hasSelector(viewId, scenePath)) {
+        if (this.collector?.hasSelector(viewId, scenePath)) {
             this.taskBatchData.add({
                 workId: Storage_Selector_key,
                 selectIds: [],
@@ -963,22 +965,22 @@ export class MasterControlForWorker extends MasterController{
     getBoundingRect(scenePath: string):Promise<IRectType>|undefined{
         const cur = this.boundingRectMap?.get(scenePath);
         if (!cur) {
-            const scenes = this.collector.getScenePathData(scenePath);
+            const scenes = this.collector?.getScenePathData(scenePath);
             if (!scenes) {
                 return;
             }
             Object.keys(scenes).forEach(key=>{
-                if(this.collector.getLocalId(key) === Storage_Selector_key){
+                if(this.collector?.getLocalId(key) === Storage_Selector_key){
                     delete scenes[key];
                 }
             })
-            if (Object.keys(scenes).length && this.viewContainerManager.mainView) {
+            if (Object.keys(scenes).length && this.viewContainerManager.mainView && this.viewContainerManager.mainView.cameraOpt) {
                 const data:IWorkerMessage = {
                     msgType: EPostMessageType.BoundingBox,
                     dataType: EDataType.Local,
                     scenePath,
                     scenes,
-                    cameraOpt: this.viewContainerManager.mainView.cameraOpt,
+                    cameraOpt: {...this.viewContainerManager.mainView.cameraOpt},
                     isRunSubWork: true,
                     viewId: this.viewContainerManager.mainView.id
                 }
@@ -996,16 +998,16 @@ export class MasterControlForWorker extends MasterController{
     getSnapshot(scenePath: string, width?: number, height?: number, camera?:Pick<ICameraOpt,"centerX" | "centerY" | "scale">) {
         const cur = this.snapshotMap?.get(scenePath);
         if (!cur) {
-            const viewId = this.collector.getViewIdBySecenPath(scenePath);
+            const viewId = this.collector?.getViewIdBySecenPath(scenePath);
             if (!viewId) {
                 return;
             }
-            const scenes = this.collector.getStorageData(viewId, scenePath);
+            const scenes = this.collector?.getStorageData(viewId, scenePath);
             if (!scenes){
                 return;
             }
             Object.keys(scenes).forEach(key=>{
-                if(this.collector.getLocalId(key) === Storage_Selector_key){
+                if(this.collector?.getLocalId(key) === Storage_Selector_key){
                     delete scenes[key];
                 }
             })

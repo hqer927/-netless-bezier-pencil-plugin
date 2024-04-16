@@ -41,21 +41,21 @@ export class MainViewSingleDisplayerManager extends MainViewDisplayerManager {
             }
         }
     }
-    destroy(){
-        if (this.eventTragetElement) {
-            this.removeDisplayerEvent(this.eventTragetElement)
-        } 
-    }
     createMainViewDisplayer(mainView: HTMLDivElement): MainViewDisplayerManager {
-        this.containerOffset = this.getContainerOffset(mainView,this.containerOffset);
-        this.eventTragetElement = (mainView.parentElement as HTMLDivElement).children[0] as HTMLDivElement;
-        ReactDOM.render(<BaseViewDisplayer viewId={this.viewId} maranger={this} refs={{
-            canvasFloatRef: this.canvasFloatRef,
-            canvasBgRef: this.canvasBgRef,
-            floatBarRef: this.floatBarRef,
-            floatBarCanvasRef:this.floatBarCanvasRef
-        }}/>, mainView);
-        this.bindDisplayerEvent(this.eventTragetElement);
+        if (!this.vDom) {
+            this.containerOffset = this.getContainerOffset(mainView,this.containerOffset);
+            this.eventTragetElement = (mainView.parentElement as HTMLDivElement).children[0] as HTMLDivElement;
+            mainView.innerHTML = '';
+            ReactDOM.render(<BaseViewDisplayer viewId={this.viewId} maranger={this} refs={{
+                canvasFloatRef: this.canvasFloatRef,
+                canvasBgRef: this.canvasBgRef,
+                floatBarRef: this.floatBarRef,
+                floatBarCanvasRef:this.floatBarCanvasRef
+            }}/>, mainView);
+            if (this.control.room) {
+                this.bindDisplayerEvent(this.eventTragetElement);
+            }
+        }
         return this;
     }
 }
