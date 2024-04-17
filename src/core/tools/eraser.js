@@ -208,16 +208,20 @@ export class EraserShape extends BaseShapeTool {
         }
         return res;
     }
+    isLineEraser(toolsKey, isLine) {
+        if (toolsKey === EToolsKey.Pencil && !isLine) {
+            return false;
+        }
+        return true;
+    }
     remove(props) {
         const { curNodeMap, removeIds, newWorkDatas } = props;
         const { isLine } = this.workOptions;
-        let rect;
+        let r;
         for (const [key, np] of curNodeMap.entries()) {
             if (np.rect && this.eraserRect && this.eraserPolyline && isIntersect(this.eraserRect, np.rect)) {
-                const op = np.op;
-                if (!op?.length) {
-                    continue;
-                }
+                const { op, toolsType } = np;
+                const _isLine = this.isLineEraser(toolsType, isLine);
                 const ps = [];
                 const polyline = [];
                 for (let i = 0; i < op.length; i += 3) {
@@ -225,13 +229,14 @@ export class EraserShape extends BaseShapeTool {
                     polyline.push(p);
                     ps.push(new Point2d(p.x, p.y));
                 }
-                const rect1 = getRectFromPoints(ps);
-                if (isIntersect(rect1, this.eraserRect)) {
+                const rect = ps.length && getRectFromPoints(ps) || np.rect;
+                if (isIntersect(rect, this.eraserRect)) {
                     if (polyline.length > 1) {
                         const intersect = lineclip.polyline(polyline.map(p => p.XY), this.eraserPolyline);
                         if (intersect.length) {
+                            //console.log('remove', np.name)
                             removeIds.add(np.name);
-                            if (!isLine && np.toolsType === EToolsKey.Pencil) {
+                            if (!_isLine) {
                                 const intersectArr = this.translateIntersect(intersect);
                                 const newLines = this.cutPolyline(intersectArr, polyline);
                                 for (let i = 0; i < newLines.length; i++) {
@@ -242,7 +247,7 @@ export class EraserShape extends BaseShapeTool {
                                     });
                                     if (np.opt && np.toolsType && this.vNodes) {
                                         this.vNodes.setInfo(workId, {
-                                            rect: rect1 || np.rect,
+                                            rect,
                                             op: op,
                                             opt: np.opt,
                                             canRotate: np.canRotate,
@@ -263,18 +268,18 @@ export class EraserShape extends BaseShapeTool {
                     else {
                         removeIds.add(np.name);
                     }
-                    rect = computRect(rect, rect1);
+                    r = computRect(r, rect);
                 }
             }
         }
         removeIds.forEach(r => this.vNodes?.delete(r));
-        if (rect) {
-            rect.x -= BaseShapeTool.SafeBorderPadding;
-            rect.y -= BaseShapeTool.SafeBorderPadding;
-            rect.w += BaseShapeTool.SafeBorderPadding * 2;
-            rect.h += BaseShapeTool.SafeBorderPadding * 2;
+        if (r) {
+            r.x -= BaseShapeTool.SafeBorderPadding;
+            r.y -= BaseShapeTool.SafeBorderPadding;
+            r.w += BaseShapeTool.SafeBorderPadding * 2;
+            r.h += BaseShapeTool.SafeBorderPadding * 2;
         }
-        return rect;
+        return r;
     }
     consume(props) {
         const { op } = props.data;

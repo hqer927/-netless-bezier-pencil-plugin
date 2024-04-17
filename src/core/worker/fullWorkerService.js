@@ -208,8 +208,10 @@ export class ServiceWorkForFullWorker {
                 type,
                 updateNodeOpt,
                 ops,
-                useAnimation: typeof useAnimation !== 'undefined' ? useAnimation : typeof updateNodeOpt?.useAnimation !== 'undefined' ? updateNodeOpt?.useAnimation : true,
-                oldRect: this.vNodes.get(key)?.rect
+                useAnimation: typeof useAnimation !== 'undefined' ? useAnimation :
+                    typeof updateNodeOpt?.useAnimation !== 'undefined' ? updateNodeOpt?.useAnimation : true,
+                oldRect: this.vNodes.get(key)?.rect,
+                isDiff: false
             };
             if (toolsType && opt) {
                 workItem = this.setNodeKey(workItem, toolsType, opt);
@@ -228,6 +230,7 @@ export class ServiceWorkForFullWorker {
             workShape.updateNodeOpt = updateNodeOpt;
         }
         if (op) {
+            workShape.isDiff = this.hasDiffData(workShape.animationWorkData || [], op, workShape.toolsType);
             workShape.animationWorkData = op;
         }
         if (workShape.node && workShape.node.getWorkId() !== key) {
@@ -236,7 +239,31 @@ export class ServiceWorkForFullWorker {
         if (workShape.toolsType !== toolsType && toolsType && opt) {
             this.setNodeKey(workShape, toolsType, opt);
         }
-        // this.workShapes.set(key,workShape);
+    }
+    hasDiffData(oldOp, newOp, toolsType) {
+        const oldLength = oldOp.length;
+        if (newOp.length < oldLength) {
+            return true;
+        }
+        switch (toolsType) {
+            case EToolsKey.Pencil: {
+                for (let i = 0; i < oldLength; i += 3) {
+                    if (newOp[i] !== oldOp[i] || newOp[i + 1] !== oldOp[i + 1]) {
+                        return true;
+                    }
+                }
+                break;
+            }
+            case EToolsKey.LaserPen: {
+                for (let i = 0; i < oldLength; i += 2) {
+                    if (newOp[i] !== oldOp[i] || newOp[i + 1] !== oldOp[i + 1]) {
+                        return true;
+                    }
+                }
+                break;
+            }
+        }
+        return false;
     }
     animationDraw() {
         this.animationId = undefined;
@@ -251,13 +278,6 @@ export class ServiceWorkForFullWorker {
                 case EToolsKey.Text: {
                     if (workShape.node) {
                         const oldRect = workShape.oldRect;
-                        // if (oldRect) {
-                        //     bgClearRenders.push({
-                        //         rect: oldRect,
-                        //         isClear: true,
-                        //         clearCanvas: ECanvasShowType.Bg,
-                        //     })
-                        // }
                         const rect = workShape.node?.consumeService({
                             op: workShape.animationWorkData || [],
                             isFullWork: true
@@ -272,11 +292,6 @@ export class ServiceWorkForFullWorker {
                         });
                         workShape.node?.clearTmpPoints();
                         this.workShapes.delete(key);
-                        // bgRenders.push({
-                        //     rect,
-                        //     drawCanvas: ECanvasShowType.Bg,
-                        //     isFullWork: true
-                        // })
                     }
                     break;
                 }
@@ -394,11 +409,11 @@ export class ServiceWorkForFullWorker {
                     else if (workShape.useAnimation) {
                         const pointUnit = 3;
                         const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
-                        const lastPointIndex = Math.max(0, (workShape.animationIndex || 0) - pointUnit);
+                        const lastPointIndex = !workShape.isDiff ? Math.max(0, (workShape.animationIndex || 0) - pointUnit) : 0;
                         const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
-                        // let rect1: IRectType | undefined;
                         if (!workShape.isDel) {
-                            if ((workShape.animationIndex || 0) < nextAnimationIndex) {
+                            if ((workShape.animationIndex || 0) < nextAnimationIndex || workShape.isDiff) {
+                                // console.log('animationDraw', lastPointIndex, workShape.animationIndex, nextAnimationIndex, data)
                                 const rect = workShape.node?.consumeService({
                                     op: data,
                                     isFullWork: false,
@@ -410,14 +425,19 @@ export class ServiceWorkForFullWorker {
                                     viewId: this.viewId
                                 });
                                 workShape.animationIndex = nextAnimationIndex;
+                                if (workShape.isDiff) {
+                                    workShape.isDiff = false;
+                                }
                                 if (data.length) {
+                                    const cursorOp = data.filter((_v, i) => {
+                                        if (i % pointUnit !== pointUnit - 1) {
+                                            return true;
+                                        }
+                                    }).slice(-2);
+                                    // console.log('cursorPoints', cursorOp, lastPointIndex, nextAnimationIndex, data.length)
                                     cursorPoints.set(key, {
                                         workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                                        op: data.filter((_v, i) => {
-                                            if (i % pointUnit !== pointUnit - 1) {
-                                                return true;
-                                            }
-                                        }).slice(-2),
+                                        op: cursorOp,
                                     });
                                 }
                             }

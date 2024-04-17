@@ -8,6 +8,7 @@ import { FloatBar } from "../displayer/floatBar";
 import { RotateBtn } from "../displayer/rotate";
 import { CursorManager } from '../displayer/cursor';
 import { ResizableBox, ResizableTwoBox } from '../displayer/resizable';
+import cloneDeep from 'lodash/cloneDeep';
 export const DisplayerContext = React.createContext({
     maranger: undefined,
     floatBarColors: [],
@@ -99,9 +100,10 @@ export class BaseViewDisplayer extends React.Component {
         }
     }
     setActiveTextEditor(activeTextId) {
+        const editors = cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
         this.setState({
             activeTextId,
-            editors: this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId)
+            editors
         });
     }
     setActiveCursor(cursorInfo) {

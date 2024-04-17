@@ -1,6 +1,6 @@
 import { TextEditorInfo, TextOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../../plugin/types";
-import { ICameraOpt, IWorkerMessage } from "../../core";
+import { EDataType, ICameraOpt, IWorkerMessage } from "../../core";
 import EventEmitter2 from "eventemitter2";
 import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
 export interface TextEditorManager {
@@ -31,13 +31,12 @@ export interface TextEditorManager {
     /** 修改文本来源于main */
     updateTextForMasterController(params: Partial<TextEditorInfo> & {
         workId: string;
-        isDel?: boolean;
         viewId: string;
     }): void;
     /** 修改文本来源于worker */
     updateTextForWorker(params: Partial<TextEditorInfo> & {
         workId: string;
-        isDel?: boolean;
+        dataType?: EDataType;
         viewId: string;
     }): void;
     /** 编辑文本 */
@@ -45,6 +44,8 @@ export interface TextEditorManager {
     get(workId: string): TextEditorInfo | undefined;
     /** 删除组件 */
     delete(workId: string, canSync?: boolean, canWorker?: boolean): void;
+    /** 批量删除组件 */
+    deleteBatch(workIds: string[], canSync?: boolean, canWorker?: boolean): void;
     /** 清空指定view下文本 */
     clear(viewId: string, justLocal?: boolean): void;
     /** 销毁 */
@@ -66,7 +67,7 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
     get interceptors(): {
         set: (workId: string, info: TextEditorInfo) => true | undefined;
         delete: (workId: string) => true | undefined;
-        clear(): void;
+        clear(): boolean;
     };
     computeTextActive(point: [number, number], viewId: string): void;
     checkEmptyTextBlur(): void;
@@ -84,16 +85,15 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
         workId: string;
         viewId: string;
         scenePath: string;
-        isDel?: boolean;
     }): void;
     updateTextForWorker(params: TextEditorInfo & {
         workId: string;
         viewId: string;
         scenePath: string;
-        isDel?: boolean;
     }): void;
     get(workId: string): TextEditorInfo | undefined;
     delete(workId: string, canSync?: boolean, canWorker?: boolean): void;
+    deleteBatch(workIds: string[], canSync?: boolean | undefined, canWorker?: boolean | undefined): void;
     clear(viewId: string, justLocal?: boolean): void;
     destory(): void;
 }

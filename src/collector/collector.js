@@ -224,7 +224,7 @@ export class Collector extends BaseCollector {
                 if (scenePath && workId && typeof index === 'number' && op?.length) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[viewId][scenePath][key];
-                    const _op = (old?.op || []).slice(0, index).concat(op);
+                    const _op = index ? (old?.op || []).slice(0, index).concat(op) : (op || old?.op);
                     if (old && _op) {
                         this.updateValue(key.toString(), {
                             ...old,
@@ -286,7 +286,6 @@ export class Collector extends BaseCollector {
                             old.opt = opt;
                         }
                         old.type = EPostMessageType.FullWork;
-                        //console.log('dispatch---111',key, old)
                         this.updateValue(key.toString(), old, { isSync, viewId, scenePath });
                     }
                 }

@@ -28,6 +28,7 @@ export declare class ServiceWorkForFullWorker implements ServiceWork {
     removeSelectWork(data: IWorkerMessage): void;
     private removeNode;
     private activeWorkShape;
+    private hasDiffData;
     private animationDraw;
     private runAnimation;
     private computNextAnimationIndex;

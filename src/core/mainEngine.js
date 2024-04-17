@@ -295,7 +295,7 @@ export class MasterControlForWorker extends MasterController {
                 }
                 // console.log('selector - render', render, sp, workerTasksqueueCount)
                 // if (render?.length) {
-                //     console.log('selector - fullWorker - render', render)
+                //     console.log('selector - fullWorker - render', render.map((r)=>(r.isFullWork?({r:r.rect, w: r.imageBitmap?.width, h: r.imageBitmap?.height, node:r}):null)))
                 // }
                 if (sp?.length) {
                     this.collectorSyncData(sp);
@@ -332,7 +332,7 @@ export class MasterControlForWorker extends MasterController {
                     this.collectorSyncData(sp);
                 }
                 // if (render?.length) {
-                //     console.log('selector - subWorker - sp', sp)
+                //     console.log('selector - subWorker - render', render)
                 // }
                 if (!drawCount && render?.length) {
                     this.viewContainerManager.render(render);
@@ -359,7 +359,7 @@ export class MasterControlForWorker extends MasterController {
     collectorSyncData(sp) {
         let isHasOther = false;
         for (const data of sp) {
-            const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points, selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath } = data;
+            const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points, selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath, dataType } = data;
             if (!viewId) {
                 console.error('collectorSyncData', data);
                 return;
@@ -432,17 +432,22 @@ export class MasterControlForWorker extends MasterController {
                         const point = this.viewContainerManager.transformToOriginPoint(opt?.boxPoint || [0, 0], viewId);
                         const boxSize = opt?.boxSize || [0, 0];
                         const cameraOpt = this.viewContainerManager.getView(viewId)?.cameraOpt;
-                        this.control.textEditorManager.updateTextForWorker({
-                            x: point[0],
-                            y: point[1],
-                            w: boxSize[0],
-                            h: boxSize[1],
-                            scale: cameraOpt?.scale || 1,
-                            workId: workId,
-                            opt: opt,
-                            isDel: !opt,
-                            viewId,
-                        });
+                        if (!opt) {
+                            this.control.textEditorManager.delete(workId, false, false);
+                        }
+                        else {
+                            this.control.textEditorManager.updateTextForWorker({
+                                x: point[0],
+                                y: point[1],
+                                w: boxSize[0],
+                                h: boxSize[1],
+                                scale: cameraOpt?.scale || 1,
+                                workId: workId,
+                                opt: opt,
+                                dataType,
+                                viewId,
+                            });
+                        }
                     }
                     break;
                 case EPostMessageType.GetTextActive:
@@ -451,6 +456,7 @@ export class MasterControlForWorker extends MasterController {
                             workId: workId,
                             isActive: true,
                             viewId,
+                            dataType: EDataType.Local
                         });
                     }
                     break;
@@ -511,6 +517,7 @@ export class MasterControlForWorker extends MasterController {
                 }
                 case EPostMessageType.RemoveNode: {
                     const scenePath = this.viewContainerManager.getCurScenePath(viewId);
+                    removeIds && this.control.textEditorManager.deleteBatch(removeIds, false, false);
                     this.collector?.dispatch({ type, removeIds, isSync, viewId, scenePath });
                     break;
                 }

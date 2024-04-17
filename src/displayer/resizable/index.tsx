@@ -79,7 +79,7 @@ export const ResizableBox = (props:{
                 EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
         }
     }, 100, {'leading':false})
-    const onResizeStop = (e: MouseEvent | TouchEvent, _dir: Direction, _ele: HTMLElement, delta: NumberSize) => {
+    const onResizeStop = throttle((e: MouseEvent | TouchEvent, _dir: Direction, _ele: HTMLElement, delta: NumberSize) => {
         e.preventDefault();
         e.stopPropagation();
         const box: {x: number, y: number, w: number, h: number} = {
@@ -113,7 +113,7 @@ export const ResizableBox = (props:{
         }
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.ScaleNode, {workIds:[Storage_Selector_key], box, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
-    }
+    }, 100, {'leading':false})
     return (
         <Resizable className={`${className}`} 
             boundsByDirection={true}
@@ -178,7 +178,7 @@ export const ResizableTwoBtn = (props:{
                 EmitEventType.SetPoint, {workId: Storage_Selector_key, pointMap, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
         }
     }, 50, {'leading':false})
-    const onDragEndHandler = (e: DraggableEvent, pos: DraggableData) =>{
+    const onDragEndHandler = throttle((e: DraggableEvent, pos: DraggableData) =>{
         e.preventDefault();
         e.stopPropagation();
         setOperationType(EmitEventType.None);
@@ -195,7 +195,7 @@ export const ResizableTwoBtn = (props:{
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.SetPoint, {workId: Storage_Selector_key, pointMap, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
         }
-    }
+    }, 100, {'leading':false})
     return (
         <Draggable
             position={position}

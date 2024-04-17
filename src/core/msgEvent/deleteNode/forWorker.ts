@@ -101,7 +101,8 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
             return {
                 type: EPostMessageType.TextUpdate,
                 toolsType: EToolsKey.Text,
-                workId
+                workId,
+                dataType: EDataType.Local
             }    
         }
     }

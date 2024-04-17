@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import cloneDeep from "lodash/cloneDeep";
 import { FloatBtns } from "../../displayer/floatBtns";
-import { EvevtWorkState } from "../../core";
+import { EDataType, EvevtWorkState } from "../../core";
 import isNumber from "lodash/isNumber";
 export const TextView = (props) => {
     const { data } = props;
@@ -52,7 +52,7 @@ export const TextView = (props) => {
             transformOrigin: `left top`,
             pointerEvents: 'none'
         } },
-        React.createElement("div", { className: `editor ${workState === EvevtWorkState.Done ? 'readOnly' : ''}`, style: style, dangerouslySetInnerHTML: { __html: html } })));
+        React.createElement("div", { className: `editor ${(workState !== EvevtWorkState.Start && workState !== EvevtWorkState.Doing) ? 'readOnly' : ''}`, style: style, dangerouslySetInnerHTML: { __html: html } })));
 };
 export const TextSelectorView = React.memo((props) => {
     const { data, position, workId, selectIds } = props;
@@ -125,17 +125,14 @@ export const TextEditor = (props) => {
                 return `${total}<div>${c}</div>`;
             }, '');
         }
-        // console.log('useEffect', html)
         setHtml(html);
         Promise.resolve().then(() => {
-            // console.log('componentDidUpdate1')
             if (ref.current) {
                 ref.current.click();
             }
         });
     }, []);
     useEffect(() => {
-        // console.log('TextEditor---1', ref.current?.offsetWidth, ref.current?.offsetHeight);
         if (ref.current?.offsetWidth && ref.current?.offsetHeight) {
             updateOptInfo({
                 activeTextId: workId,
@@ -245,7 +242,7 @@ export class TextViewInSelector extends React.Component {
     }
     updateOptInfo(param) {
         const { activeTextId, update, syncData } = param;
-        const _info = activeTextId && cloneDeep(this.props.editors?.get(activeTextId));
+        const _info = activeTextId && cloneDeep(this.props.manager.control.textEditorManager?.get(activeTextId) || this.props.editors?.get(activeTextId));
         if (_info && _info.opt) {
             _info.opt = {
                 ..._info.opt,
@@ -255,7 +252,6 @@ export class TextViewInSelector extends React.Component {
                 _info.canSync = syncData.canSync;
                 _info.canWorker = syncData.canWorker;
             }
-            // console.log('updateOptInfo', activeTextId, update, cloneDeep(_info));
             this.props.manager.control.textEditorManager.updateForLocalEditor(activeTextId, _info);
         }
     }
@@ -287,7 +283,6 @@ export class TextEditorContainer extends TextViewInSelector {
         const texts = this.getInnerText(e.nativeEvent.target);
         const activeTextId = this.props.activeTextId;
         if (activeTextId) {
-            // console.log('handleKeyUp', texts, e.nativeEvent.target.offsetWidth)
             this.updateOptInfo({
                 activeTextId,
                 update: {
@@ -305,7 +300,6 @@ export class TextEditorContainer extends TextViewInSelector {
     handleFocus(e) {
         const activeTextId = this.props.activeTextId;
         if (activeTextId) {
-            // console.log('handleFocus', activeTextId)
             this.updateOptInfo({
                 activeTextId,
                 update: {
@@ -325,7 +319,7 @@ export class TextEditorContainer extends TextViewInSelector {
             this.props.editors.forEach((value, key) => {
                 const notShow = this.props.selectIds.includes(key) && this.props.activeTextId !== key;
                 if (!notShow) {
-                    const isActive = this.props.activeTextId == key;
+                    const isActive = this.props.activeTextId == key && value.dataType === EDataType.Local;
                     const editor = isActive ? React.createElement(TextEditor, { key: key, data: value, workId: key, handleFocus: this.handleFocus.bind(this), handleKeyUp: this.handleKeyUp.bind(this), updateOptInfo: this.updateOptInfo.bind(this) }) : React.createElement(TextView, { key: key, data: value, workId: key });
                     editors.push(editor);
                 }

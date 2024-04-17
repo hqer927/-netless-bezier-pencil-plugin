@@ -67,7 +67,7 @@ export class PencilShape extends BaseShapeTool {
         }
         const {workId}= data;
         const {tasks, effects, consumeIndex} = this.transformData(data,false);
-        this.syncIndex = Math.min(this.syncIndex, consumeIndex);
+        this.syncIndex = Math.min(this.syncIndex, consumeIndex, Math.max(0, this.tmpPoints.length - 2));
         const attrs = {
             name: workId?.toString()
         }
@@ -103,6 +103,7 @@ export class PencilShape extends BaseShapeTool {
         this.tmpPoints.slice(index).forEach(p=>{
           op.push(p.x,p.y, this.computRadius(p.z, this.workOptions.thickness))
         })
+        // !isSubWorker && console.log('collectorAsyncData---0---0', this.tmpPoints.length, index, isSync, consumeIndex)
         return {
           rect,
           type: EPostMessageType.DrawWork,
@@ -593,17 +594,16 @@ export class PencilShape extends BaseShapeTool {
           const lastTemPoint = this.tmpPoints[lastIndex];
           const vector = Vec2d.Sub(nextPoint, lastTemPoint).uni();
           // 向量一致的点，在z可线性变化下移除
+          if(nextPoint.isNear(lastTemPoint, thickness / 2)){
+            willChangeMinIndex = Math.min(lastIndex, willChangeMinIndex);
+            continue;
+          }
           if (Vec2d.Equals(vector, lastTemPoint.v, 0.02)) {
               if (effects && lastTemPoint.t) {
                 effects.add(lastTemPoint.t);
               }
               this.tmpPoints.pop();
               willChangeMinIndex = Math.min(lastIndex, willChangeMinIndex);
-              continue;
-          }
-          if(nextPoint.isNear(lastTemPoint, thickness / 2)){
-              willChangeMinIndex = Math.min(lastIndex, willChangeMinIndex);
-              continue;
           }
           nextPoint.setv(vector);
           this.tmpPoints.push(nextPoint);

@@ -247,7 +247,6 @@ export abstract class ViewContainerManager {
         const view = this.getView(viewId);
         const vDom = view?.displayer.vDom;
         if (vDom) {
-            // console.log('setActiveTextEditor', viewId, activeTextId);
             vDom.setActiveTextEditor(activeTextId);
         }
     }

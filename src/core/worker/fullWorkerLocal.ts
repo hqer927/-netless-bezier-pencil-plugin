@@ -1,5 +1,5 @@
 import throttle from "lodash/throttle";
-import { ECanvasShowType, EPostMessageType, IWorkerMessage, IMainMessage, IRectType, EToolsKey, IBatchMainMessage, IworkId, IMainMessageRenderData, EvevtWorkState, IUpdateNodeOpt } from "..";
+import { ECanvasShowType, EPostMessageType, IWorkerMessage, IMainMessage, IRectType, EToolsKey, IBatchMainMessage, IworkId, IMainMessageRenderData, EvevtWorkState, IUpdateNodeOpt, EDataType } from "..";
 import { BaseShapeOptions, EraserShape, PencilShape, SelectorShape, ShapeStateInfo } from "../tools";
 import { ISubWorkerInitOption, LocalWork } from "./base";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
@@ -402,6 +402,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                         ...info,
                         workId,
                         type: EPostMessageType.TextUpdate,
+                        dataType: EDataType.Local
                     })
                 } else {
                     sp.push(

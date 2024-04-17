@@ -11,16 +11,19 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import { HightLightBox, HightLightTwoBox } from "../highlightBox";
 import { Storage_Selector_key } from "../../collector";
 import { TextViewInSelector } from "../../component/textEditor/view";
+import isEqual from "lodash/isEqual";
 export const FloatBar = React.forwardRef((props, ref) => {
     const { floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType, maranger } = useContext(DisplayerContext);
     const { className, editors, activeTextId } = props;
     const textRef = useRef(null);
     const [workState, setWorkState] = useState(EvevtWorkState.Pending);
+    const [cachePoint, setCachePoint] = useState();
     const onDragStartHandler = (e) => {
         e.preventDefault();
         e.stopPropagation();
         setOperationType(EmitEventType.TranslateNode);
         setWorkState(EvevtWorkState.Start);
+        setCachePoint(position);
         if (maranger?.control.room) {
             maranger.control.room.disableDeviceInputs = true;
         }
@@ -75,23 +78,23 @@ export const FloatBar = React.forwardRef((props, ref) => {
                 height: floatBarData.h,
                 zIndex,
                 pointerEvents: zIndex < 2 ? 'none' : 'auto',
-            } : undefined, onClick: (e) => {
+            } : undefined, onClick: throttle((e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (maranger && editors?.size && textRef.current && isEqual(cachePoint, position)) {
+                    const point = maranger.getPoint(e.nativeEvent);
+                    point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId);
+                }
+                return false;
+            }, 100, { 'leading': false }), onTouchEndCapture: throttle((e) => {
+                e.stopPropagation();
+                e.preventDefault();
                 if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
                     const point = maranger.getPoint(e.nativeEvent);
                     point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId);
                 }
-                e.stopPropagation();
-                e.preventDefault();
                 return false;
-            }, onTouchEndCapture: (e) => {
-                if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
-                    const point = maranger.getPoint(e.nativeEvent);
-                    point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId);
-                }
-                e.stopPropagation();
-                e.preventDefault();
-                return false;
-            } },
+            }, 100, { 'leading': false }) },
             FloatBtnsUI,
             React.createElement("div", { className: "bezier-pencil-plugin-floatCanvas-box", style: {
                     width: '100%',

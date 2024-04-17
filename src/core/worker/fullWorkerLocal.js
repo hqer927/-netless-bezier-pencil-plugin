@@ -1,5 +1,5 @@
 import throttle from "lodash/throttle";
-import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "..";
+import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState, EDataType } from "..";
 import { EraserShape, SelectorShape } from "../tools";
 import { LocalWork } from "./base";
 import { computRect, isIntersectForPoint } from "../utils";
@@ -442,6 +442,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                         ...info,
                         workId,
                         type: EPostMessageType.TextUpdate,
+                        dataType: EDataType.Local
                     });
                 }
                 else {

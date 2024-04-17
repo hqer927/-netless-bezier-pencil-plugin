@@ -232,6 +232,7 @@ export type IServiceWorkItem = {
     selectIds?: string[];
     oldRect?:IRectType;
     totalRect?: IRectType;
+    isDiff?:boolean;
 }
 export type BaseNodeMapItem = {
     name: string;

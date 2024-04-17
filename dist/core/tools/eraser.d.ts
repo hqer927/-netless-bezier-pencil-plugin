@@ -26,6 +26,7 @@ export declare class EraserShape extends BaseShapeTool {
     private cutPolyline;
     private isSamePoint;
     private translateIntersect;
+    private isLineEraser;
     private remove;
     consume(props: {
         data: IWorkerMessage;

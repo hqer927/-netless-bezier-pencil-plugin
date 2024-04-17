@@ -1,5 +1,6 @@
 import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
 import { ViewContainerMultiManager } from "./containerManager";
+//import { cloneDeep } from "lodash";
 export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     constructor(params) {
         super(params);
@@ -32,7 +33,7 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     activePlugin() {
         if (this.collector) {
             this.collector.addStorageStateListener((diff) => {
-                console.log('addStorageStateListener', diff);
+                // console.log('addStorageStateListener', cloneDeep(diff))
                 if (this.collector?.storage) {
                     const curKeys = Object.keys(this.collector.storage);
                     if (curKeys.length === 0) {

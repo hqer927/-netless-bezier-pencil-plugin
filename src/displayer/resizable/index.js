@@ -71,7 +71,7 @@ export const ResizableBox = (props) => {
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, workState: EvevtWorkState.Doing, viewId: maranger?.viewId });
         }
     }, 100, { 'leading': false });
-    const onResizeStop = (e, _dir, _ele, delta) => {
+    const onResizeStop = throttle((e, _dir, _ele, delta) => {
         e.preventDefault();
         e.stopPropagation();
         const box = {
@@ -104,7 +104,7 @@ export const ResizableBox = (props) => {
             maranger.control.room.disableDeviceInputs = false;
         }
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, workState: EvevtWorkState.Done, viewId: maranger?.viewId });
-    };
+    }, 100, { 'leading': false });
     return (React.createElement(Resizable, { className: `${className}`, boundsByDirection: true, size: {
             width: floatBarData?.w || 0,
             height: floatBarData?.h || 0,
@@ -151,7 +151,7 @@ export const ResizableTwoBtn = (props) => {
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetPoint, { workId: Storage_Selector_key, pointMap, workState: EvevtWorkState.Doing, viewId: maranger?.viewId });
         }
     }, 50, { 'leading': false });
-    const onDragEndHandler = (e, pos) => {
+    const onDragEndHandler = throttle((e, pos) => {
         e.preventDefault();
         e.stopPropagation();
         setOperationType(EmitEventType.None);
@@ -167,7 +167,7 @@ export const ResizableTwoBtn = (props) => {
             }
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetPoint, { workId: Storage_Selector_key, pointMap, workState: EvevtWorkState.Done, viewId: maranger?.viewId });
         }
-    };
+    }, 100, { 'leading': false });
     return (React.createElement(Draggable, { position: position, onStart: onDragStartHandler, onDrag: onDragHandler, onStop: onDragEndHandler },
         React.createElement("div", { className: 'bezier-pencil-plugin-point-draggable-btn' },
             React.createElement("div", { className: 'bezier-pencil-plugin-point-draggable-btn-inner', style: {
