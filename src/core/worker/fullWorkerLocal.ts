@@ -420,7 +420,7 @@ export class LocalWorkForFullWorker extends LocalWork {
             }
         }
         if (render.length || sp.length) {
-            // console.log('updateSelector', render, sp, cloneDeep(this.vNodes.curNodeMap))
+            // console.log('updateSelector---0---0', sp)
             this._post({ render, sp });
         }
     }

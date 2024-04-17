@@ -102,12 +102,13 @@ export const TextView = (props:TextViewProps) =>{
 export const TextSelectorView = React.memo((props:TextSelectorViewProps) =>{
     const {data, position, workId, selectIds} = props;
     const [point, setPoint] = useState<[number,number]>([0,0]);
-    const {opt, scale, translate, x, y } = data
+    const {opt, scale, translate, x, y } = data;
     useEffect(()=>{
         if(isNumber(x) && isNumber(y)) {
+            // console.log('TextViewInSelectorUI---22', workId, x, y, selectIds)
             setPoint([x - (position?.x || 0), y - (position?.y || 0)]);
         }
-    },[workId, selectIds]);
+    },[x,y, selectIds, workId]);
     const transform = `scale(${scale || 1}) ${translate && 'translate('+translate[0]+'px,'+translate[1]+'px)' || '' }`;
     const {fontSize, fontFamily,underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight,
         bold, italic} = opt;

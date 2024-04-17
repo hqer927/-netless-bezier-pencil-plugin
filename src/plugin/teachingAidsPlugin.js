@@ -16,8 +16,13 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
                     this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
                     this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
                     this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
-                    // console.log('onPhaseChanged');
+                    console.log('[TeachingAidsPlugin plugin] Disconnected');
                     this.destroy();
+                }
+                if (phase === RoomPhase.Reconnecting) {
+                    console.log('[TeachingAidsPlugin plugin] Reconnecting');
+                    // TODO
+                    this.init(this.displayer);
                 }
             }
         });

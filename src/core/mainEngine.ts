@@ -280,7 +280,7 @@ export class MasterControlForWorker extends MasterController{
         for (const data of sp) {
             const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, 
                 undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points,
-                selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath, dataType} = data;
+                selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath, dataType } = data;
                 if (!viewId) {
                     console.error('collectorSyncData', data)
                     return ;
@@ -356,6 +356,7 @@ export class MasterControlForWorker extends MasterController{
                         if (!opt) {
                             this.control.textEditorManager.delete(workId as string, false, false)
                         } else {
+                            // console.log('updateSelector---0', point, workId)
                             this.control.textEditorManager.updateTextForWorker({
                                 x: point[0],
                                 y: point[1],
@@ -365,7 +366,7 @@ export class MasterControlForWorker extends MasterController{
                                 workId: workId as string,
                                 opt: opt as TextOptions,
                                 dataType,
-                                viewId,
+                                viewId
                             })
                         }
                     }

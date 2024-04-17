@@ -72,6 +72,14 @@ export const FloatBar = React.forwardRef((props, ref) => {
         }
         return React.createElement(HightLightTwoBox, null);
     }, [floatBarData, operationType]);
+    const TextViewInSelectorUI = useMemo(() => {
+        const selectIds = floatBarData?.selectIds || [];
+        if (editors && maranger && selectIds) {
+            // console.log('TextViewInSelectorUI', position, selectIds)
+            return React.createElement(TextViewInSelector, { manager: maranger, textRef: textRef, selectIds: selectIds, position: position, activeTextId: activeTextId, editors: editors });
+        }
+        return null;
+    }, [floatBarData?.selectIds, editors, maranger, activeTextId]);
     return (React.createElement(Draggable, { position: position, onStart: onDragStartHandler, onDrag: onDragHandler, onStop: onDragEndHandler, handle: "canvas" },
         React.createElement("div", { className: `${className}`, style: floatBarData ? {
                 width: floatBarData.w,
@@ -104,5 +112,5 @@ export const FloatBar = React.forwardRef((props, ref) => {
                 React.createElement("canvas", { ref: ref, className: "bezier-pencil-plugin-floatCanvas" })),
             HighLightUI,
             HighLightTwoUI,
-            editors?.size && maranger && React.createElement(TextViewInSelector, { manager: maranger, textRef: textRef, selectIds: floatBarData?.selectIds || [], position: position, activeTextId: activeTextId, editors: editors }) || null)));
+            TextViewInSelectorUI)));
 });

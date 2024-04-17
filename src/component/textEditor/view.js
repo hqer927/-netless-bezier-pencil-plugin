@@ -60,9 +60,10 @@ export const TextSelectorView = React.memo((props) => {
     const { opt, scale, translate, x, y } = data;
     useEffect(() => {
         if (isNumber(x) && isNumber(y)) {
+            // console.log('TextViewInSelectorUI---22', workId, x, y, selectIds)
             setPoint([x - (position?.x || 0), y - (position?.y || 0)]);
         }
-    }, [workId, selectIds]);
+    }, [x, y, selectIds, workId]);
     const transform = `scale(${scale || 1}) ${translate && 'translate(' + translate[0] + 'px,' + translate[1] + 'px)' || ''}`;
     const { fontSize, fontFamily, underline, fontColor, lineThrough, textAlign, strokeColor, lineHeight, bold, italic } = opt;
     const size = fontSize;

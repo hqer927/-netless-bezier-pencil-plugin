@@ -436,6 +436,7 @@ export class MasterControlForWorker extends MasterController {
                             this.control.textEditorManager.delete(workId, false, false);
                         }
                         else {
+                            // console.log('updateSelector---0', point, workId)
                             this.control.textEditorManager.updateTextForWorker({
                                 x: point[0],
                                 y: point[1],
@@ -445,7 +446,7 @@ export class MasterControlForWorker extends MasterController {
                                 workId: workId,
                                 opt: opt,
                                 dataType,
-                                viewId,
+                                viewId
                             });
                         }
                     }

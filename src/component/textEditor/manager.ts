@@ -291,7 +291,7 @@ export class TextEditorManagerImpl implements TextEditorManager {
         if (workState === EvevtWorkState.Doing || workState === EvevtWorkState.Start) {
             this.activeId = workIdStr;
         }
-        console.log('onServiceDerive---1', workIdStr,info)
+        // console.log('onServiceDerive---1', workIdStr,info)
         this.control.viewContainerManager.setActiveTextEditor(viewId, this.activeId);
     }
     updateForLocalEditor(activeId:string, info:TextEditorInfo): void {
@@ -332,20 +332,12 @@ export class TextEditorManagerImpl implements TextEditorManager {
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId)
     }
     updateTextForMasterController(params: TextEditorInfo & { workId: string, viewId: string, scenePath: string }): void {
-        // console.log('updateTextForMasterController', params)
         const {workId, ...info} = params;
-        // if (isDel) {
-        //     if(this.activeId === workId){
-        //         this.activeId = undefined;
-        //     }
-        //     this.editors.delete(workId);
-        // } else {
-            const _info = this.editors.get(workId) || {};
-            info.dataType = EDataType.Local;
-            info.canWorker = true;
-            info.canSync = true;
-            this.editors.set(workId, {..._info, ...info});
-        // }
+        const _info = this.editors.get(workId) || {};
+        info.dataType = EDataType.Local;
+        info.canWorker = true;
+        info.canSync = true;
+        this.editors.set(workId, {..._info, ...info});
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId)
     }
     updateTextForWorker(params: TextEditorInfo & { workId: string, viewId: string, scenePath: string }): void {
@@ -353,18 +345,17 @@ export class TextEditorManagerImpl implements TextEditorManager {
         let _info = this.editors.get(workId);
         if (isActive) {
             if (_info) {
-                console.log('updateTextForWorker --- 1')
                 _info.dataType = dataType;
                 _info.canWorker = false;
                 _info.canSync = false;
+                this.editors.set(workId, _info);
                 this.active(workId);
             }
         } else {
             _info = _info || {} as TextEditorInfo;
             _info.canWorker = false;
             _info.canSync = true;
-            console.log('updateTextForWorker --- 2')
-            //console.log('updateTextForWorker', {..._info, ...info})
+            // console.log('updateSelector---0---2')
             this.editors.set(workId, {..._info, ...info});
         }
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId)

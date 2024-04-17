@@ -1,6 +1,6 @@
 {
   "name": "@hqer/bezier-pencil-plugin",
-  "version": "0.0.40",
+  "version": "0.0.41",
   "main": "./dist/bezier-pencil-plugin.js",
   "module": "./dist/bezier-pencil-plugin.mjs",
   "types": "./dist/index.d.ts",

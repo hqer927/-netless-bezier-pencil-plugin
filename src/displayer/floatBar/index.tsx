@@ -88,6 +88,21 @@ export const FloatBar = React.forwardRef((props:{
         }
         return <HightLightTwoBox/>
     },[floatBarData, operationType])
+    const TextViewInSelectorUI = useMemo(()=>{
+        const selectIds = floatBarData?.selectIds || [];
+        if (editors && maranger && selectIds ) {
+            // console.log('TextViewInSelectorUI', position, selectIds)
+            return <TextViewInSelector
+                manager={maranger}
+                textRef={textRef}
+                selectIds={selectIds}
+                position={position}
+                activeTextId={activeTextId}
+                editors={editors}
+            />
+        }
+        return null
+    },[floatBarData?.selectIds, editors, maranger, activeTextId])
     return (
         <Draggable
             position={position}
@@ -136,16 +151,7 @@ export const FloatBar = React.forwardRef((props:{
                 </div>
                 { HighLightUI }
                 { HighLightTwoUI }
-                {
-                    editors?.size && maranger && <TextViewInSelector
-                        manager={maranger}
-                        textRef={textRef}
-                        selectIds={floatBarData?.selectIds || []}
-                        position={position}
-                        activeTextId={activeTextId}
-                        editors={editors}
-                    /> || null
-                }
+                { TextViewInSelectorUI }
             </div>
         </Draggable>
     )
