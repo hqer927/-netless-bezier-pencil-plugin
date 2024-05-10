@@ -9,4 +9,5 @@ export * from './rectangle';
 export * from './star';
 export * from './polygon';
 export * from './speechBalloon';
+export * from './image';
 export * from './utils';

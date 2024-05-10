@@ -3,7 +3,7 @@
 import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction, DiffOne, Storage_Selector_key, Storage_ViewId_ALL } from "../collector";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
-import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IMainMessage, IMainMessageRenderData, IRectType, IUpdateNodeOpt, IWorkerMessage, IworkId, ViewWorkerOptions } from "./types";
+import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IMainMessage, IMainMessageRenderData, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps, EmitEventType, InternalMsgEmitterType } from "../plugin/types";
 import FullWorker from './worker/fullWorker.ts?worker&inline';
 import SubWorker from './worker/subWorker.ts?worker&inline';
@@ -13,7 +13,9 @@ import { ShowFloatBarMsgValue } from "../displayer/types";
 import { requestAsyncCallBack } from "./utils";
 import { ETextEditorType, TextOptions } from "../component/textEditor/types";
 import cloneDeep from "lodash/cloneDeep";
-import { BaseShapeOptions } from "./tools";
+import { BaseShapeOptions, ImageOptions } from "./tools";
+import { ImageInformation } from "white-web-sdk";
+import isBoolean from "lodash/isBoolean";
 
 export abstract class MasterController {
     /** 异步同步时间间隔 */
@@ -34,7 +36,7 @@ export abstract class MasterController {
     /** 子线程和工作线程通信机 */
     protected abstract subWorker: Worker;
     /** 当前选中的工具配置数据 */
-    abstract currentToolsData: IActiveToolsDataType;
+    abstract currentToolsData?: IActiveToolsDataType;
     /** 当前工作任务数据 */
     protected abstract currentLocalWorkData: IActiveWorkDataType;
 
@@ -80,11 +82,17 @@ export abstract class MasterController {
     abstract sendCursorEvent(point:[number|undefined, number|undefined], viewId:string): void;
     /** 获取某个场景路径下的包围盒 */
     abstract getBoundingRect(scenePath:string):Promise<IRectType>|undefined;
-    abstract getSnapshot(scenePath: string, width?: number, height?: number, camera?:Pick<ICameraOpt,"centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined
+    abstract getSnapshot(scenePath: string, width?: number, height?: number, camera?:Pick<ICameraOpt,"centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
+    /** 根据查询条件查询事件任务处理批量池中任务 */
+    abstract queryTaskBatchData(query:IqueryTask): IWorkerMessage[];
+    abstract insertImage(imageInfo: ImageInformation):void;
+    abstract lockImage(uuid: string, locked: boolean): void;
+    abstract completeImageUpload(uuid: string, src: string): void;
+    abstract getImagesInformation(scenePath: string): ImageInformation[];
 }
 export class MasterControlForWorker extends MasterController{
     isActive:boolean = false;
-    currentToolsData!: IActiveToolsDataType;
+    currentToolsData?: IActiveToolsDataType;
     protected currentLocalWorkData: IActiveWorkDataType;
     control: BaseTeachingAidsManager;
     internalMsgEmitter: EventEmitter2;
@@ -94,7 +102,7 @@ export class MasterControlForWorker extends MasterController{
     protected dpr: number = 1;
     protected fullWorker!: Worker;
     protected subWorker!: Worker;
-    private methodBuilder?: MethodBuilderMain;
+    methodBuilder?: MethodBuilderMain;
     private zIndexNodeMethod?: ZIndexNodeMethod;
     /** master\fullwoker\subworker 三者高频绘制时队列化参数 */
     private subWorkerDrawCount: number = 0;
@@ -131,7 +139,7 @@ export class MasterControlForWorker extends MasterController{
         return this.control.collector;
     }
     private get isRunSubWork(): boolean {
-        const {toolsType} = this.currentToolsData;
+        const toolsType = this.currentToolsData?.toolsType;
         if (
             toolsType === EToolsKey.Pencil || 
             toolsType === EToolsKey.LaserPen || 
@@ -148,7 +156,7 @@ export class MasterControlForWorker extends MasterController{
         return false
     }
     private get isCanDrawWork(): boolean {
-        const {toolsType} = this.currentToolsData;
+        const toolsType = this.currentToolsData?.toolsType;
         if (
             toolsType === EToolsKey.Pencil || 
             toolsType === EToolsKey.LaserPen || 
@@ -158,14 +166,16 @@ export class MasterControlForWorker extends MasterController{
             toolsType === EToolsKey.Rectangle || 
             toolsType === EToolsKey.Star || 
             toolsType === EToolsKey.Polygon || 
-            toolsType === EToolsKey.SpeechBalloon
+            toolsType === EToolsKey.SpeechBalloon ||
+            toolsType === EToolsKey.Triangle || 
+            toolsType ===EToolsKey.Rhombus
         ) {
             return true;
         }
         return false
     }
     private get isUseZIndex(): boolean {
-        const {toolsType} = this.currentToolsData;
+        const toolsType = this.currentToolsData?.toolsType;
         if (
             toolsType === EToolsKey.Pencil || 
             toolsType === EToolsKey.Arrow || 
@@ -175,17 +185,17 @@ export class MasterControlForWorker extends MasterController{
             toolsType === EToolsKey.Star || 
             toolsType === EToolsKey.Polygon || 
             toolsType === EToolsKey.SpeechBalloon || 
-            toolsType === EToolsKey.Text
+            toolsType === EToolsKey.Text || 
+            toolsType === EToolsKey.Image
         ) {
             return true;
         }
         return false
     }
     private get isCanRecordUndoRedo(): boolean {
-        const {toolsType} = this.currentToolsData;
+        const toolsType = this.currentToolsData?.toolsType;
         if (
             toolsType === EToolsKey.Pencil || 
-            toolsType === EToolsKey.Selector || 
             toolsType === EToolsKey.Eraser || 
             toolsType === EToolsKey.Arrow || 
             toolsType === EToolsKey.Straight || 
@@ -193,7 +203,29 @@ export class MasterControlForWorker extends MasterController{
             toolsType === EToolsKey.Rectangle || 
             toolsType === EToolsKey.Star || 
             toolsType === EToolsKey.Polygon || 
-            toolsType === EToolsKey.SpeechBalloon
+            toolsType === EToolsKey.SpeechBalloon || 
+            toolsType === EToolsKey.Text || 
+            toolsType === EToolsKey.Image
+        ) {
+            return true;
+        }
+        return false
+    }
+    private get isCanSentCursor(): boolean {
+        const toolsType = this.currentToolsData?.toolsType;
+        if (
+            toolsType === EToolsKey.Pencil || 
+            toolsType === EToolsKey.Text || 
+            toolsType === EToolsKey.LaserPen || 
+            toolsType === EToolsKey.Arrow || 
+            toolsType === EToolsKey.Straight || 
+            toolsType === EToolsKey.Ellipse || 
+            toolsType === EToolsKey.Rectangle || 
+            toolsType === EToolsKey.Star || 
+            toolsType === EToolsKey.Polygon || 
+            toolsType === EToolsKey.SpeechBalloon ||
+            toolsType === EToolsKey.Triangle || 
+            toolsType ===EToolsKey.Rhombus
         ) {
             return true;
         }
@@ -250,9 +282,6 @@ export class MasterControlForWorker extends MasterController{
                 if (sp?.length) {
                     this.collectorSyncData(sp);
                 }
-                // if (render?.length) {
-                //     console.log('selector - subWorker - render', render)
-                // }
                 if (!drawCount && render?.length) {
                     this.viewContainerManager.render(render);
                     return;
@@ -280,7 +309,8 @@ export class MasterControlForWorker extends MasterController{
         for (const data of sp) {
             const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, 
                 undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points,
-                selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath, dataType } = data;
+                selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, scenePath, dataType, 
+                canLock, isLocked, shapeOpt, toolsTypes } = data;
                 if (!viewId) {
                     console.error('collectorSyncData', data)
                     return ;
@@ -303,7 +333,7 @@ export class MasterControlForWorker extends MasterController{
                     if (value && fillColor) {
                         value.fillColor = fillColor;
                     }
-                    if (value && canRotate) {
+                    if (value && isBoolean(canRotate)) {
                         value.canRotate = canRotate;
                     }
                     if (value && scaleType) {
@@ -315,7 +345,19 @@ export class MasterControlForWorker extends MasterController{
                     if (value && textOpt) {
                         value.textOpt = textOpt;
                     }
-                    // console.log('value', value?.points && cloneDeep(value.points))
+                    if (value && isBoolean(canLock)) {
+                        value.canLock = canLock;
+                    }
+                    if (value && isBoolean(isLocked)) {
+                        value.isLocked = isLocked;
+                    }
+                    if (value && shapeOpt) {
+                        value.shapeOpt = shapeOpt;
+                        // console.log('shapeOpt', shapeOpt)
+                    }
+                    if (value && toolsTypes) {
+                        value.toolsTypes = toolsTypes;
+                    }
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
                         const scenePath = this.viewContainerManager.getCurScenePath(viewId);
@@ -354,9 +396,8 @@ export class MasterControlForWorker extends MasterController{
                         const boxSize =  (opt as TextOptions)?.boxSize || [0,0];
                         const cameraOpt = this.viewContainerManager.getView(viewId)?.cameraOpt;
                         if (!opt) {
-                            this.control.textEditorManager.delete(workId as string, false, false)
+                            this.control.textEditorManager.delete(workId as string, willSyncService || false, false)
                         } else {
-                            // console.log('updateSelector---0', point, workId)
                             this.control.textEditorManager.updateTextForWorker({
                                 x: point[0],
                                 y: point[1],
@@ -366,7 +407,9 @@ export class MasterControlForWorker extends MasterController{
                                 workId: workId as string,
                                 opt: opt as TextOptions,
                                 dataType,
-                                viewId
+                                viewId,
+                                canSync: willSyncService || false,
+                                canWorker: false
                             })
                         }
                     }
@@ -377,8 +420,10 @@ export class MasterControlForWorker extends MasterController{
                             workId: workId as string,
                             isActive: true,
                             viewId,
-                            dataType: EDataType.Local
-                        })
+                            dataType: EDataType.Local,
+                            canWorker: false,
+                            canSync: true,
+                        }, Date.now())
                     }
                     break;
                 default:
@@ -455,7 +500,18 @@ export class MasterControlForWorker extends MasterController{
         const isChangeToolsType = this.currentToolsData?.toolsType !== currentToolsData.toolsType;
         super.setCurrentToolsData(currentToolsData);
         const views = this.viewContainerManager?.getAllViews();
-        if (views?.length) {
+        if(isChangeToolsType) {
+            for (const view of views) {
+                if (view) {
+                    const {id, focusScenePath} = view;
+                    if (isChangeToolsType && id && focusScenePath ) {
+                        if (this.collector?.hasSelector(id, focusScenePath)) {
+                            this.blurSelector(id,focusScenePath)
+                        }
+                        this.control.textEditorManager.checkEmptyTextBlur();
+                    }
+                }
+            }
             this.taskBatchData.add({
                 msgType: EPostMessageType.UpdateTools,
                 dataType: EDataType.Local,
@@ -464,17 +520,6 @@ export class MasterControlForWorker extends MasterController{
                 isRunSubWork: this.isRunSubWork,
                 viewId: Storage_ViewId_ALL
             })
-            if (this.viewContainerManager?.focuedView) {
-                const {id, focusScenePath} = this.viewContainerManager.focuedView;
-                if (isChangeToolsType && id && focusScenePath ) {
-                    if (this.collector?.hasSelector(id, focusScenePath)) {
-                        this.blurSelector(id,focusScenePath)
-                    }
-                    if (this.control.textEditorManager.activeId) {
-                        this.control.textEditorManager.checkEmptyTextBlur();
-                    }
-                }
-            }
             this.runAnimation();
         }
     }
@@ -487,12 +532,12 @@ export class MasterControlForWorker extends MasterController{
         if (msgType !== EPostMessageType.None && this.viewContainerManager.focuedView) {
             const {id} = this.viewContainerManager.focuedView;
             if (id) {
-                const toolsType = this.currentToolsData.toolsType;
+                const toolsType = this.currentToolsData?.toolsType;
                 this.taskBatchData.add({
                     msgType,
                     workId,
                     toolsType: toolsType,
-                    opt: {...this.currentToolsData.toolsOpt, ...toolsOpt, syncUnitTime: this.maxLastSyncTime},
+                    opt: {...this.currentToolsData?.toolsOpt, ...toolsOpt, syncUnitTime: this.maxLastSyncTime},
                     dataType: EDataType.Local,
                     isRunSubWork: this.isRunSubWork,
                     viewId: id
@@ -512,10 +557,11 @@ export class MasterControlForWorker extends MasterController{
             dpr,
             cameraOpt,
             isRunSubWork: true,
+            isSafari: navigator.userAgent.indexOf('Safari') !== -1 && navigator.userAgent.indexOf('Chrome') === -1
         });
         this.runAnimation();
     }
-    destroyViewWorker(viewId: string):void {
+    destroyViewWorker(viewId: string, isLocal:boolean= false):void {
         this.taskBatchData.add({
             msgType: EPostMessageType.Destroy,
             dataType: EDataType.Local,
@@ -523,11 +569,12 @@ export class MasterControlForWorker extends MasterController{
             isRunSubWork: true,
         });
         this.runAnimation();
-        this.collector?.dispatch({
-            type: EPostMessageType.Clear,
-            viewId
-        })
-        // this.destroyView(viewId);
+        if (!isLocal) {
+            this.collector?.dispatch({
+                type: EPostMessageType.Clear,
+                viewId
+            })
+        }
     }
     onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void {
         const {newValue, oldValue, viewId, scenePath} = data;
@@ -553,10 +600,10 @@ export class MasterControlForWorker extends MasterController{
                 })
             }
             if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
+                console.log('onServiceDerive', d, workId, this.collector?.uid)
                 this.control.textEditorManager.onServiceDerive(d);
                 return;
             }
-            // console.log('onServiceDerive', d)
             this.taskBatchData.add(d);
         }
         this.runAnimation();
@@ -573,6 +620,7 @@ export class MasterControlForWorker extends MasterController{
     }
     pullServiceData(viewId: string, scenePath: string): void {
         const store = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] || undefined;
+        // console.log('pullServiceData',viewId,  scenePath, store)
         if (store) {
             let minZIndex:number|undefined;
             let maxZIndex:number|undefined;
@@ -593,6 +641,7 @@ export class MasterControlForWorker extends MasterController{
                         })
                     }
                     if (data.toolsType === EToolsKey.Text) {
+                        console.log('onServiceDerive---00', data, viewId, this.collector?.uid)
                         this.control.textEditorManager.onServiceDerive(data)
                         continue;
                     }
@@ -602,7 +651,7 @@ export class MasterControlForWorker extends MasterController{
                         minZIndex = Math.min(minZIndex || Infinity, data.opt.zIndex);
                     }
                 }
-                this.internalMsgEmitter.emit("excludeIds", keys);
+                this.internalMsgEmitter.emit("excludeIds", keys, viewId);
             }
             this.runAnimation();
             if (this.zIndexNodeMethod) {
@@ -653,7 +702,7 @@ export class MasterControlForWorker extends MasterController{
                         break;
                     }
                 }
-                // console.log('selector - consume -1', [...this.taskBatchData.values()])
+                // console.log('consume-selector -1', [...this.taskBatchData.values()])
                 this.taskBatchData.clear();
                 if (this.undoTickerId && workState === EvevtWorkState.Done) {
                     this.undoTickerId = undefined;
@@ -752,7 +801,7 @@ export class MasterControlForWorker extends MasterController{
                     dataType: EDataType.Local,
                     isRunSubWork: true,
                     mainTasksqueueCount: this.mianTasksqueueCount,
-                    tasksqueue:this.tasksqueue,
+                    tasksqueue: this.tasksqueue,
                     viewId:''
                 })
             }   
@@ -790,11 +839,13 @@ export class MasterControlForWorker extends MasterController{
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
             EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
-            EmitEventType.SetFontStyle, EmitEventType.SetPoint
+            EmitEventType.SetFontStyle, EmitEventType.SetPoint, EmitEventType.SetLock,
+            EmitEventType.SetShapeOpt
         ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
         this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
     }
     originalEventLintener(workState: EvevtWorkState, point:[number,number],viewId:string) {
+        // console.log('consume-selector---originalEventLintener', workState)
         switch (workState) {
             case EvevtWorkState.Start:
                 this.onLocalEventStart(point, viewId);
@@ -814,8 +865,8 @@ export class MasterControlForWorker extends MasterController{
         }
     }
     private setZIndex(){
-        const opt:BaseShapeOptions = cloneDeep(this.currentToolsData.toolsOpt);
-        if(this.zIndexNodeMethod && this.isUseZIndex ){
+        const opt:BaseShapeOptions | undefined = this.currentToolsData && cloneDeep(this.currentToolsData.toolsOpt);
+        if(opt && this.zIndexNodeMethod && this.isUseZIndex ){
             this.zIndexNodeMethod.addMaxLayer();
             opt.zIndex = this.zIndexNodeMethod.maxZIndex;
         }
@@ -836,16 +887,17 @@ export class MasterControlForWorker extends MasterController{
                     this.setCurrentLocalWorkData({...this.currentLocalWorkData, workState: EvevtWorkState.Done});
                     this.runAnimation();
                 }, 0) as unknown as number;
-                if (this.currentToolsData.toolsType === EToolsKey.Selector) {
+                if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
                     this.viewContainerManager.activeFloatBar(id);
                 }
-            } else if (this.currentToolsData.toolsType === EToolsKey.Text) {
+            } else if (this.currentToolsData?.toolsType === EToolsKey.Text) {
                 const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point,id);
                 if (this.localPointsBatchData[0] === _point[0] && this.localPointsBatchData[1] === _point[1]) {
                     const opt = this.currentToolsData.toolsOpt as TextOptions;
                     opt.workState = EvevtWorkState.Doing;
                     opt.boxPoint = _point;
                     opt.boxSize = [opt.fontSize, opt.fontSize];
+                    this.control.textEditorManager.checkEmptyTextBlur();
                     this.control.textEditorManager.createTextForMasterController({
                         workId: Date.now().toString(),
                         x: point[0],
@@ -856,7 +908,7 @@ export class MasterControlForWorker extends MasterController{
                         isActive: true,
                         viewId: id,
                         scenePath: focusScenePath
-                    });
+                    }, Date.now());
                 }
                 this.localPointsBatchData.length = 0;
             }
@@ -881,6 +933,27 @@ export class MasterControlForWorker extends MasterController{
             if (!this.localEventTimerId) {
                 this.runAnimation();
             }
+        } else if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
+            const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
+            const data:IWorkerMessage = {
+                msgType: EPostMessageType.CursorHover,
+                dataType: EDataType.Local,
+                point:_point,
+                toolsType: this.currentToolsData.toolsType,
+                opt: this.currentToolsData.toolsOpt,
+                isRunSubWork: false,
+                viewId
+            }
+            this.queryTaskBatchData({
+                msgType: EPostMessageType.CursorHover,
+                dataType: EDataType.Local,
+                toolsType: this.currentToolsData.toolsType,
+                viewId
+            }).forEach(task=>{
+                this.taskBatchData.delete(task);
+            })
+            this.taskBatchData.add(data);
+            this.runAnimation();
         }
     }
     private onLocalEventStart(point: [number, number], viewId:string): void {
@@ -898,11 +971,11 @@ export class MasterControlForWorker extends MasterController{
         const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
         // console.log('onLocalEventStart ---3', point, _point, viewId)
         this.pushPoint(_point);
-        if (this.currentToolsData.toolsType === EToolsKey.Text) {
+        if (this.currentToolsData?.toolsType === EToolsKey.Text) {
             return ;
         }
         this.control.textEditorManager.checkEmptyTextBlur();
-        const workId = this.currentToolsData.toolsType === EToolsKey.Selector? Storage_Selector_key : Date.now();
+        const workId = this.currentToolsData?.toolsType === EToolsKey.Selector? Storage_Selector_key : Date.now();
         const opt = this.setZIndex();
         this.setCurrentLocalWorkData({
             workId,
@@ -915,11 +988,7 @@ export class MasterControlForWorker extends MasterController{
         this.subWorkerDrawCount = 0;
         this.reRenders.length = 0;
         if ( this.isCanRecordUndoRedo ) {
-            if (this.currentToolsData.toolsType === EToolsKey.Selector) {
-                this.undoTickerId = Date.now();
-            } else {
-                this.undoTickerId = workId as number;
-            }
+            this.undoTickerId = workId as number;
             this.internalMsgEmitter.emit('undoTickerStart', this.undoTickerId, viewId);
         }
         if (this.isCanDrawWork) {
@@ -927,15 +996,14 @@ export class MasterControlForWorker extends MasterController{
             this.collector?.dispatch({
                 type: EPostMessageType.CreateWork,
                 workId,
-                toolsType: this.currentToolsData.toolsType,
-                opt: this.currentToolsData.toolsOpt,
+                toolsType: this.currentToolsData?.toolsType,
+                opt: this.currentToolsData?.toolsOpt,
                 viewId,
                 scenePath
             })
             scenePath && this.blurSelector(viewId,scenePath);
-        } else if (this.currentToolsData.toolsType === EToolsKey.Selector) {
+        } else if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
             this.viewContainerManager.unActiveFloatBar(viewId);
-            // TeachingAidsManager.InternalMsgEmitter?.emit([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], -1);
         }
         this.consume();
     }
@@ -943,17 +1011,24 @@ export class MasterControlForWorker extends MasterController{
         this.localPointsBatchData.push(point[0],point[1]);
     }
     sendCursorEvent(p:[number|undefined,number|undefined], viewId:string) {
+        if (!this.currentLocalWorkData) {
+            return;
+        }
         if (this.currentLocalWorkData.workState === EvevtWorkState.Freeze || this.currentLocalWorkData.workState === EvevtWorkState.Unwritable ) {
+            return;
+        }
+        if (!this.currentToolsData || !this.isCanSentCursor) {
             return;
         }
         let point:[number|undefined,number|undefined] = [undefined,undefined];
         if ( this.currentToolsData && (this.isCanDrawWork || this.currentToolsData.toolsType === EToolsKey.Text)) {
             if (this.currentLocalWorkData.workState !== EvevtWorkState.Start && this.currentLocalWorkData.workState !== EvevtWorkState.Doing ) {
                 point = p;
+                // console.log('sendCursorEvent', point)
+                this.control.cursor.sendEvent(point,viewId); 
             }
         }
-        // console.log('sendCursorEvent', point)
-        this.control.cursor.sendEvent(point,viewId);
+        
     }
     blurSelector(viewId: string, scenePath:string, undoTickerId?: number) {
         if (this.collector?.hasSelector(viewId, scenePath)) {
@@ -1038,7 +1113,8 @@ export class MasterControlForWorker extends MasterController{
                         height: h,
                     } as ICameraOpt || view.cameraOpt,
                     isRunSubWork: true,
-                    viewId
+                    viewId,
+                    maxZIndex: this.zIndexNodeMethod?.maxZIndex
                 }
                 this.taskBatchData.add(data);
                 this.runAnimation();
@@ -1051,4 +1127,135 @@ export class MasterControlForWorker extends MasterController{
             }            
         }
     } 
+    queryTaskBatchData(query: IqueryTask): IWorkerMessage[] {
+        const result:IWorkerMessage[] = [];
+        if (query) {
+            for (const task of this.taskBatchData.values()) {
+                let isOk:boolean = true;
+                for (const [key,value] of Object.entries(query)) {
+                    if (task[key] !== value) {
+                        isOk = false;
+                        break;
+                    }
+                }
+                if(isOk){
+                    result.push(task);
+                }
+            }
+        }
+        return result;
+    }
+    insertImage(imageInfo: ImageInformation): void {
+        const mainView = this.viewContainerManager.mainView;
+        const viewId = mainView?.id;
+        const focusScenePath = mainView?.focusScenePath;
+        if (viewId && focusScenePath) {
+            this.undoTickerId = Date.now();
+            BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', this.undoTickerId, viewId);
+            const opt = {...imageInfo} as ImageOptions;
+            if(this.zIndexNodeMethod && this.isUseZIndex ){
+                this.zIndexNodeMethod.addMaxLayer();
+                opt.zIndex = this.zIndexNodeMethod.maxZIndex;
+            }
+            this.taskBatchData.add({
+                msgType: EPostMessageType.FullWork,
+                dataType: EDataType.Local,
+                toolsType: EToolsKey.Image,
+                workId: imageInfo.uuid,
+                opt,
+                viewId,
+                undoTickerId: imageInfo.src && this.undoTickerId || undefined,
+                willRefresh: true,
+                willSyncService: true
+            });
+            this.runAnimation();
+        }
+    }
+    lockImage(uuid: string, locked: boolean): void {
+        const mainView = this.viewContainerManager.mainView;
+        const viewId = mainView?.id;
+        const focusScenePath = mainView?.focusScenePath;
+        if (viewId && focusScenePath && this.collector) {
+            const storage = this.collector.getStorageData(viewId, focusScenePath);
+            if (!storage) {
+                return;
+            }
+            for (const [key,value] of Object.entries(storage)) {
+                if (value && value.toolsType === EToolsKey.Image && (value.opt as ImageOptions).uuid === uuid) {
+                    const undoTickerId = Date.now();
+                    BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+                    const workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
+                    const opt = {...value.opt, locked} as ImageOptions;
+                    this.taskBatchData.add({
+                        msgType: EPostMessageType.FullWork,
+                        dataType: EDataType.Local,
+                        toolsType: EToolsKey.Image,
+                        workId,
+                        opt,
+                        viewId,
+                        undoTickerId,
+                        willRefresh: true,
+                        willSyncService: true
+                    });
+                    this.runAnimation();
+                    return;
+                }
+            }
+        }
+    }
+    completeImageUpload(uuid: string, src: string): void {
+        const mainView = this.viewContainerManager.mainView;
+        const viewId = mainView?.id;
+        const focusScenePath = mainView?.focusScenePath;
+        if (viewId && focusScenePath && this.collector){
+            const storage = this.collector.getStorageData(viewId, focusScenePath);
+            if (!storage) {
+                return;
+            }
+            for (const [key,value] of Object.entries(storage)) {
+                if (value && value.toolsType === EToolsKey.Image && (value.opt as ImageOptions).uuid === uuid) {
+                    const workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
+                    const opt = {...value.opt, src} as ImageOptions;
+                    this.taskBatchData.add({
+                        msgType: EPostMessageType.FullWork,
+                        dataType: EDataType.Local,
+                        toolsType: EToolsKey.Image,
+                        workId,
+                        opt,
+                        viewId,
+                        undoTickerId: this.undoTickerId,
+                        willRefresh: true,
+                        willSyncService: true
+                    });
+                    this.runAnimation();
+                    break;
+                }
+            }
+        }
+    }
+    getImagesInformation(scenePath: string): ImageInformation[] {
+        const result:ImageInformation[] = [];
+        if (this.collector){
+            const storage = this.collector.getScenePathData(scenePath);
+            if (!storage) {
+                return result;
+            }
+            for (const value of Object.values(storage)) {
+                if(value && value.toolsType === EToolsKey.Image){
+                    const opt = value.opt as ImageOptions;
+                    result.push({
+                        uuid: opt.uuid,
+                        centerX: opt.centerX,
+                        centerY: opt.centerY,
+                        width: opt.width,
+                        height: opt.height,
+                        locked: opt.locked,
+                        uniformScale: opt.uniformScale,
+                        crossOrigin: opt.crossOrigin
+                    });
+                }
+            }
+        }
+        return result;
+    }
 }

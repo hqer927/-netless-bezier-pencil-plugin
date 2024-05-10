@@ -2,9 +2,9 @@
 import styles from './index.module.less';
 import React from "react";
 import { EmitEventType } from "./types";
-import { EScaleType, EvevtWorkState } from "../core";
+import { EScaleType } from "../core";
 import { TextEditorContainer } from "../component/textEditor/view";
-import { FloatBar } from "../displayer/floatBar";
+import { FloatBar, FloatBarBtn } from "../displayer/floatBar";
 import { RotateBtn } from "../displayer/rotate";
 import { CursorManager } from '../displayer/cursor';
 import { ResizableBox, ResizableTwoBox } from '../displayer/resizable';
@@ -20,7 +20,6 @@ export const DisplayerContext = React.createContext({
     operationType: EmitEventType.None,
     scale: [1, 1],
     setPosition: () => { },
-    setSize: () => { },
     setAngle: () => { },
     setOperationType: () => { },
     setFloatBarData: () => { }
@@ -62,18 +61,17 @@ export class BaseViewDisplayer extends React.Component {
             operationType: EmitEventType.None,
             cursorInfo: undefined,
             scale: [1, 1],
-            editors: this.props.maranger.control.textEditorManager?.editors,
+            editors: this.editors,
             activeTextId: this.props.maranger.control.textEditorManager?.activeId
         };
+    }
+    get editors() {
+        return cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
     }
     componentDidMount() {
         this.props.maranger.vDom = this;
         this.props.maranger.mountView();
         this.setState({ dpr: this.props.maranger.dpr });
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.Cursor, EmitEventType.ActiveCursor], this.setActiveCursor.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.TextEditor,EmitEventType.CommandEditor],this.bindTextEditorEvent.bind(this));
     }
     componentWillUnmount() { }
     showFloatBar(show, value) {
@@ -100,30 +98,14 @@ export class BaseViewDisplayer extends React.Component {
         }
     }
     setActiveTextEditor(activeTextId) {
-        const editors = cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
+        // const editors = cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
         this.setState({
             activeTextId,
-            editors
+            editors: this.editors
         });
     }
     setActiveCursor(cursorInfo) {
         this.setState({ cursorInfo });
-    }
-    setSize(scale) {
-        if (scale.workState === EvevtWorkState.Done) {
-            this.state.floatBarData && this.setState({
-                floatBarData: { ...this.state.floatBarData, w: scale.width, h: scale.height },
-                scale: [1, 1],
-                operationType: EmitEventType.None,
-            });
-        }
-        else {
-            this.state.floatBarData && this.setState({
-                floatBarData: { ...this.state.floatBarData, w: scale.width, h: scale.height },
-                scale: [1, 1],
-                operationType: EmitEventType.ScaleNode,
-            });
-        }
     }
     setFloatZIndex(zIndex) {
         this.setState({ zIndex });
@@ -134,6 +116,7 @@ export class BaseViewDisplayer extends React.Component {
         });
     }
     render() {
+        const showFloatBtns = !!this.props.maranger.control?.room?.floatBarOptions;
         return (React.createElement(React.Fragment, null,
             React.createElement("div", { className: styles['Container'], onMouseDown: (e) => {
                     e.preventDefault();
@@ -148,7 +131,7 @@ export class BaseViewDisplayer extends React.Component {
                     React.createElement("canvas", { ref: this.props.refs.canvasBgRef })),
                 React.createElement(DisplayerContext.Provider, { value: {
                         maranger: this.props.maranger,
-                        floatBarColors: this.props.maranger.control?.room?.floatBarOptions?.colors || [],
+                        floatBarColors: showFloatBtns && this.props.maranger.control?.room?.floatBarOptions?.colors || [],
                         floatBarData: this.state.floatBarData,
                         zIndex: this.state.zIndex,
                         dpr: this.state.dpr,
@@ -157,24 +140,24 @@ export class BaseViewDisplayer extends React.Component {
                         operationType: this.state.operationType,
                         scale: this.state.scale,
                         setPosition: this.setPosition.bind(this),
-                        setSize: this.setSize.bind(this),
                         setAngle: this.setAngle.bind(this),
                         setOperationType: this.setOperationType.bind(this),
                         setFloatBarData: this.setFloatBarData.bind(this),
                     } },
                     this.state.showFloatBar &&
-                        React.createElement(FloatBar, { className: styles['FloatBar'], ref: this.props.refs.floatBarCanvasRef, editors: this.state.editors, activeTextId: this.state.activeTextId }),
+                        React.createElement(FloatBar, { className: styles['FloatBar'], ref: this.props.refs.floatBarCanvasRef, editors: this.state.editors, activeTextId: this.state.activeTextId }) || null,
                     this.state.editors?.size &&
-                        React.createElement(TextEditorContainer, { className: styles['TextEditorContainer'], manager: this.props.maranger, selectIds: this.state.floatBarData?.selectIds || [], editors: this.state.editors, activeTextId: this.state.activeTextId }),
+                        React.createElement(TextEditorContainer, { className: styles['TextEditorContainer'], showFloatBtns: showFloatBtns, manager: this.props.maranger, selectIds: this.state.floatBarData?.selectIds || [], editors: this.state.editors, activeTextId: this.state.activeTextId }) || null,
                     this.state.floatBarData?.canRotate && this.state.floatBarData?.selectIds?.length === 1 &&
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.RotateNode) &&
-                        React.createElement(RotateBtn, { className: styles['RotateBtn'] }),
-                    this.state.floatBarData?.scaleType === EScaleType.all && this.state.showFloatBar &&
+                        React.createElement(RotateBtn, { className: styles['RotateBtn'] }) || null,
+                    (this.state.floatBarData?.scaleType === EScaleType.all || this.state.floatBarData?.scaleType === EScaleType.proportional) && this.state.showFloatBar &&
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.ScaleNode) &&
-                        React.createElement(ResizableBox, { className: styles['ResizeBtn'] }),
+                        React.createElement(ResizableBox, { className: styles['ResizeBtn'] }) || null,
                     this.state.floatBarData?.scaleType === EScaleType.both && this.state.showFloatBar &&
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.SetPoint) &&
-                        React.createElement(ResizableTwoBox, { className: styles['ResizeTowBox'] })),
+                        React.createElement(ResizableTwoBox, { className: styles['ResizeTowBox'] }) || null,
+                    this.state.showFloatBar && showFloatBtns && React.createElement(FloatBarBtn, { className: styles['FloatBarBtn'] }) || null),
                 this.state.cursorInfo && this.state.cursorInfo.roomMember && (React.createElement(CursorManager, { key: this.state.cursorInfo.roomMember.memberId, className: styles['CursorBox'], info: this.state.cursorInfo }) || null))));
     }
 }

@@ -54,8 +54,8 @@ const ItalicBtn = (props) => {
         React.createElement("img", { alt: "icon", src: IconURL(italic === 'italic' ? 'italic-active' : 'italic') })));
 };
 export const FontStyleBtn = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds } = props;
-    const { position, maranger } = useContext(DisplayerContext);
+    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, style } = props;
+    const { maranger } = useContext(DisplayerContext);
     const [bold, setBold] = useState('normal');
     const [italic, setItalic] = useState('normal');
     const [underline, setUnderline] = useState(false);
@@ -65,20 +65,27 @@ export const FontStyleBtn = (props) => {
             setBold(textOpt.bold);
         }
         if (isBoolean(textOpt?.underline)) {
-            setUnderline(textOpt.underline);
+            setUnderline(textOpt.underline || false);
         }
         if (isBoolean(textOpt?.lineThrough)) {
-            setLineThrough(textOpt.lineThrough);
+            setLineThrough(textOpt.lineThrough || false);
         }
         if (textOpt?.italic) {
             setItalic(textOpt.italic);
         }
     }, [textOpt]);
+    const subBtnStyle = useMemo(() => {
+        if (style && style.bottom) {
+            const value = {};
+            value.top = 'inherit';
+            value.bottom = 50;
+            return value;
+        }
+        return undefined;
+    }, [style]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-style-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined, onTouchEnd: (e) => {
+            return (React.createElement("div", { className: "font-style-menu", style: subBtnStyle, onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -92,7 +99,7 @@ export const FontStyleBtn = (props) => {
                 React.createElement(ItalicBtn, { workIds: workIds || [Storage_Selector_key], italic: italic, setItalic: setItalic, viewId: maranger?.viewId })));
         }
         return null;
-    }, [showSubBtn, position, workIds, bold, maranger?.viewId, underline, lineThrough, italic]);
+    }, [showSubBtn, workIds, bold, maranger?.viewId, underline, lineThrough, italic, subBtnStyle]);
     return (React.createElement("div", { className: `button normal-button ${showSubBtn && 'active'}`, onTouchEnd: (e) => {
             e.stopPropagation();
             e.nativeEvent.stopImmediatePropagation();
@@ -103,6 +110,6 @@ export const FontStyleBtn = (props) => {
             e.nativeEvent.stopImmediatePropagation();
             showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
         } },
-        React.createElement("img", { alt: "icon", src: IconURL('bold') }),
+        React.createElement("img", { alt: "icon", src: IconURL(showSubBtn ? 'font-style-active' : 'font-style') }),
         SubBtns));
 };

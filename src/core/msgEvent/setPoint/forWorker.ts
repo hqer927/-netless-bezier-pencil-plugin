@@ -1,6 +1,6 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
-import { IWorkerMessage } from "../../types";
+import { IMainMessage, IMainMessageRenderData, IRectType, IUpdateSelectorCallbackPropsType, IWorkerMessage } from "../../types";
 import { EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
 
@@ -10,24 +10,62 @@ export class SetPointMethodForWorker extends BaseMsgMethodForWorker {
         const {msgType, dataType, emitEventType, undoTickerId} = data;
         if (msgType !== EPostMessageType.UpdateNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data);
-            if (undoTickerId) {
-                setTimeout(()=>{
-                    this.localWork?._post({
-                        sp:[{
-                            type: EPostMessageType.None,
-                            undoTickerId,
-                        }]
-                    })
-                },0)
-            }
+            this.consumeForLocalWorker(data).finally(()=>{
+                if (undoTickerId) {
+                    setTimeout(()=>{
+                        this.localWork?._post({
+                            sp:[{
+                                type: EPostMessageType.None,
+                                undoTickerId,
+                            }]
+                        })
+                    },0)
+                }
+            })
             return true;
         }        
     }
-    consumeForLocalWorker(data: IWorkerMessage): void {
+    async consumeForLocalWorker(data: IWorkerMessage): Promise<void> {
         const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, emitEventType: this.emitEventType, willSerializeData, isSync:true, textUpdateForWoker})
+            await this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, 
+                emitEventType: this.emitEventType, willSerializeData, 
+                isSync:true, textUpdateForWoker, callback:this.updateSelectorCallback})
+        }
+    }
+    private updateSelectorCallback(props:IUpdateSelectorCallbackPropsType){
+        const {param, postData, newServiceStore, workShapeNode, res} = props;
+        const {willSyncService, isSync} = param;
+        const render: IMainMessageRenderData[] = postData.render || [];
+        const sp: IMainMessage[] = postData.sp || [];
+        const selectRect:IRectType|undefined = res?.selectRect;
+        if (willSyncService && sp) {
+            for (const [workId, info] of newServiceStore.entries()) {
+                sp.push(
+                    {
+                        ...info,
+                        workId,
+                        type: EPostMessageType.UpdateNode,
+                        updateNodeOpt: {
+                            useAnimation: false
+                        },
+                        isSync
+                    }
+                )
+            }
+            sp.push({
+                type: EPostMessageType.Select,
+                selectIds: workShapeNode.selectIds,
+                selectRect,
+                willSyncService,
+                isSync,
+                points: workShapeNode.getChildrenPoints()
+            })
+        }
+        // console.log('updateSelector---0---0--SetPoint', render, sp)
+        return {
+            render,
+            sp
         }
     }
 }

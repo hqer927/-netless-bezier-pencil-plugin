@@ -7,9 +7,10 @@ import { BaseShapeTool, BaseShapeToolProps } from "./base";
 import { TextOptions } from "../../component/textEditor";
 import { ShapeNodes } from "./utils";
 import cloneDeep from "lodash/cloneDeep";
-import { getRectScaleed, getRectTranslated } from "../utils";
 import { VNodeManager } from "../worker/vNodeManager";
 import isBoolean from "lodash/isBoolean";
+import { getRectScaleed, getRectTranslated } from "../utils";
+import isNumber from "lodash/isNumber";
 
 export class TextShape extends BaseShapeTool {
     readonly canRotate: boolean = false;
@@ -40,7 +41,7 @@ export class TextShape extends BaseShapeTool {
         const {workId, layer, isDrawLabel} = props;
         this.fullLayer.getElementsByName(workId).map(o=>o.remove());
         this.drawLayer?.getElementsByName(workId).map(o=>o.remove());
-        const {boxSize, boxPoint} = this.workOptions;
+        const {boxSize, boxPoint, zIndex} = this.workOptions;
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
         if (!boxPoint || !boxSize) {
@@ -51,7 +52,8 @@ export class TextShape extends BaseShapeTool {
             id: workId, 
             pos: [boxPoint[0] + boxSize[0] / 2, boxPoint[1] + boxSize[1] / 2],
             anchor: [0.5, 0.5],
-            size: boxSize
+            size: boxSize,
+            zIndex
         });
         const rect = {
             x: boxPoint[0],
@@ -100,7 +102,7 @@ export class TextShape extends BaseShapeTool {
             return;
         }
         const workId = this.workId.toString();
-        const {fontColor,fontBgColor, bold, italic, lineThrough, underline} = updateNodeOpt;
+        const {fontColor,fontBgColor, bold, italic, lineThrough, underline, zIndex} = updateNodeOpt;
         const info = this.vNodes.get(workId);
         if (!info) {
             return;
@@ -125,6 +127,9 @@ export class TextShape extends BaseShapeTool {
         }
         if (fontBgColor) {
             info.opt.fontBgColor = fontBgColor;
+        }
+        if (isNumber(zIndex)) {
+            info.opt.zIndex = zIndex;
         }
         this.oldRect = info.rect;
         const rect = this.draw({
@@ -178,7 +183,6 @@ export class TextShape extends BaseShapeTool {
                     fontWeight: bold,
                     // fillColor: '#000',
                     fillColor: fontColor,
-                    // bgcolor: textOpt.fontBgColor,
                     textAlign: textAlign,
                     fontStyle: italic,
                     name:i.toString(),
@@ -204,7 +208,7 @@ export class TextShape extends BaseShapeTool {
                     const underlineAttr = {
                         normalize:false,
                         pos:[attr.pos[0], attr.pos[1] + fontSize / 2],
-                        lineWidth:2,
+                        lineWidth:2 * layer.worldScaling[0],
                         points:[0,0,width,0],
                         strokeColor: fontColor,
                         name:`${i}_underline`,
@@ -217,7 +221,7 @@ export class TextShape extends BaseShapeTool {
                     const lineThroughAttr = {
                         normalize:false,
                         pos: attr.pos,
-                        lineWidth:2,
+                        lineWidth:2 * layer.worldScaling[0],
                         points:[0,0,width,0],
                         strokeColor: fontColor,
                         name:`${i}_lineThrough`,
@@ -239,14 +243,13 @@ export class TextShape extends BaseShapeTool {
         targetNode?: BaseNodeMapItem,
     }): IRectType | undefined {
         const {node, opt, vNodes, targetNode} = param;
-        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, workState, bold, italic, lineThrough, underline, fontSize} = opt;
+        const {fontBgColor, fontColor, translate, box, boxScale, boxTranslate, bold, italic, lineThrough, underline, fontSize, textInfos} = opt;
         // let rect:IRectType|undefined;
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt) return;
         const layer = node.parent;
         if(!layer) return;
         const _Opt = nodeOpt.opt as TextOptions;
-        _Opt.workState = workState;
         if (fontColor) {
             if (_Opt.fontColor ) {
                 _Opt.fontColor = fontColor;
@@ -270,36 +273,23 @@ export class TextShape extends BaseShapeTool {
             _Opt.underline = underline;
         }
         if (fontSize) {
-            const {boxSize} = _Opt;
-            const scale = fontSize / _Opt.fontSize;
-            const newBoxSize:[number,number] | undefined = boxSize && [boxSize[0] * scale, boxSize[1] * scale];
-            if (newBoxSize) {
-                _Opt.boxSize = newBoxSize;
-                _Opt.fontSize = fontSize;
-                nodeOpt.rect = {
-                    x: nodeOpt.rect.x,
-                    y: nodeOpt.rect.y,
-                    w: newBoxSize[0],
-                    h: newBoxSize[1],
-                }
-            }
+            _Opt.fontSize = fontSize;
         }
         if (box && boxTranslate && boxScale) {
-            const {boxSize, fontSize} = _Opt;
+            const textinfo = textInfos?.get(node.name);
+            if (textinfo) {
+                const{fontSize,boxSize} = textinfo;
+                _Opt.boxSize = boxSize || _Opt.boxSize;
+                _Opt.fontSize = fontSize || _Opt.fontSize;
+            }
             const oldRect = nodeOpt.rect;
             const newRect = getRectTranslated(getRectScaleed(oldRect,boxScale),boxTranslate);
             _Opt.boxPoint = newRect && [(newRect.x - layer.worldPosition[0]) / layer.worldScaling[0], (newRect.y - layer.worldPosition[1]) / layer.worldScaling[1]];
-            _Opt.boxSize = boxSize && [boxSize[0] * boxScale[0], boxSize[1] * boxScale[1]];
-            _Opt.fontSize = fontSize && fontSize * boxScale[0];
         } else if (translate && _Opt.boxPoint) {
-            _Opt.boxPoint = [_Opt.boxPoint[0] + translate[0], _Opt.boxPoint[1] + translate[1]];
-            nodeOpt.centerPos = [nodeOpt.centerPos[0] + translate[0], nodeOpt.centerPos[1] + translate[1]];
-            nodeOpt.rect = {
-                x: nodeOpt.rect.x + translate[0],
-                y: nodeOpt.rect.y + translate[1],
-                w: nodeOpt.rect.w,
-                h: nodeOpt.rect.h,
-            }
+            const _translate:[number,number] = [translate[0] / layer.worldScaling[0], translate[1] / layer.worldScaling[1]];
+            _Opt.boxPoint = [_Opt.boxPoint[0] + _translate[0], _Opt.boxPoint[1] + _translate[1]];
+            nodeOpt.centerPos = [nodeOpt.centerPos[0] + _translate[0], nodeOpt.centerPos[1] + _translate[1]];
+            nodeOpt.rect = getRectTranslated(nodeOpt.rect, _translate)
         }
         nodeOpt && vNodes.setInfo(node.name, nodeOpt);
         // console.log('targetNode', targetNode, vNodes.get(node.name))

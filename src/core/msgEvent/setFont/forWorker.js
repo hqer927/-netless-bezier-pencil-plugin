@@ -1,6 +1,6 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
-import { EDataType, EPostMessageType } from "../../enum";
+import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
 import { SelectorShape } from "../../tools";
 export class SetFontStyleMethodForWorker extends BaseMsgMethodForWorker {
     constructor() {
@@ -17,27 +17,72 @@ export class SetFontStyleMethodForWorker extends BaseMsgMethodForWorker {
         if (msgType !== EPostMessageType.UpdateNode)
             return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data);
-            if (undoTickerId) {
-                setTimeout(() => {
-                    this.localWork?._post({
-                        sp: [{
-                                type: EPostMessageType.None,
-                                undoTickerId,
-                            }]
-                    });
-                }, 0);
-            }
+            this.consumeForLocalWorker(data).finally(() => {
+                if (undoTickerId) {
+                    setTimeout(() => {
+                        this.localWork?._post({
+                            sp: [{
+                                    type: EPostMessageType.None,
+                                    undoTickerId,
+                                }]
+                        });
+                    }, 0);
+                }
+            });
             return true;
         }
     }
-    consumeForLocalWorker(data) {
+    async consumeForLocalWorker(data) {
         const { workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker } = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker });
+            await this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector,
+                willSyncService, willSerializeData, textUpdateForWoker, callback: this.updateSelectorCallback });
         }
-        // else if (workId && updateNodeOpt) {
-        //     this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
-        // }
+    }
+    updateSelectorCallback(props) {
+        const { param, postData, newServiceStore, workShapeNode, res } = props;
+        const { willSyncService, isSync, updateSelectorOpt, textUpdateForWoker } = param;
+        const render = postData.render || [];
+        const sp = postData.sp || [];
+        const selectRect = res?.selectRect;
+        if (willSyncService && sp) {
+            if (updateSelectorOpt.fontSize) {
+                sp.push({
+                    type: EPostMessageType.Select,
+                    selectIds: workShapeNode.selectIds,
+                    selectRect,
+                    willSyncService,
+                    isSync,
+                    points: workShapeNode.getChildrenPoints()
+                });
+            }
+            for (const [workId, info] of newServiceStore.entries()) {
+                if (textUpdateForWoker && info.toolsType === EToolsKey.Text) {
+                    sp.push({
+                        ...info,
+                        workId,
+                        type: EPostMessageType.TextUpdate,
+                        dataType: EDataType.Local,
+                        willSyncService: true
+                    });
+                }
+                else {
+                    sp.push({
+                        ...info,
+                        workId,
+                        type: EPostMessageType.UpdateNode,
+                        updateNodeOpt: {
+                            useAnimation: false
+                        },
+                        isSync
+                    });
+                }
+            }
+        }
+        // console.log('updateSelector---0---0--SetFont', render, sp)
+        return {
+            render,
+            sp
+        };
     }
 }

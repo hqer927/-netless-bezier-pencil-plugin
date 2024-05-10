@@ -1,6 +1,6 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
-import { IWorkerMessage } from "../../types";
+import { IMainMessage, IMainMessageRenderData, IUpdateSelectorCallbackPropsType, IWorkerMessage } from "../../types";
 import { EDataType, EPostMessageType } from "../../enum";
 import { SelectorShape } from "../../tools";
 
@@ -14,13 +14,38 @@ export class ZIndexNodeMethodForWorker extends BaseMsgMethodForWorker {
             return true;
         }        
     }
-    consumeForLocalWorker(data: IWorkerMessage): void {
+    async consumeForLocalWorker(data: IWorkerMessage): Promise<void> {
         const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData})
-        } 
-        // else if (workId && updateNodeOpt) {
-        //     this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
-        // }
+            await this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, 
+                willSyncService, willSerializeData, callback:this.updateSelectorCallback})
+        }
+
+    }
+    private updateSelectorCallback(props:IUpdateSelectorCallbackPropsType){
+        const {param, postData, newServiceStore} = props;
+        const {willSyncService, isSync} = param;
+        const render: IMainMessageRenderData[] = postData.render || [];
+        const sp: IMainMessage[] = postData.sp || [];
+        if (willSyncService && sp) {
+            for (const [workId, info] of newServiceStore.entries()) {
+                sp.push(
+                    {
+                        ...info,
+                        workId,
+                        type: EPostMessageType.UpdateNode,
+                        updateNodeOpt: {
+                            useAnimation: false
+                        },
+                        isSync
+                    }
+                )
+            }
+        }
+        // console.log('updateSelector---0---0--ZIndexNode', render, sp)
+        return {
+            render,
+            sp
+        }
     }
 }

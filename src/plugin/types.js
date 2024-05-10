@@ -75,6 +75,10 @@ export var EmitEventType;
     EmitEventType["SetFontStyle"] = "SetFontStyle";
     /** 设置坐标 */
     EmitEventType["SetPoint"] = "SetPoint";
+    /** 设置是否锁定 */
+    EmitEventType["SetLock"] = "SetLock";
+    /** 设置shape模型的配置项 */
+    EmitEventType["SetShapeOpt"] = "SetShapeOpt";
 })(EmitEventType || (EmitEventType = {}));
 export var InternalMsgEmitterType;
 (function (InternalMsgEmitterType) {

@@ -1,5 +1,5 @@
 import { WindowManager } from "@netless/window-manager";
-import { InvisiblePlugin, isRoom, isPlayer, RoomPhase, ApplianceNames } from "white-web-sdk";
+import { InvisiblePlugin, isRoom, isPlayer, ApplianceNames } from "white-web-sdk";
 import { computRectangle } from "../core/utils";
 import { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
 import { TeachingAidsMultiManager } from "./multi/teachingAidsMultiManager";
@@ -7,25 +7,20 @@ import { ECanvasContextType } from "../core/enum";
 export class TeachingAidsPlugin extends InvisiblePlugin {
     constructor() {
         super(...arguments);
-        Object.defineProperty(this, "onPhaseChanged", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (phase) => {
-                if (phase === RoomPhase.Disconnected) {
-                    this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
-                    this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
-                    this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
-                    console.log('[TeachingAidsPlugin plugin] Disconnected');
-                    this.destroy();
-                }
-                if (phase === RoomPhase.Reconnecting) {
-                    console.log('[TeachingAidsPlugin plugin] Reconnecting');
-                    // TODO
-                    this.init(this.displayer);
-                }
-            }
-        });
+        // private onPhaseChanged = (phase: RoomPhase): void => {
+        //     if (phase === RoomPhase.Disconnected) {
+        //         this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
+        //         this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
+        //         this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
+        //         console.log('[TeachingAidsPlugin plugin] Disconnected');
+        //     }
+        //     if(phase === RoomPhase.Reconnecting){
+        //         console.log('[TeachingAidsPlugin plugin] Reconnecting');
+        //     }
+        //     if (phase === RoomPhase.Connected) {
+        //         console.log('[TeachingAidsPlugin plugin] Connected');
+        //     }
+        // };
         Object.defineProperty(this, "updateRoomWritable", {
             enumerable: true,
             configurable: true,
@@ -94,6 +89,9 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
                 TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] getBoundingRect`);
                 const originRect = (this.windowManager && this.windowManager.mainView || this.displayer).getBoundingRect(scenePath);
                 const pluginRect = await TeachingAidsPlugin.currentManager?.getBoundingRect(scenePath);
+                if (!originRect.width || !originRect.height) {
+                    return pluginRect;
+                }
                 return computRectangle(originRect, pluginRect);
             },
             screenshotToCanvasAsync: async function (context, scenePath, width, height, camera, ratio) {
@@ -177,6 +175,31 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
                     this.displayer.cleanCurrentScene(retainPpt);
                 }
             },
+            insertImage: function (imageInfo) {
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] insertImage`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && this.displayer.isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.insertImage(imageInfo);
+                }
+            },
+            lockImage: function (uuid, locked) {
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] lockImage`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && this.displayer.isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.lockImage(uuid, locked);
+                }
+            },
+            completeImageUpload: function (uuid, src) {
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] completeImageUpload`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && this.displayer.isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.completeImageUpload(uuid, src);
+                }
+            },
+            getImagesInformation: function (scenePath) {
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] completeImageUpload`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && this.displayer.isWritable) {
+                    return TeachingAidsPlugin.currentManager.worker.getImagesInformation(scenePath);
+                }
+                return [];
+            }
         };
         return {
             ...origin,
@@ -189,7 +212,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
         };
     }
     static onCreate(plugin) {
-        console.log('onCreate', plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.windowManager);
+        // console.log('onCreate', plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.windowManager);
         if (plugin && TeachingAidsPlugin.currentManager) {
             // console.log('teachingAidsPlugin--2', plugin, plugin.displayer, TeachingAidsPlugin.windowManager)
             TeachingAidsPlugin.currentManager.bindPlugin(plugin);
@@ -257,10 +280,10 @@ export class TeachingAidsPlugin extends InvisiblePlugin {
         }
         this.displayer.callbacks.on(this.callbackName, this.roomStateChangeListener);
         this.displayer.callbacks.on("onEnableWriteNowChanged", this.updateRoomWritable);
-        this.displayer.callbacks.on("onPhaseChanged", this.onPhaseChanged);
+        // this.displayer.callbacks.on("onPhaseChanged", this.onPhaseChanged);
     }
     destroy() {
-        // console.log('currentManager--destroy -- 1')
+        console.log('currentManager--destroy -- 1');
         TeachingAidsPlugin.currentManager?.destroy();
         TeachingAidsPlugin.currentManager = undefined;
         TeachingAidsPlugin.windowManager = undefined;

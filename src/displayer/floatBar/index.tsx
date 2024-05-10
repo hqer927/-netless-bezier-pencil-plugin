@@ -9,7 +9,7 @@ import type { DraggableData, DraggableEvent } from "react-draggable";
 import { FloatBtns } from "../floatBtns";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
-import { HightLightBox, HightLightTwoBox } from "../highlightBox";
+import { HighlightBox, HighlightTwoBox, HighlightFourBox, LockedBox } from "../highlightBox";
 import { Storage_Selector_key } from "../../collector";
 import { TextViewInSelector } from "../../component/textEditor/view";
 import { TextEditorInfo } from "../../component/textEditor";
@@ -49,6 +49,7 @@ export const FloatBar = React.forwardRef((props:{
         if (maranger?.control.room) {
             maranger.control.room.disableDeviceInputs = false;
         }
+        console.log('onDragEndHandler')
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
     }, 100, {'leading':false})
@@ -63,13 +64,6 @@ export const FloatBar = React.forwardRef((props:{
                 EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
         }
     }, 100, {'leading':false})
-    const FloatBtnsUI = useMemo(()=>{
-        if (operationType === EmitEventType.None) {
-            return <FloatBtns textOpt={floatBarData?.textOpt} position={position}/>;
-        }
-        return null;
-    },[operationType, floatBarData, position])
-    // console.log('editors', editors)
     const HighLightUI = useMemo(()=>{
         if ( 
             floatBarData?.scaleType !== EScaleType.all ||
@@ -77,7 +71,7 @@ export const FloatBar = React.forwardRef((props:{
         ) {
             return null
         }
-        return <HightLightBox/>
+        return <HighlightBox/>
     },[floatBarData, operationType])
     const HighLightTwoUI = useMemo(()=>{
         if ( 
@@ -86,8 +80,23 @@ export const FloatBar = React.forwardRef((props:{
         ) {
             return null
         }
-        return <HightLightTwoBox/>
+        return <HighlightTwoBox/>
     },[floatBarData, operationType])
+    const HighLightFourUI = useMemo(()=>{
+        if ( 
+            floatBarData?.scaleType !== EScaleType.proportional ||
+            operationType === EmitEventType.RotateNode
+        ) {
+            return null
+        }
+        return <HighlightFourBox/>
+    },[floatBarData, operationType])
+    const LockedUI = useMemo(()=>{
+        if ( floatBarData?.scaleType === EScaleType.none && floatBarData?.canLock) {
+            return  <LockedBox/>
+        }
+        return null
+    },[floatBarData])
     const TextViewInSelectorUI = useMemo(()=>{
         const selectIds = floatBarData?.selectIds || [];
         if (editors && maranger && selectIds ) {
@@ -105,6 +114,7 @@ export const FloatBar = React.forwardRef((props:{
     },[floatBarData?.selectIds, editors, maranger, activeTextId])
     return (
         <Draggable
+            disabled={!!floatBarData?.isLocked}
             position={position}
             onStart={onDragStartHandler}
             onDrag={onDragHandler}
@@ -116,12 +126,17 @@ export const FloatBar = React.forwardRef((props:{
                         width: floatBarData.w,
                         height: floatBarData.h,
                         zIndex,
-                        pointerEvents: zIndex < 2 ? 'none' : 'auto',
+                        pointerEvents: zIndex < 2 ? 'none' : LockedUI ? 'none' : 'auto',
                     } : undefined
                 }
+                // onMouseMove={(e)=>{
+                //     e.stopPropagation();
+                //     e.preventDefault();
+                // }}
                 onClick={throttle((e:any)=>{
                     e.stopPropagation();
                     e.preventDefault();
+                    // console.log('computeTextActive')
                     if (maranger && editors?.size && textRef.current && isEqual(cachePoint,position)) {
                         const point = maranger.getPoint(e.nativeEvent);
                         point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
@@ -131,6 +146,7 @@ export const FloatBar = React.forwardRef((props:{
                 onTouchEndCapture={throttle((e:any)=>{
                     e.stopPropagation();
                     e.preventDefault();
+                    // console.log('computeTextActive--1')
                     if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
                         const point = maranger.getPoint(e.nativeEvent);
                         point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
@@ -139,7 +155,6 @@ export const FloatBar = React.forwardRef((props:{
                     return false
                 }, 100, {'leading':false})}
             >
-                { FloatBtnsUI }
                 <div className="bezier-pencil-plugin-floatCanvas-box" 
                     style={{
                         width: '100%',
@@ -149,11 +164,35 @@ export const FloatBar = React.forwardRef((props:{
                 >
                     <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"/>
                 </div>
+                { LockedUI }
                 { HighLightUI }
                 { HighLightTwoUI }
+                { HighLightFourUI }
                 { TextViewInSelectorUI }
             </div>
         </Draggable>
     )
 })
 
+export const FloatBarBtn = (props:{
+    className: string
+}) => {
+    const {floatBarData, position, operationType } = useContext(DisplayerContext);
+    const {className} = props;
+    if (operationType === EmitEventType.None) {
+        return (
+            <div className={`${className}`}
+                style= { floatBarData ? {
+                        left: position?.x,
+                        top: position?.y,
+                        width: floatBarData.w,
+                        height: floatBarData.h,
+                    } : undefined
+                }
+            >
+                <FloatBtns textOpt={floatBarData?.textOpt} position={position} noLayer={floatBarData?.isLocked}/>
+            </div>
+        )
+    }
+    return null;
+}

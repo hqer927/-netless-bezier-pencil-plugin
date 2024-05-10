@@ -1,5 +1,5 @@
 import { ISerializableEventData, ISerializableStorageViewData } from "../collector/types";
-import type { Callbacks, Camera, Color, Displayer, Rectangle, RenderEngine, MemberState as _MemberState } from "white-web-sdk";
+import type { Callbacks, Camera, Color, Displayer, ImageInformation, Rectangle, RenderEngine, MemberState as _MemberState } from "white-web-sdk";
 import { ECanvasContextType } from "../core/enum";
 import type EventEmitter2 from "eventemitter2";
 import type { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
@@ -23,7 +23,7 @@ export type TeachingAidsAdaptor = {
 };
 export interface DisplayerForPlugin {
     readonly displayer: Displayer;
-    readonly windowmanager?: WindowManager;
+    readonly windowManager?: WindowManager;
     /**
      * 获取某个场景里包含所有元素的矩形
      */
@@ -40,6 +40,26 @@ export interface DisplayerForPlugin {
      * @param  height 白板的缩放高度：将当前白板的内容，缩小到真实像素高度。2.3.8 后，该参数为可选参数，如果不填，则默认为展示内容 div 的高度。
      */
     scenePreviewAsync(scenePath: string, div: HTMLElement, width?: number, height?: number, engine?: RenderEngine): Promise<void>;
+    /**
+     * 在当前场景中插入图片
+     * 该操作往往需要和 ``room.completeImageUpload`` 配合使用，具体例子可参考[《插入图片｜教具》](/javascript-zh/home/tools#插入图片)。
+     */
+    insertImage(imageInfo: ImageInformation): void;
+    /**
+     * 改变图片的锁定状态。若图片被锁定，则无法被框选、无法被拖动、无法被改变大小
+     * @param uuid 图片的 UUID
+     */
+    lockImage(uuid: string, locked: boolean): void;
+    /**
+     * 设置图片资源。第一参数 ``uuid`` 是图片的唯一标识符，应该与 ``room.insertImage`` 中传入的 ``uuid`` 字段相同。
+     * 第二参数 ``src`` 是图片资源的 URL。具体例子可参考[《插入图片｜教具》](/javascript-zh/home/tools#插入图片)。
+     */
+    completeImageUpload(uuid: string, src: string): void;
+    /**
+     * 导出特定场景的图片信息，注意这些信息可能与插入时填写的不同。
+     * @param scenePath 需要导出图片信息的场景路径，必须是 ``ScenePathType`` 为 ``page`` 的路径。
+     */
+    getImagesInformation(scenePath: string): ImageInformation[];
     callbacksOn: Callbacks<any>["on"];
     callbacksOnce: Callbacks<any>["once"];
     callbacksOff: Callbacks<any>["off"];
@@ -183,7 +203,11 @@ export declare enum EmitEventType {
     /** 设置文字样式 */
     SetFontStyle = "SetFontStyle",
     /** 设置坐标 */
-    SetPoint = "SetPoint"
+    SetPoint = "SetPoint",
+    /** 设置是否锁定 */
+    SetLock = "SetLock",
+    /** 设置shape模型的配置项 */
+    SetShapeOpt = "SetShapeOpt"
 }
 export declare enum InternalMsgEmitterType {
     DisplayState = "DisplayState",

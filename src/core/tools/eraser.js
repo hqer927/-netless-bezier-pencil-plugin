@@ -5,8 +5,9 @@ import { computRect, getRectFromPoints, isIntersect } from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import lineclip from "lineclip";
 import { Point2d } from "../utils/primitives/Point2d";
+import cloneDeep from "lodash/cloneDeep";
 export class EraserShape extends BaseShapeTool {
-    constructor(props) {
+    constructor(props, serviceWork) {
         super(props);
         Object.defineProperty(this, "canRotate", {
             enumerable: true,
@@ -25,6 +26,12 @@ export class EraserShape extends BaseShapeTool {
             configurable: true,
             writable: true,
             value: EToolsKey.Eraser
+        });
+        Object.defineProperty(this, "serviceWork", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
         Object.defineProperty(this, "tmpPoints", {
             enumerable: true,
@@ -62,6 +69,7 @@ export class EraserShape extends BaseShapeTool {
             writable: true,
             value: void 0
         });
+        this.serviceWork = serviceWork;
         this.workOptions = props.toolsOpt;
         this.worldPosition = this.fullLayer.worldPosition;
         this.worldScaling = this.fullLayer.worldScaling;
@@ -304,9 +312,10 @@ export class EraserShape extends BaseShapeTool {
         const removeIds = new Set();
         const newWorkDatas = new Map();
         this.vNodes.setTarget();
+        const curNodeMap = this.getUnLockNodeMap(this.vNodes.getLastTarget());
         for (let i = 0; i < points.length - 1; i += 2) {
             this.createEraserRect(points.slice(i, i + 2));
-            const rect = this.remove({ curNodeMap: this.vNodes.getLastTarget(), removeIds, newWorkDatas });
+            const rect = this.remove({ curNodeMap, removeIds, newWorkDatas });
             totalRect = computRect(totalRect, rect);
         }
         this.vNodes.deleteLastTarget();
@@ -334,6 +343,25 @@ export class EraserShape extends BaseShapeTool {
     }
     clearTmpPoints() {
         this.tmpPoints.length = 0;
+    }
+    getUnLockNodeMap(curNodeMap) {
+        if (this.serviceWork) {
+            const filterCurNodeMap = cloneDeep(curNodeMap);
+            const selectorWorkShapes = this.serviceWork.selectorWorkShapes;
+            const workShapes = this.serviceWork.workShapes;
+            for (const value of selectorWorkShapes.values()) {
+                if (value.selectIds?.length) {
+                    for (const id of value.selectIds) {
+                        filterCurNodeMap.delete(id);
+                    }
+                }
+            }
+            for (const id of workShapes.keys()) {
+                filterCurNodeMap.delete(id);
+            }
+            return filterCurNodeMap;
+        }
+        return curNodeMap;
     }
 }
 Object.defineProperty(EraserShape, "eraserSizes", {

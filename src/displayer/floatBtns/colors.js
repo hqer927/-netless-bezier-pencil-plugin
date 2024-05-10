@@ -54,7 +54,13 @@ const OpacityBtn = (props) => {
         const curOpacity = Math.min(Math.max(pos.x - 8, 0), 100) / 100;
         setCurOpacity(curOpacity, activeColor, EvevtWorkState.Done);
     }, 100, { 'leading': false });
-    return (React.createElement("div", { className: 'font-color-opacity', style: { marginLeft: '10px' } },
+    return (React.createElement("div", { className: 'font-color-opacity', style: { marginLeft: '10px' }, onClick: (e) => {
+            // console.log('first1', e.nativeEvent.offsetX)
+            const x = e.nativeEvent.offsetX;
+            const curOpacity = Math.min(Math.max(x - 12, 0), 100) / 100;
+            setPosition({ x: curOpacity * 100 + 8, y: 0 });
+            setCurOpacity(curOpacity, activeColor, EvevtWorkState.Done);
+        } },
         React.createElement("div", { className: "range-color", style: {
                 background: `linear-gradient(to right, ${hexToRgba(activeColor, 0)}, ${hexToRgba(activeColor, 1)})`
             } }),
@@ -62,10 +68,13 @@ const OpacityBtn = (props) => {
             React.createElement(Draggable, { bounds: "parent", axis: "x", position: position, onDrag: onDragHandler, onStart: onDragStartHandler, onStop: onDragEndHandler },
                 React.createElement("div", { className: "circle", style: {
                         backgroundColor: hexToRgba(activeColor, opacity)
+                    }, onClick: (e) => {
+                        e?.preventDefault();
+                        e?.stopPropagation();
                     } })))));
 };
 export const StrokeColors = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn } = props;
+    const { open: showSubBtn, setOpen: setShowSubBtn, floatBarRef } = props;
     const { floatBarData, floatBarColors, maranger, position, setFloatBarData } = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(open);
     const [activeColor, setColor] = useState();
@@ -78,6 +87,23 @@ export const StrokeColors = (props) => {
             setOpacity(opacity);
         }
     }, [floatBarData]);
+    const subBtnStyle = useMemo(() => {
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger]);
     const SubOpacityBtn = useMemo(() => {
         return React.createElement(OpacityBtn, { key: 'strokeColors', opacity: opacity, activeColor: activeColor, setCurOpacity: (curOpacity, curColor, workState) => {
                 if (workState === EvevtWorkState.Start && maranger?.control.room) {
@@ -94,12 +120,10 @@ export const StrokeColors = (props) => {
                 }
                 MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetColorNode, { workIds: [Storage_Selector_key], strokeColor, workState, viewId: maranger?.viewId });
             } });
-    }, [opacity, activeColor, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData]);
+    }, [opacity, activeColor, maranger?.control.room, maranger?.viewId, floatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined, onTouchEnd: (e) => {
+            return (React.createElement("div", { className: "font-colors-menu", style: subBtnStyle, onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -133,7 +157,7 @@ export const StrokeColors = (props) => {
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData, maranger?.viewId, setFloatBarData]);
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData, maranger?.viewId, subBtnStyle]);
     const RingBar = useMemo(() => {
         if (activeColor) {
             return (React.createElement("div", { className: "color-bar-ring", style: { backgroundColor: hexToRgba(activeColor, opacity) } },
@@ -155,17 +179,34 @@ export const StrokeColors = (props) => {
         SubBtns));
 };
 export const FillColors = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn } = props;
+    const { open: showSubBtn, setOpen: setShowSubBtn, floatBarRef } = props;
     const { floatBarData, floatBarColors, maranger, position, setFloatBarData } = useContext(DisplayerContext);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
     useEffect(() => {
         if (floatBarData?.fillColor) {
-            const [hex, opacity] = floatBarData?.fillColor === 'transparent' && ['transparent', 0] || colorRGBA2Hex(floatBarData.fillColor);
+            const [hex, opacity] = floatBarData?.fillColor === 'transparent' && ['transparent', 1] || colorRGBA2Hex(floatBarData.fillColor);
             setColor(hex);
             setOpacity(opacity);
         }
     }, [floatBarData]);
+    const subBtnStyle = useMemo(() => {
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 200) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger]);
     const SubOpacityBtn = useMemo(() => {
         if (activeColor && activeColor !== 'transparent') {
             return React.createElement(OpacityBtn, { key: 'fillColors', opacity: opacity || 0, activeColor: activeColor, setCurOpacity: (curOpacity, curColor, workState) => {
@@ -185,12 +226,10 @@ export const FillColors = (props) => {
                 } });
         }
         return null;
-    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData]);
+    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined, onTouchEnd: (e) => {
+            return (React.createElement("div", { className: "font-colors-menu", style: subBtnStyle, onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -244,7 +283,7 @@ export const FillColors = (props) => {
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, position, activeColor, floatBarColors, SubOpacityBtn, floatBarData, maranger?.viewId, setFloatBarData, opacity]);
+    }, [showSubBtn, activeColor, floatBarColors, SubOpacityBtn, floatBarData, maranger?.viewId, opacity, subBtnStyle]);
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (React.createElement("div", { className: "color-bar-fill" },
@@ -264,7 +303,7 @@ export const FillColors = (props) => {
         SubBtns));
 };
 export const TextColors = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds } = props;
+    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef } = props;
     const { floatBarColors, maranger, position, setFloatBarData, floatBarData } = useContext(DisplayerContext);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
@@ -276,6 +315,23 @@ export const TextColors = (props) => {
             setOpacity(opacity);
         }
     }, [textOpt?.fontColor]);
+    const subBtnStyle = useMemo(() => {
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger]);
     const SubOpacityBtn = useMemo(() => {
         if (activeColor && activeColor !== 'transparent') {
             return React.createElement(OpacityBtn, { key: 'fontColors', opacity: opacity, activeColor: activeColor, setCurOpacity: (curOpacity, curColor, workState) => {
@@ -300,12 +356,10 @@ export const TextColors = (props) => {
                 } });
         }
         return null;
-    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds, setFloatBarData]);
+    }, [activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined, onTouchEnd: (e) => {
+            return (React.createElement("div", { className: "font-colors-menu", style: subBtnStyle, onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -339,7 +393,7 @@ export const TextColors = (props) => {
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData?.textOpt, workIds, maranger?.viewId, setFloatBarData]);
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData?.textOpt, workIds, maranger?.viewId, subBtnStyle]);
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (React.createElement("div", { className: "color-bar" },
@@ -360,7 +414,7 @@ export const TextColors = (props) => {
         SubBtns));
 };
 export const TextBgColors = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt } = props;
+    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, floatBarRef } = props;
     const { floatBarColors, maranger, position } = useContext(DisplayerContext);
     const [activeColor, setColor] = useState();
     const [opacity, setOpacity] = useState(1);
@@ -372,6 +426,23 @@ export const TextBgColors = (props) => {
             setOpacity(opacity);
         }
     }, [textOpt?.fontBgColor]);
+    const subBtnStyle = useMemo(() => {
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 150) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger]);
     const SubOpacityBtn = useMemo(() => {
         if (activeColor && activeColor !== 'transparent') {
             return React.createElement(OpacityBtn, { key: 'fontColors', opacity: opacity, activeColor: activeColor, setCurOpacity: (curOpacity, curColor, workState) => {
@@ -389,9 +460,7 @@ export const TextBgColors = (props) => {
     }, [activeColor, opacity, maranger]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "font-colors-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined, onTouchEnd: (e) => {
+            return (React.createElement("div", { className: "font-colors-menu", style: subBtnStyle, onTouchEnd: (e) => {
                     e.stopPropagation();
                     e.nativeEvent.stopImmediatePropagation();
                 }, onClick: (e) => {
@@ -425,7 +494,7 @@ export const TextBgColors = (props) => {
                 SubOpacityBtn));
         }
         return null;
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, position]);
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, subBtnStyle]);
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (React.createElement("div", { className: "color-bar", style: { marginTop: 0 } },

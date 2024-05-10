@@ -30,11 +30,23 @@ export class TextEditorManagerImpl {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "undoTickerId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "proxyMap", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
+        });
+        Object.defineProperty(this, "taskqueue", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
         });
         const { control, internalMsgEmitter } = props;
         this.control = control;
@@ -80,9 +92,11 @@ export class TextEditorManagerImpl {
                 const isLocalId = this.collector?.isLocalId(workId);
                 const key = isLocalId ? this.collector?.transformKey(workId) : workId;
                 const curStore = this.collector?.storage[viewId] && this.collector.storage[viewId][scenePath] && this.collector.storage[viewId][scenePath][key] || undefined;
+                // console.log('active---2---0---1', workId, opt.uid, opt.workState, canSync, canWorker)
                 if (!curStore) {
                     if (type === ETextEditorType.Text) {
                         if (canSync) {
+                            // console.log('active---2---1',workId, opt.workState)
                             this.collector?.dispatch({
                                 type: opt.text && EPostMessageType.FullWork || EPostMessageType.CreateWork,
                                 workId,
@@ -113,6 +127,12 @@ export class TextEditorManagerImpl {
                 else {
                     if (curStore.toolsType === EToolsKey.Text) {
                         if (canWorker) {
+                            this.control.worker.queryTaskBatchData({
+                                workId,
+                                msgType: EPostMessageType.UpdateNode
+                            }).forEach(task => {
+                                this.control.worker?.taskBatchData.delete(task);
+                            });
                             this.control.worker?.taskBatchData.add({
                                 workId,
                                 msgType: EPostMessageType.UpdateNode,
@@ -120,7 +140,8 @@ export class TextEditorManagerImpl {
                                 toolsType: EToolsKey.Text,
                                 opt,
                                 viewId,
-                                scenePath
+                                scenePath,
+                                // willSyncService: canSync
                             });
                             this.control.worker?.runAnimation();
                         }
@@ -154,38 +175,37 @@ export class TextEditorManagerImpl {
                 if (!canWorker && !canSync) {
                     return true;
                 }
-                const isLocalId = this.collector?.isLocalId(workId);
-                const key = isLocalId ? this.collector?.transformKey(workId) : workId;
-                const curStore = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] && this.collector?.storage[viewId][scenePath][key] || undefined;
-                if (curStore) {
-                    if (curStore.toolsType === EToolsKey.Text) {
-                        if (canWorker) {
-                            this.control.worker?.taskBatchData.add({
-                                workId,
-                                toolsType: EToolsKey.Text,
-                                msgType: EPostMessageType.RemoveNode,
-                                dataType: EDataType.Local,
-                                viewId,
-                                scenePath
-                            });
-                            this.control.worker?.runAnimation();
-                        }
-                        if (canSync) {
-                            requestAsyncCallBack(() => {
-                                this.collector?.dispatch({
-                                    type: EPostMessageType.RemoveNode,
-                                    removeIds: [workId],
-                                    toolsType: EToolsKey.Text,
-                                    viewId,
-                                    scenePath
-                                });
-                            }, this.control.worker.maxLastSyncTime);
-                        }
-                    }
-                    else {
-                        // todo shape
-                    }
+                // const isLocalId = this.collector?.isLocalId(workId);
+                // const key = isLocalId ? this.collector?.transformKey(workId) : workId;
+                // const curStore = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] && this.collector?.storage[viewId][scenePath][key] || undefined;
+                // if (curStore) {
+                // if (curStore.toolsType === EToolsKey.Text) {
+                if (canWorker) {
+                    this.control.worker?.taskBatchData.add({
+                        workId,
+                        toolsType: EToolsKey.Text,
+                        msgType: EPostMessageType.RemoveNode,
+                        dataType: EDataType.Local,
+                        viewId,
+                        scenePath
+                    });
+                    this.control.worker?.runAnimation();
                 }
+                if (canSync) {
+                    requestAsyncCallBack(() => {
+                        this.collector?.dispatch({
+                            type: EPostMessageType.RemoveNode,
+                            removeIds: [workId],
+                            toolsType: EToolsKey.Text,
+                            viewId,
+                            scenePath
+                        });
+                    }, this.control.worker.maxLastSyncTime);
+                }
+                // } else {
+                //     // todo shape
+                // }
+                // }
             },
             clear() {
                 return true;
@@ -210,11 +230,17 @@ export class TextEditorManagerImpl {
         if (this.activeId) {
             const info = this.editors.get(this.activeId);
             const text = info?.opt.text && info?.opt.text.replace(/\s*,/g, '');
+            const viewId = info?.viewId;
             if (text) {
                 this.unActive();
             }
             else {
                 this.delete(this.activeId, true, true);
+            }
+            // console.log('undoTicker-checkEmptyTextBlur', this.undoTickerId, viewId)
+            if (this.undoTickerId && viewId) {
+                this.internalMsgEmitter.emit('undoTickerEnd', this.undoTickerId, viewId, true);
+                this.undoTickerId = undefined;
             }
         }
     }
@@ -245,16 +271,17 @@ export class TextEditorManagerImpl {
         }
     }
     onServiceDerive(data) {
-        const { workId, opt, msgType, viewId, scenePath } = data;
+        const { workId, opt, msgType, viewId, scenePath, dataType } = data;
         if (!workId || !viewId || !scenePath) {
             return;
         }
         const workIdStr = workId.toString();
         if (msgType === EPostMessageType.RemoveNode) {
-            this.delete(workIdStr, false, true);
+            console.log('onServiceDerive-d', workIdStr);
+            this.delete(workIdStr, true, true);
             return;
         }
-        const { boxPoint, boxSize, workState } = opt;
+        const { boxPoint, boxSize } = opt;
         const globalPoint = boxPoint && this.control.viewContainerManager?.transformToOriginPoint(boxPoint, viewId);
         const view = this.control.viewContainerManager.getView(viewId);
         const info = {
@@ -266,27 +293,36 @@ export class TextEditorManagerImpl {
             type: ETextEditorType.Text,
             canWorker: true,
             canSync: false,
-            dataType: EDataType.Service,
+            dataType,
+            // dataType: this.collector?.isLocalId(workIdStr) ? EDataType.Local : EDataType.Service,
             scale: view?.cameraOpt?.scale || 1,
             viewId,
             scenePath
         };
         this.editors.set(workIdStr, info);
-        if (workState === EvevtWorkState.Doing || workState === EvevtWorkState.Start) {
-            this.activeId = workIdStr;
+        if (dataType === EDataType.Service && opt.workState === EvevtWorkState.Done && this.activeId === workIdStr) {
+            this.activeId = undefined;
         }
-        // console.log('onServiceDerive---1', workIdStr,info)
+        console.log('onServiceDerive---1', workIdStr, info.opt.text, info.opt.uid, this.activeId, dataType);
         this.control.viewContainerManager.setActiveTextEditor(viewId, this.activeId);
     }
-    updateForLocalEditor(activeId, info) {
+    updateForViewEdited(activeId, info) {
         this.editors.set(activeId, info);
+        const resolve = this.taskqueue.get(activeId)?.resolve;
+        if (resolve) {
+            resolve(info);
+        }
     }
     active(workId) {
         const info = this.editors.get(workId);
         if (info && info.viewId) {
-            info.isActive = true;
             info.opt.workState = EvevtWorkState.Start;
+            info.opt.uid = this.collector?.uid;
             this.activeId = workId;
+            info.canWorker = true;
+            info.canSync = true;
+            console.log('onServiceDerive---0', info.opt.uid);
+            this.editors.set(workId, info);
             this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
         }
     }
@@ -294,55 +330,98 @@ export class TextEditorManagerImpl {
         const info = this.activeId && this.editors.get(this.activeId);
         if (info && info.viewId && this.activeId) {
             info.opt.workState = EvevtWorkState.Done;
-            // this.activeIdCache = this.activeId;
-            info.canWorker = false;
+            info.opt.uid = undefined;
+            // info.isActive = false;
+            info.canWorker = true;
             info.canSync = true;
-            this.updateForLocalEditor(this.activeId, info);
+            // console.log('active---2', this.activeId, info.opt.workState)
+            this.editors.set(this.activeId, info);
             this.activeId = undefined;
+            // console.log('active---3', this.activeId)
             this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
         }
     }
-    createTextForMasterController(params) {
+    createTextForMasterController(params, undoTickerId) {
         const { workId, isActive, ...info } = params;
+        info.opt.zIndex = this.getMaxZIndex() + 1;
+        info.opt.uid = this.collector?.uid;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            this.internalMsgEmitter.emit('undoTickerStart', this.undoTickerId, info.viewId);
+        }
         if (isActive) {
-            this.checkEmptyTextBlur();
+            // console.log('active---2', workId)
             this.activeId = workId;
         }
-        // info.opt.workState = EvevtWorkState.Start;
         info.dataType = EDataType.Local;
         info.canWorker = true;
         info.canSync = true;
         this.editors.set(workId, info);
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
     }
-    updateTextForMasterController(params) {
+    updateTextForMasterController(params, undoTickerId) {
         const { workId, ...info } = params;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            this.internalMsgEmitter.emit('undoTickerStart', this.undoTickerId, info.viewId);
+        }
         const _info = this.editors.get(workId) || {};
+        if (info.opt) {
+            info.opt.uid = this.collector?.uid;
+        }
         info.dataType = EDataType.Local;
-        info.canWorker = true;
-        info.canSync = true;
         this.editors.set(workId, { ..._info, ...info });
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
     }
-    updateTextForWorker(params) {
-        const { workId, isActive, dataType, ...info } = params;
-        let _info = this.editors.get(workId);
-        if (isActive) {
-            if (_info) {
-                _info.dataType = dataType;
-                _info.canWorker = false;
-                _info.canSync = false;
-                this.editors.set(workId, _info);
-                this.active(workId);
+    async updateTextControllerWithEffectAsync(params, undoTickerId) {
+        const { workId, ...info } = params;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            this.internalMsgEmitter.emit('undoTickerStart', this.undoTickerId, info.viewId);
+        }
+        const _info = this.editors.get(workId) || {};
+        if (info.opt) {
+            info.opt.uid = this.collector?.uid;
+        }
+        info.dataType = EDataType.Local;
+        this.editors.set(workId, { ..._info, ...info });
+        this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
+        if (this.taskqueue.has(workId)) {
+            return;
+        }
+        const clocker = setTimeout(() => {
+            const resolve = this.taskqueue.get(workId)?.resolve;
+            if (resolve) {
+                resolve(undefined);
             }
+        }, 20);
+        const info_1 = await new Promise((resolve) => {
+            this.taskqueue.set(workId, { resolve, clocker });
+        });
+        const task = this.taskqueue.get(workId);
+        if (task) {
+            task.clocker && clearTimeout(task.clocker);
+            this.taskqueue.delete(workId);
         }
-        else {
-            _info = _info || {};
-            _info.canWorker = false;
-            _info.canSync = true;
-            // console.log('updateSelector---0---2')
-            this.editors.set(workId, { ..._info, ...info });
+        this.taskqueue.delete(workId);
+        return info_1;
+    }
+    updateTextForWorker(params, undoTickerId) {
+        const { workId, isActive, ...info } = params;
+        if (undoTickerId) {
+            this.undoTickerId = undoTickerId;
+            this.internalMsgEmitter.emit('undoTickerStart', this.undoTickerId, info.viewId);
         }
+        const _info = this.editors.get(workId) || {};
+        const data = { ..._info, ...info };
+        if (isActive) {
+            data.canWorker = false;
+            data.canSync = false;
+            this.editors.set(workId, data);
+            this.active(workId);
+            return;
+        }
+        this.editors.set(workId, data);
         this.control.viewContainerManager.setActiveTextEditor(info.viewId, this.activeId);
     }
     get(workId) {
@@ -371,6 +450,7 @@ export class TextEditorManagerImpl {
                 info.canWorker = canWorker;
                 this.editors.delete(workId);
                 if (this.activeId === workId) {
+                    // console.log('active---4', undefined)
                     this.activeId = undefined;
                 }
                 viewIds.add(viewId);
@@ -396,5 +476,14 @@ export class TextEditorManagerImpl {
     destory() {
         this.editors.clear();
         this.activeId = undefined;
+    }
+    getMaxZIndex() {
+        let max = 0;
+        this.editors.forEach(editor => {
+            if (editor.opt.zIndex && editor.opt.zIndex > max) {
+                max = editor.opt.zIndex;
+            }
+        });
+        return max;
     }
 }

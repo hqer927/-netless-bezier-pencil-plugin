@@ -9,6 +9,8 @@ import { ScaleNodeMethodForWorker } from './scaleNode/forWorker';
 import { RotateNodeMethodForWorker } from './rotateNode/forWorker';
 import { SetFontStyleMethodForWorker } from './setFont/forWorker';
 import { SetPointMethodForWorker } from './setPoint/forWorker';
+import { SetLockMethodForWorker } from './setLock/forWorker';
+import { SetShapeOptMethodForWorker } from './setShape/forWorker';
 export class MethodBuilderWorker {
     constructor(emitTypes) {
         Object.defineProperty(this, "builders", {
@@ -41,13 +43,17 @@ export class MethodBuilderWorker {
                 return new SetFontStyleMethodForWorker();
             case EmitEventType.SetPoint:
                 return new SetPointMethodForWorker();
+            case EmitEventType.SetLock:
+                return new SetLockMethodForWorker();
+            case EmitEventType.SetShapeOpt:
+                return new SetShapeOptMethodForWorker();
         }
         return undefined;
     }
-    registerForWorker(localWork, serviceWork) {
+    registerForWorker(localWork, serviceWork, scene) {
         this.builders.forEach(builder => {
             if (builder) {
-                builder.registerForWorker(localWork, serviceWork);
+                builder.registerForWorker(localWork, serviceWork, scene);
             }
         });
         return this;

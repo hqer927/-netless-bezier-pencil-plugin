@@ -57,7 +57,7 @@ export class MainViewMultiDisplayerManager extends MainViewDisplayerManager {
         mainViewDisplayer.className = 'teaching-aids-plugin-main-view-displayer';
         mainViewContainer.appendChild(mainViewDisplayer);
         this.eventTragetElement = mainViewContainer.children[0] as HTMLDivElement;
-        this.containerOffset = this.getContainerOffset( this.eventTragetElement,this.containerOffset);
+        this.containerOffset = this.getContainerOffset(this.eventTragetElement,this.containerOffset);
         this.bindToolsClass();
         ReactDOM.render(<BaseViewDisplayer viewId={this.viewId} maranger={this} refs={{
             canvasFloatRef: this.canvasFloatRef,

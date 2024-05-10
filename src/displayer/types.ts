@@ -1,5 +1,6 @@
 import { TextOptions } from "../component/textEditor";
-import { EScaleType } from "../core";
+import { EScaleType, EToolsKey } from "../core";
+import { SpeechBalloonPlacement } from "../plugin/types";
 
 export type Color = [number, number, number];
 
@@ -22,14 +23,31 @@ export type ShowFloatBarMsgValue = {
     textOpt?: TextOptions,
     scaleType?: EScaleType;
     canRotate?: boolean;
-    points?:[number,number][];
+    canLock?: boolean;
+    isLocked?: boolean;
+    points?: [number,number][];
+    shapeOpt?: ShapeOptType;
+    toolsTypes?: Array<EToolsKey>;
 };
 export type SubButProps = {
     open: boolean;
+    floatBarRef?: React.RefObject<HTMLDivElement>;
+    style?: React.CSSProperties;
     setOpen: (bol:boolean)=> void;
   }
   
 export type TextButProps = SubButProps & {
     textOpt?:TextOptions;
+    workIds?: string[];
+}
+export type ShapeOptType = {
+    placement?:SpeechBalloonPlacement;
+    vertices?: number;
+    innerVerticeStep?: number;
+    innerRatio?: number;
+}
+export type ShapeOptButProps = SubButProps & {
+    toolsTypes?: Array<EToolsKey>;
+    shapeOpt?: ShapeOptType;
     workIds?: string[];
 }

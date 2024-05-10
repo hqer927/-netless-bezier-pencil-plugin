@@ -1,3 +1,5 @@
+import { SpeechBalloonPlacement } from "../plugin/types";
+
 export declare type Margin = {
     readonly top: number;
     readonly bottom: number;
@@ -22,3 +24,10 @@ export const BarMargin: Margin = Object.freeze({
 export const FontSizeList: readonly number[] = Object.freeze([
     12, 14, 18, 24, 36, 48, 64, 80, 144, 288,
 ]);
+
+export const SpeechBalloonPlacements:SpeechBalloonPlacement[] = [
+    "top", "topLeft", "topRight", 
+    "bottom", "bottomLeft", "bottomRight", 
+    "left", "leftTop", "leftBottom", 
+    "right", "rightTop", "rightBottom"
+];

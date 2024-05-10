@@ -127,53 +127,18 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
                     });
                     taskData.selectStore = subStore;
                     taskData.willSerializeData = true;
-                    localMsgs.push(taskData);
+                    localMsgs.push([taskData, {
+                            workId: curKey,
+                            msgType: EPostMessageType.UpdateNode,
+                            emitEventType: this.emitEventType
+                        }]);
                 }
                 continue;
             }
-            // if (curStore) {
-            //     if (layer === ElayerType.Top) {
-            //         this.addMaxLayer();
-            //         zIndex = this.max;
-            //     } else {
-            //         this.addMinLayer();
-            //         zIndex = this.min;
-            //     }
-            //     const opt = curStore.opt;
-            //     const updateNodeOpt = curStore.updateNodeOpt || {};
-            //     if (opt) {
-            //         updateNodeOpt.zIndex = zIndex;
-            //         opt.zIndex = zIndex;
-            //         serviceMsgs.push({
-            //             ...curStore,
-            //             type: EPostMessageType.UpdateNode,
-            //             opt
-            //         });
-            //         if (!selectIds.includes(curKeyStr)) {
-            //             let localWorkId:string | undefined = curKeyStr;
-            //             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-            //                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-            //             }
-            //             localMsgs.push({
-            //                 workId: localWorkId,
-            //                 msgType: EPostMessageType.UpdateNode,
-            //                 dataType: EDataType.Local,
-            //                 updateNodeOpt,
-            //                 emitEventType: this.emitEventType,
-            //                 willSyncService: false,
-            //                 willRefresh: true,
-            //                 viewId
-            //             })
-            //         }
-            //     }
-            // }
         }
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }
-        // if (serviceMsgs.length) {
-        //     this.collectForServiceWorker(serviceMsgs);
-        // }
         function getKey(name, serviceColloctor) {
             const isLocalId = serviceColloctor.isLocalId(name);
             return isLocalId && serviceColloctor.transformKey(name) || name;

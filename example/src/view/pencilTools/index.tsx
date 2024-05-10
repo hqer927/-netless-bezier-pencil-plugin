@@ -14,11 +14,17 @@ import { EStrokeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
 export const PencilTools = () => {
     const {toolsKey} = useContext(AppContext);
     const [strokeType, setStrokeType] = useState<EStrokeType>(EStrokeType.Stroke);
-    const [useNewPencil, setUseNewPencil] = useState<boolean>(true);
+    // const [useNewPencil, setUseNewPencil] = useState<boolean>(true);
     useEffect(()=>{
-        const _strokeType = window.room.state.memberState.strokeType;
-        setStrokeType(_strokeType);
-    }, [])
+        Promise.resolve().then(()=>{
+            const _strokeType = window.room.state.memberState.strokeType;
+            if(_strokeType!==strokeType){
+                console.log('_strokeType', _strokeType)
+                setStrokeType(_strokeType);
+            }
+        })
+    }, [window.room.state.memberState.strokeType, toolsKey])
+
     const _colorPicker = useMemo(() => {
         if(toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen){
             const defaultColor:[number, number, number] = window.room?.state?.memberState?.strokeColor || [0,0,0];
@@ -87,29 +93,32 @@ export const PencilTools = () => {
                 //console.log('value', value)
                 window.room.setMemberState({strokeWidth: value});
             }
-            const onTurn = (checked: boolean)=>{
-                setUseNewPencil(checked);
-                window.room.setMemberState({useNewPencil: checked});
-            }
             return (
                 <Popover
                     placement="rightTop"
-                    title={()=>{
-                        return (
-                            <Switch checkedChildren="开启" unCheckedChildren="关闭" onChange={onTurn} size="small" defaultChecked />
-                        )
-                    }}
                     content={()=>{
-                        if (!useNewPencil) {
-                            return null;
-                        }
+                        // if (!useNewPencil) {
+                        //     return null;
+                        // }
                         return (
                             <>
                                 <Button.Group size="middle">
-                                    {toolsKey === EToolsKey.Pencil && <Button icon={<StrokePencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Stroke)}}/>}
-                                    <Button icon={<NormPencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Normal)}}/>
-                                    <Button icon={<DottedPencilIcon />} onClick={()=>{setStrokeType(EStrokeType.Dotted)}}/>
-                                    <Button icon={<DottedPencilLongIcon />} onClick={()=>{setStrokeType(EStrokeType.LongDotted)}}/>
+                                    {toolsKey === EToolsKey.Pencil && <Button type={strokeType === EStrokeType.Stroke ? 'primary' : 'default'} icon={<StrokePencilIcon />} onClick={()=>{
+                                        setStrokeType(EStrokeType.Stroke)
+                                        window.room.setMemberState({strokeType:EStrokeType.Stroke});
+                                    }}/>}
+                                    <Button type={strokeType === EStrokeType.Normal ? 'primary' : 'default'} icon={<NormPencilIcon />} onClick={()=>{
+                                        window.room.setMemberState({strokeType:EStrokeType.Normal});
+                                        setStrokeType(EStrokeType.Normal)
+                                    }}/>
+                                    <Button type={strokeType === EStrokeType.Dotted ? 'primary' : 'default'} icon={<DottedPencilIcon />} onClick={()=>{
+                                        window.room.setMemberState({strokeType:EStrokeType.Dotted});
+                                        setStrokeType(EStrokeType.Dotted)
+                                    }}/>
+                                    <Button type={strokeType === EStrokeType.LongDotted ? 'primary' : 'default'} icon={<DottedPencilLongIcon />} onClick={()=>{
+                                        window.room.setMemberState({strokeType:EStrokeType.LongDotted});
+                                        setStrokeType(EStrokeType.LongDotted)
+                                    }}/>
                                 </Button.Group>
                                 <Slider
                                     defaultValue = {defaultWidth}
@@ -129,12 +138,7 @@ export const PencilTools = () => {
             )
         }
         return null;
-    }, [toolsKey, strokeType, useNewPencil])
-
-    useEffect(() => {
-        window.room.setMemberState({strokeType});
-    }, [strokeType])
-    
+    }, [toolsKey, strokeType])
 
     return (
         <div className={styles['PencilTools']}>

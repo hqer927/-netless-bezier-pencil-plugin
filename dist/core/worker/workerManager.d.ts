@@ -23,18 +23,18 @@ export declare class WorkThreadEngineForFullWorker extends WorkThreadEngineBase 
     drawLayer: Group;
     snapshotFullLayer: undefined;
     private methodBuilder;
-    protected localWork: LocalWorkForFullWorker;
-    protected serviceWork: ServiceWorkForFullWorker;
+    localWork: LocalWorkForFullWorker;
+    serviceWork: ServiceWorkForFullWorker;
     protected _post: (msg: IBatchMainMessage, transfer?: Transferable[] | undefined) => void;
     constructor(viewId: string, opt: IWorkerInitOption, _post: (msg: IBatchMainMessage, transfer?: Transferable[]) => void);
     post(msg: IBatchMainMessage, transfer?: Transferable[]): Promise<void>;
     on(msg: IWorkerMessage): void;
-    removeNode(data: IWorkerMessage): void;
+    removeNode(data: IWorkerMessage): Promise<void>;
     checkTextActive(data: IWorkerMessage): void;
     clearAll(): void;
     setCameraOpt(cameraOpt: ICameraOpt): void;
     getOffscreen(isFullWork: boolean): OffscreenCanvas;
-    consumeFull(type: EDataType, data: IWorkerMessage): void;
+    consumeFull(type: EDataType, data: IWorkerMessage): Promise<void>;
     consumeDraw(type: EDataType, data: IWorkerMessage): void;
     consumeDrawAll(type: EDataType, data: IWorkerMessage): void;
     private updateCamera;
@@ -42,14 +42,15 @@ export declare class WorkThreadEngineForFullWorker extends WorkThreadEngineBase 
     private safariFixRect;
     private getSceneRect;
     private checkRightRectBoundingBox;
+    private cursorHover;
 }
 /** sub worker */
 export declare class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
     protected _post: (msg: IBatchMainMessage, transfer?: Transferable[] | undefined) => void;
     drawLayer: undefined;
     snapshotFullLayer: Group | undefined;
-    protected serviceWork: undefined;
-    protected localWork: LocalWorkForSubWorker;
+    serviceWork: undefined;
+    localWork: LocalWorkForSubWorker;
     constructor(viewId: string, opt: IWorkerInitOption, _post: (msg: IBatchMainMessage, transfer?: Transferable[]) => void);
     post(msg: IBatchMainMessage, transfer?: Transferable[]): Promise<void>;
     on(msg: IWorkerMessage): void;

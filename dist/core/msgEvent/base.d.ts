@@ -1,5 +1,5 @@
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { IWorkerMessage } from "../types";
+import { IWorkerMessage, IqueryTask } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
 import { MasterController } from "../mainEngine";
@@ -12,7 +12,7 @@ export declare abstract class BaseMsgMethod {
     get serviceColloctor(): import("../../collector").Collector | undefined;
     registerForMainEngine(emtType: InternalMsgEmitterType, control: BaseTeachingAidsManager): this;
     destroy(): void;
-    collectForLocalWorker(data: IWorkerMessage[]): void;
+    collectForLocalWorker(data: [IWorkerMessage, IqueryTask][]): void;
     collectForServiceWorker(actions: BaseCollectorReducerAction[]): void;
     abstract collect(data: unknown): void;
 }

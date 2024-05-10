@@ -21,13 +21,35 @@ export class ZIndexNodeMethodForWorker extends BaseMsgMethodForWorker {
             return true;
         }
     }
-    consumeForLocalWorker(data) {
+    async consumeForLocalWorker(data) {
         const { workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData } = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData });
+            await this.localWork?.updateSelector({ updateSelectorOpt: updateNodeOpt, willRefreshSelector,
+                willSyncService, willSerializeData, callback: this.updateSelectorCallback });
         }
-        // else if (workId && updateNodeOpt) {
-        //     this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
-        // }
+    }
+    updateSelectorCallback(props) {
+        const { param, postData, newServiceStore } = props;
+        const { willSyncService, isSync } = param;
+        const render = postData.render || [];
+        const sp = postData.sp || [];
+        if (willSyncService && sp) {
+            for (const [workId, info] of newServiceStore.entries()) {
+                sp.push({
+                    ...info,
+                    workId,
+                    type: EPostMessageType.UpdateNode,
+                    updateNodeOpt: {
+                        useAnimation: false
+                    },
+                    isSync
+                });
+            }
+        }
+        // console.log('updateSelector---0---0--ZIndexNode', render, sp)
+        return {
+            render,
+            sp
+        };
     }
 }

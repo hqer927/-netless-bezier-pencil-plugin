@@ -9,9 +9,9 @@ export declare class ServiceWorkForFullWorker implements ServiceWork {
     vNodes: VNodeManager;
     fullLayer: Group;
     drawLayer: Group;
-    protected workShapes: Map<string, IServiceWorkItem>;
-    protected animationId?: number | undefined;
+    workShapes: Map<string, IServiceWorkItem>;
     selectorWorkShapes: Map<string, IServiceWorkItem>;
+    protected animationId?: number | undefined;
     private willRunEffectSelectorIds;
     private runEffectId?;
     private noAnimationRect;

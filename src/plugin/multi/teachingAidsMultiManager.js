@@ -42,13 +42,20 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
                     }
                 }
                 if (diff) {
+                    const excludeIds = new Map();
                     Object.keys(diff).forEach((key) => {
                         const item = diff[key];
                         if (item) {
+                            const viewId = item.viewId;
+                            const keys = excludeIds.get(viewId) || new Set();
+                            keys.add(key);
+                            excludeIds.set(viewId, keys);
                             this.worker?.onServiceDerive(key, item);
                         }
                     });
-                    BaseTeachingAidsManager.InternalMsgEmitter.emit("excludeIds", Object.keys(diff));
+                    for (const [viewId, keys] of excludeIds.entries()) {
+                        BaseTeachingAidsManager.InternalMsgEmitter.emit('excludeIds', [...keys], viewId);
+                    }
                 }
             });
             if (this.room) {

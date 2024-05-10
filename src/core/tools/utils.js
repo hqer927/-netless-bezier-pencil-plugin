@@ -11,6 +11,7 @@ import { PolygonShape } from "./polygon";
 import { RectangleShape } from "./rectangle";
 import { SpeechBalloonShape } from "./speechBalloon";
 import { TextShape } from "./text";
+import { ImageShape } from "./image";
 export function getShapeTools(toolsType) {
     switch (toolsType) {
         case EToolsKey.Arrow:
@@ -39,9 +40,11 @@ export function getShapeTools(toolsType) {
             return EraserShape;
         case EToolsKey.Selector:
             return SelectorShape;
+        case EToolsKey.Image:
+            return ImageShape;
     }
 }
-export function getShapeInstance(param) {
+export function getShapeInstance(param, serviceWork) {
     const { toolsType, ...props } = param;
     switch (toolsType) {
         case EToolsKey.Arrow:
@@ -67,10 +70,25 @@ export function getShapeInstance(param) {
         case EToolsKey.LaserPen:
             return new LaserPenShape(props);
         case EToolsKey.Eraser:
-            return new EraserShape(props);
+            return new EraserShape(props, serviceWork);
         case EToolsKey.Selector:
             return new SelectorShape(props);
+        case EToolsKey.Image:
+            return new ImageShape(props);
         default:
             return undefined;
     }
+}
+export function findShapeBody(nodes) {
+    const bodys = [];
+    const bodyTagNames = ['PATH', 'SPRITE', 'POLYLINE', 'RECT', 'ELLIPSE'];
+    for (const node of nodes) {
+        if (node.tagName === 'GROUP' && node.children.length) {
+            return findShapeBody(node.children);
+        }
+        if (node.tagName && bodyTagNames.includes(node.tagName)) {
+            bodys.push(node);
+        }
+    }
+    return bodys;
 }

@@ -29,12 +29,12 @@ export declare abstract class ViewContainerManager {
     appViews: Map<string, ViewInfo>;
     constructor(props: BaseSubWorkModuleProps);
     undoTickerStart(id: number, viewId: string): void;
-    undoTickerEnd(id: number, viewId: string): void;
+    undoTickerEnd(id: number, viewId: string, isSync?: boolean): void;
     addExcludeIds(ids: string[], viewId: string): void;
     undo(): number;
     redo(): number;
     protected validator(target: ViewInfo, key: string, value: any): void;
-    destroyAppView(viewId: string): void;
+    destroyAppView(viewId: string, justLocal?: boolean): void;
     createMianView(originMainView: ViewInfo): void;
     createAppView(originAppView: ViewInfo): void;
     isAppView(viewId: string): boolean;
@@ -116,6 +116,7 @@ export declare abstract class AppViewDisplayerManager {
     protected touchend: (e: TouchEvent) => void;
     cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;
+    protected keydown: (e: KeyboardEvent) => void;
     protected bindDisplayerEvent(div: HTMLDivElement): void;
     protected removeDisplayerEvent(div: HTMLDivElement): void;
 }
@@ -165,6 +166,7 @@ export declare abstract class MainViewDisplayerManager {
     protected touchend: (e: TouchEvent) => void;
     cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;
+    protected keydown: (e: KeyboardEvent) => void;
     protected bindDisplayerEvent(div: HTMLDivElement): void;
     protected removeDisplayerEvent(div: HTMLDivElement): void;
 }

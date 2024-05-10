@@ -1,3 +1,4 @@
+import { SpeechBalloonPlacement } from "../plugin/types";
 export declare type Margin = {
     readonly top: number;
     readonly bottom: number;
@@ -7,3 +8,4 @@ export declare type Margin = {
 export declare const BarPadding: Margin;
 export declare const BarMargin: Margin;
 export declare const FontSizeList: readonly number[];
+export declare const SpeechBalloonPlacements: SpeechBalloonPlacement[];

@@ -21,7 +21,7 @@
     "spritejs": "^3.8.3",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",
-    "white-web-sdk": "^2.16.47"
+    "white-web-sdk": "^2.16.51"
   },
   "peerDependencies": {
     "@netless/app-slide": ">=0.2",

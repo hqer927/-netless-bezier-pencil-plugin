@@ -50,6 +50,7 @@ export declare abstract class BaseShapeTool {
     /** 消费本地完整数据，返回绘制结果 */
     abstract consumeAll(props: {
         data?: IWorkerMessage;
+        hoverId?: string;
     }): IMainMessage;
     /** 消费服务端数据，返回绘制结果 */
     abstract consumeService(props: {

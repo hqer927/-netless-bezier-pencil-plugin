@@ -39,7 +39,7 @@ export abstract class CursorManager {
     /** 收集服务端cursor事件 */
     abstract collectServiceCursor(data:IMainMessage):void;
     /** 同步服务端失效 cursor事件 */
-    abstract unable(): void;
+    abstract unabled(): void;
     /** 销毁cursor管理器 */
     abstract destroy(): void;
     /** 激活获焦的focusViewId */
@@ -52,6 +52,10 @@ export class CursorManagerImpl implements CursorManager {
     readonly roomMember: RoomMemberManager;
     private animationId?: number | undefined;
     private removeTimerId?: number | undefined;
+    private asyncEndInfo?: {
+        uid:string;
+        viewId:string;
+    }
     private animationPointWorkers: Map<string, IServiceWorkItem> = new Map();
     private animationDrawWorkers: Map<string, IServiceWorkItem> = new Map();
     constructor(props:BaseSubWorkModuleProps){
@@ -308,7 +312,11 @@ export class CursorManagerImpl implements CursorManager {
                 if (this.removeTimerId) {
                     clearTimeout(this.removeTimerId);
                     this.removeTimerId = undefined;
-                }   
+                    if(this.asyncEndInfo && this.asyncEndInfo.viewId !== viewId && this.asyncEndInfo.uid === uid){
+                        this.activeDrawWorkShape(uid, [undefined,undefined], EvevtWorkState.Done, this.asyncEndInfo.viewId);
+                    }
+                }
+                this.asyncEndInfo = {uid, viewId};
                 this.removeTimerId = setTimeout(()=>{
                     this.removeTimerId = undefined;
                     this.activeDrawWorkShape(uid, [undefined,undefined], EvevtWorkState.Done, viewId);
@@ -322,7 +330,7 @@ export class CursorManagerImpl implements CursorManager {
             this.runAnimation();
         }
     }
-    unable(){
+    unabled(){
         this.eventCollector?.dispatch({
             type: EventMessageType.Cursor,
             op: [undefined,undefined],

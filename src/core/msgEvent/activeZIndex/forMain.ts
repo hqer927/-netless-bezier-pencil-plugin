@@ -21,10 +21,11 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         if (!view?.displayer) {
             return ;
         }
-        const localMsgs: IWorkerMessage[] = [];
+        const scenePath = view.focusScenePath;
+        const localMsgs: [IWorkerMessage,Partial<IWorkerMessage>][] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
         if (workId === Storage_Selector_key) {
-            localMsgs.push({
+            localMsgs.push([{
                 workId,
                 msgType: EPostMessageType.UpdateNode,
                 dataType: EDataType.Local,
@@ -32,8 +33,13 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
                 emitEventType: this.emitEventType,
                 willRefreshSelector: true,
                 willSyncService: false,
-                viewId
-            })
+                viewId,
+                scenePath
+            },{
+                workId, 
+                msgType: EPostMessageType.UpdateNode, 
+                emitEventType: this.emitEventType
+            }])
         }
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);

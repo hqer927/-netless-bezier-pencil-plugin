@@ -5,11 +5,10 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { Storage_Selector_key } from "../../collector/const";
 import { FontSizeList } from "../const";
+import isBoolean from "lodash/isBoolean";
 const SubBtns = (props) => {
-    const { position, onClickHandler } = props;
-    return (React.createElement("div", { className: "font-size-menu", style: position && position.y < 80 ? {
-            top: 'inherit', bottom: '50px'
-        } : undefined, onTouchEnd: (e) => {
+    const { style, onClickHandler } = props;
+    return (React.createElement("div", { className: "font-size-menu", style: style, onTouchEnd: (e) => {
             e.stopPropagation();
             e.nativeEvent.stopImmediatePropagation();
         }, onClick: (e) => {
@@ -20,9 +19,10 @@ const SubBtns = (props) => {
 };
 export const FontSizeBtn = (props) => {
     const ref = useRef(null);
-    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds } = props;
-    const { position, maranger } = useContext(DisplayerContext);
+    const { open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef } = props;
+    const { maranger, position } = useContext(DisplayerContext);
     const [size, setSize] = useState(0);
+    const [oldDisableDeviceInputs, setOldDisableDeviceInputs] = useState();
     const length = FontSizeList.length - 1;
     useEffect(() => {
         if (textOpt?.fontSize) {
@@ -32,37 +32,65 @@ export const FontSizeBtn = (props) => {
             }
         }
     }, [textOpt?.fontSize]);
-    useEffect(() => {
-        if (size && size !== textOpt?.fontSize && size >= FontSizeList[0] && size <= FontSizeList[length]) {
-            // console.log('useEffect---1', size)
-            if (ref.current) {
-                ref.current.value = size.toString();
+    const subBtnStyle = useMemo(() => {
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 250) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 35;
+                return value;
             }
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 180) {
+                const value = {};
+                value.top = 'inherit';
+                value.bottom = 35;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger]);
+    function sendFontSize(size) {
+        setSize(size);
+        if (size && size >= FontSizeList[0] && size <= FontSizeList[length]) {
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetFontStyle, {
                 workIds: workIds || [Storage_Selector_key],
                 fontSize: size,
                 viewId: maranger?.viewId
             });
         }
-    }, [maranger?.viewId, size, textOpt?.fontSize, workIds]);
-    const onClickHandler = (s) => {
-        setSize(s);
+    }
+    const onClickHandler = (size) => {
+        setSize(size);
         setShowSubBtn(false);
         ref.current?.blur();
+        if (size && size >= FontSizeList[0] && size <= FontSizeList[length]) {
+            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetFontStyle, {
+                workIds: workIds || [Storage_Selector_key],
+                fontSize: size,
+                viewId: maranger?.viewId
+            });
+        }
     };
     const SubBtnUI = useMemo(() => {
         if (showSubBtn) {
-            return React.createElement(SubBtns, { onClickHandler: onClickHandler, position: position });
+            return React.createElement(SubBtns, { onClickHandler: onClickHandler, style: subBtnStyle });
         }
         return null;
-    }, [showSubBtn, onClickHandler, position]);
+    }, [showSubBtn, onClickHandler, subBtnStyle]);
     const checkSize = (number) => {
         if (number > FontSizeList[length])
             number = FontSizeList[length];
         if (number < FontSizeList[0])
             number = FontSizeList[0];
-        setSize(number);
+        sendFontSize(number);
     };
+    useEffect(() => {
+        return () => {
+            if (maranger?.control.room && isBoolean(oldDisableDeviceInputs)) {
+                maranger.control.room.disableDeviceInputs = oldDisableDeviceInputs;
+            }
+        };
+    }, [maranger, oldDisableDeviceInputs]);
     return (React.createElement("div", { className: 'button normal-button font-size-barBtn', style: { width: 50 }, onTouchEnd: (e) => {
             e.stopPropagation();
             e.nativeEvent.stopImmediatePropagation();
@@ -77,7 +105,7 @@ export const FontSizeBtn = (props) => {
                     ref.current.focus();
                 }
             }, onClick: () => {
-                setShowSubBtn(true);
+                setShowSubBtn(!showSubBtn);
                 if (ref.current) {
                     ref.current.focus();
                 }
@@ -109,7 +137,17 @@ export const FontSizeBtn = (props) => {
                 const value = e.target.value;
                 const number = parseInt(value);
                 if (number) {
-                    setSize(number);
+                    sendFontSize(number);
+                }
+            }, onFocus: () => {
+                if (maranger?.control.room && !maranger.control.room.disableDeviceInputs) {
+                    setOldDisableDeviceInputs(maranger.control.room.disableDeviceInputs);
+                    maranger.control.room.disableDeviceInputs = true;
+                }
+            }, onBlur: () => {
+                if (maranger?.control.room && isBoolean(oldDisableDeviceInputs)) {
+                    maranger.control.room.disableDeviceInputs = oldDisableDeviceInputs;
+                    // console.log('onBlur', oldDisableDeviceInputs)
                 }
             } }),
         React.createElement("div", { className: "font-size-btns" },

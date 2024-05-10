@@ -1,6 +1,6 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
-import { IWorkerMessage, IworkId } from "../../types";
+import { IWorkerMessage, IqueryTask, IworkId } from "../../types";
 import { EDataType, EPostMessageType, EvevtWorkState } from "../../enum";
 import { Storage_Selector_key } from "../../../collector";
 
@@ -32,13 +32,15 @@ export class TranslateNodeMethod extends BaseMsgMethod {
         const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor?.storage;
-        const localMsgs: IWorkerMessage[] = [];
+        const localMsgs: [IWorkerMessage,IqueryTask][] = [];
         const bgRect = view.displayer.canvasBgRef.current?.getBoundingClientRect();
         const floatBarRect = view.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
         let willRefreshSelector = false;
+        // const isSafari = navigator.userAgent.indexOf('Safari') !== -1 && navigator.userAgent.indexOf('Chrome') === -1;
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
             this.undoTickerId = undoTickerId;
+            // console.log('undoTickerStart--000', workState)
             this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         }
         if (bgRect && floatBarRect && this.oldRect) {
@@ -87,7 +89,7 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             willRefreshSelector,
                             willSyncService: true,
                             textUpdateForWoker: false,
-                            viewId,
+                            viewId
                         };
                         if (workState === EvevtWorkState.Done) {
                             taskData.willRefreshSelector = true;
@@ -96,13 +98,18 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             taskData.undoTickerId = this.undoTickerId;
                             this.cachePosition = undefined;
                         }
-                        localMsgs.push(taskData)
+                        localMsgs.push([taskData,{
+                            workId: curKey,
+                            msgType: EPostMessageType.UpdateNode, 
+                            emitEventType: this.emitEventType
+                        }])
                     }
                 }
                 continue;
             }
         }
         if (localMsgs.length) {
+            console.log('TranslateNode', localMsgs)
             this.collectForLocalWorker(localMsgs);
         }
     }

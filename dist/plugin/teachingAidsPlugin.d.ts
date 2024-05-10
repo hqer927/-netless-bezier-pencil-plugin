@@ -22,7 +22,6 @@ export declare class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPlug
     private get isReplay();
     private get callbackName();
     init(displayer: Displayer): void;
-    private onPhaseChanged;
     private updateRoomWritable;
     private roomStateChangeListener;
     destroy(): void;

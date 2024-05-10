@@ -8,6 +8,8 @@ export declare class ViewContainerMultiManager extends ViewContainerManager {
     focuedViewId?: string;
     focuedView?: ViewInfo;
     control: TeachingAidsMultiManager;
+    /** 针对windowmanager的focusedChange先于onAppViewMounted*/
+    tmpFocusedViewId?: string;
     private checkScaleTimer?;
     constructor(props: BaseSubWorkModuleProps);
     mountView(viewId: string): void;
@@ -16,10 +18,12 @@ export declare class ViewContainerMultiManager extends ViewContainerManager {
     transformToOriginPoint(p: [number, number], viewId: string): [number, number];
     transformToScenePoint(p: [number, number], viewId: string): [number, number];
     render(renderData: IMainMessageRenderData[]): void;
+    private onMainViewRelease;
     onMainViewMounted: (bindMainView: View) => void;
     private onMainViewSizeUpdated;
     private onMainViewCameraUpdated;
     onAppViewMounted: (payload: any) => void;
     private onAppViewSizeUpdated;
     private onAppViewCameraUpdated;
+    private onActiveHotkeyChange;
 }

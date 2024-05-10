@@ -21,19 +21,25 @@ export class ZIndexActiveMethod extends BaseMsgMethod {
         if (!view?.displayer) {
             return;
         }
+        const scenePath = view.focusScenePath;
         const localMsgs = [];
         const serviceMsgs = [];
         if (workId === Storage_Selector_key) {
-            localMsgs.push({
-                workId,
-                msgType: EPostMessageType.UpdateNode,
-                dataType: EDataType.Local,
-                isActiveZIndex: isActive,
-                emitEventType: this.emitEventType,
-                willRefreshSelector: true,
-                willSyncService: false,
-                viewId
-            });
+            localMsgs.push([{
+                    workId,
+                    msgType: EPostMessageType.UpdateNode,
+                    dataType: EDataType.Local,
+                    isActiveZIndex: isActive,
+                    emitEventType: this.emitEventType,
+                    willRefreshSelector: true,
+                    willSyncService: false,
+                    viewId,
+                    scenePath
+                }, {
+                    workId,
+                    msgType: EPostMessageType.UpdateNode,
+                    emitEventType: this.emitEventType
+                }]);
         }
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);

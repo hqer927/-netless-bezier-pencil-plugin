@@ -11,6 +11,7 @@ import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
 import { BaseShapeOptions } from "../core/tools/base";
 import { ICameraOpt } from "../core/types";
+import { HotkeyManager } from "../hotkey";
 export interface BaseTeachingAidsManagerProps {
     displayer: Displayer<DisplayerCallbacks>;
     plugin?: TeachingAidsPluginLike;
@@ -23,6 +24,7 @@ export declare abstract class BaseTeachingAidsManager {
     room?: Room;
     play?: Player;
     collector?: Collector;
+    readonly hotkeyManager: HotkeyManager;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
     readonly cursor: CursorManager;

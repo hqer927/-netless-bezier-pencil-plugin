@@ -57,7 +57,7 @@ export abstract class BaseShapeTool {
         isSubWorker?:boolean,
     }): IMainMessage;
     /** 消费本地完整数据，返回绘制结果 */
-    abstract consumeAll(props:{data?: IWorkerMessage}): IMainMessage;
+    abstract consumeAll(props:{data?: IWorkerMessage, hoverId?:string}): IMainMessage;
     /** 消费服务端数据，返回绘制结果 */
     abstract consumeService(props:{
         op: number[];
@@ -82,6 +82,13 @@ export abstract class BaseShapeTool {
     setWorkOptions(workOptions: BaseShapeOptions) {
         this.workOptions = workOptions;
         this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
+        const key = this.workId?.toString();
+        const info = key && this.vNodes.get(key) || undefined;
+        if(key && info){
+            info.opt = workOptions;
+            // console.log('setWorkOptions---0', key, info.opt);
+            this.vNodes.setInfo(key,info);
+        }
     }
     /** 更新服务端同步配置,返回绘制结果 */
     updataOptService(opt?: IUpdateNodeOpt): IRectType | undefined {
@@ -95,7 +102,7 @@ export abstract class BaseShapeTool {
             const path = paths[0];
             const { pos, zIndex, scale, angle, translate } = opt;
             const attr:any = {};
-            if (typeof zIndex === 'number') {
+            if (isNumber(zIndex)) {
                 attr.zIndex = zIndex;
             }
             if (pos) {
@@ -140,7 +147,7 @@ export abstract class BaseShapeTool {
         let rect:IRectType|undefined;
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt) return;
-        if (zIndex) {
+        if (isNumber(zIndex)) {
             node.setAttribute('zIndex',zIndex);
             nodeOpt.opt.zIndex = zIndex;
         }
@@ -183,7 +190,6 @@ export abstract class BaseShapeTool {
                 rect = getRectTranslated(nodeOpt.rect, translate);
                 nodeOpt.rect = rect;
             }
-
         } 
         else if (isNumber(angle)) {
             node.setAttribute('rotate', angle)

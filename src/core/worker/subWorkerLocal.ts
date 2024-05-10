@@ -1,9 +1,9 @@
-import { Group, Label, Polyline } from "spritejs";
+import { Group, Label, Polyline, Scene } from "spritejs";
 import { IWorkerMessage, IRectType, IMainMessage, EToolsKey, IworkId, ECanvasShowType, EPostMessageType } from "..";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { transformToNormalData } from "../../collector/utils";
-import { LaserPenOptions, SelectorShape } from "../tools";
-import { computRect } from "../utils";
+import { ImageShape, LaserPenOptions, SelectorShape } from "../tools";
+import { computRect, getSafetyRect } from "../utils";
 import { LocalWork, ISubWorkerInitOption } from "./base";
 import { TextOptions } from "../../component/textEditor";
 
@@ -20,16 +20,24 @@ export class LocalWorkForSubWorker extends LocalWork {
     constructor(opt:ISubWorkerInitOption){
         super(opt);
     }
-    runFullWork(data: IWorkerMessage, isDrawLabel?:boolean): IRectType | undefined {
+    async runFullWork(data: IWorkerMessage, isDrawLabel?:boolean): Promise<IRectType | undefined> {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
-            const rect = workShape.consumeService({
-                op, 
-                isFullWork: true,
-                replaceId: workShape.getWorkId()?.toString(),
-                isDrawLabel
-            });
+            let rect:IRectType|undefined;
+            if (workShape.toolsType === EToolsKey.Image) {
+                rect = await (workShape as ImageShape).consumeServiceAsync({
+                    isFullWork: true,
+                    scene: this.fullLayer.parent?.parent as Scene,
+                });
+            } else {
+                rect = workShape.consumeService({
+                    op, 
+                    isFullWork: true,
+                    replaceId: workShape.getWorkId()?.toString(),
+                    isDrawLabel
+                });
+            }
             const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt)
             data.workId && this.workShapes.delete(data.workId)
             return rect1 || rect;
@@ -211,7 +219,7 @@ export class LocalWorkForSubWorker extends LocalWork {
                     }
                     this._post({
                         render: [{
-                            rect,
+                            rect: getSafetyRect(rect),
                             drawCanvas: ECanvasShowType.Float,
                             isClear: true,
                             clearCanvas: ECanvasShowType.Float,
@@ -241,7 +249,7 @@ export class LocalWorkForSubWorker extends LocalWork {
         this._post({
             drawCount: this.drawCount,
             render: [{
-                rect: res?.rect,
+                rect: res?.rect && getSafetyRect(res.rect),
                 drawCanvas: ECanvasShowType.Float,
                 isClear: true,
                 clearCanvas: ECanvasShowType.Float,

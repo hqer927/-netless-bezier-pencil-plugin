@@ -1,6 +1,7 @@
 import { computRect, isIntersect, isRenderNode } from "../utils";
 import cloneDeep from "lodash/cloneDeep";
 import { getShapeTools } from "../tools/utils";
+import { EToolsKey, EvevtWorkState } from "..";
 export class VNodeManager {
     constructor(viewId, scene) {
         Object.defineProperty(this, "viewId", {
@@ -98,25 +99,34 @@ export class VNodeManager {
         else {
             this.curNodeMap.delete(name);
         }
-        // console.log('setInfo',value.rect)
+        // console.log('setInfo',name, value.opt?.workState,value.opt?.uid)
+        // if(value.toolsType === EToolsKey.Text && (value.opt as TextOptions)?.workState === EvevtWorkState.Done){
+        //     debugger;
+        // }
     }
     delete(name) {
-        // console.log('VNodeManager-del', this.curNodeMap.size)
         this.curNodeMap.delete(name);
     }
     clear() {
         this.curNodeMap.clear();
         this.targetNodeMap.length = 0;
+        true;
     }
-    getRectIntersectRange(rect) {
+    getRectIntersectRange(rect, filterLock = true) {
         let rectRange;
         const nodeRange = new Map();
-        this.curNodeMap.forEach((v, key) => {
+        for (const [key, v] of this.curNodeMap.entries()) {
             if (isIntersect(rect, v.rect)) {
+                if (filterLock && v.toolsType === EToolsKey.Image && v.opt.locked) {
+                    continue;
+                }
+                if (filterLock && v.toolsType === EToolsKey.Text && (v.opt.workState === EvevtWorkState.Doing || v.opt.workState === EvevtWorkState.Start)) {
+                    continue;
+                }
                 rectRange = computRect(rectRange, v.rect);
                 nodeRange.set(key, v);
             }
-        });
+        }
         return {
             rectRange,
             nodeRange

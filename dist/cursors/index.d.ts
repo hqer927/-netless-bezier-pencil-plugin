@@ -37,7 +37,7 @@ export declare abstract class CursorManager {
     /** 收集服务端cursor事件 */
     abstract collectServiceCursor(data: IMainMessage): void;
     /** 同步服务端失效 cursor事件 */
-    abstract unable(): void;
+    abstract unabled(): void;
     /** 销毁cursor管理器 */
     abstract destroy(): void;
     /** 激活获焦的focusViewId */
@@ -50,6 +50,7 @@ export declare class CursorManagerImpl implements CursorManager {
     readonly roomMember: RoomMemberManager;
     private animationId?;
     private removeTimerId?;
+    private asyncEndInfo?;
     private animationPointWorkers;
     private animationDrawWorkers;
     constructor(props: BaseSubWorkModuleProps);
@@ -63,6 +64,6 @@ export declare class CursorManagerImpl implements CursorManager {
     private runAnimation;
     sendEvent(point: [number | undefined, number | undefined], viewId: string): void;
     collectServiceCursor(data: IMainMessage): void;
-    unable(): void;
+    unabled(): void;
     destroy(): void;
 }

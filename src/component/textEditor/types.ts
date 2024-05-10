@@ -29,6 +29,8 @@ export enum ETextEditorType {
     boxSize?:[number,number];
     /** 状态 */
     workState?: EvevtWorkState;
+    /** 正在编辑的用户 */
+    uid?: string;
  }
  export type TextEditorInfo = {
     x: number;

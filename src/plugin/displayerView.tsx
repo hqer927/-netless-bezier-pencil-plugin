@@ -4,10 +4,10 @@ import React, { ReactNode } from "react";
 import type { RoomMember } from "white-web-sdk";
 import { EmitEventType, TeachingAidsViewManagerLike } from "./types";
 import { TextEditorInfo } from "../component/textEditor";
-import { EScaleType, EvevtWorkState } from "../core";
+import { EScaleType } from "../core";
 import { ShowFloatBarMsgValue } from "../displayer/types";
 import { TextEditorContainer } from "../component/textEditor/view";
-import { FloatBar } from "../displayer/floatBar";
+import { FloatBar, FloatBarBtn } from "../displayer/floatBar";
 import { RotateBtn } from "../displayer/rotate";
 import { CursorManager } from '../displayer/cursor';
 import { ResizableBox, ResizableTwoBox } from '../displayer/resizable';
@@ -40,7 +40,6 @@ export const DisplayerContext = React.createContext<Pick<BaseDisplayerState, 'zI
     maranger?: TeachingAidsViewManagerLike;
     floatBarColors:[number, number, number][];
     setPosition: (point:{x:number, y:number}) => void;
-    setSize: (size:{width:number, height:number, workState:EvevtWorkState}) => void;
     setAngle: (angle:number) => void;
     setOperationType:(type:EmitEventType)=>void;
     setFloatBarData:(data:Partial<ShowFloatBarMsgValue>)=>void;
@@ -55,7 +54,6 @@ export const DisplayerContext = React.createContext<Pick<BaseDisplayerState, 'zI
     operationType: EmitEventType.None,
     scale:[1,1],
     setPosition: () => {},
-    setSize:()=>{},
     setAngle:()=>{},
     setOperationType:()=>{},
     setFloatBarData:()=>{}
@@ -73,18 +71,17 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
             operationType: EmitEventType.None,
             cursorInfo: undefined,
             scale:[1,1],
-            editors: this.props.maranger.control.textEditorManager?.editors,
+            editors: this.editors,
             activeTextId: this.props.maranger.control.textEditorManager?.activeId
         };
+    }
+    private get editors(){
+        return cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId))
     }
     componentDidMount(): void {
         this.props.maranger.vDom = this;
         this.props.maranger.mountView();
         this.setState({dpr:this.props.maranger.dpr});
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ShowFloatBar], this.showFloatBar.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.FloatBar, EmitEventType.ZIndexFloatBar], this.setFloatZIndex.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.Cursor, EmitEventType.ActiveCursor], this.setActiveCursor.bind(this));
-        // this.props.maranger.internalMsgEmitter.on([InternalMsgEmitterType.TextEditor,EmitEventType.CommandEditor],this.bindTextEditorEvent.bind(this));
     }
     componentWillUnmount(): void {}
     showFloatBar(show: boolean, value?: Partial<ShowFloatBarMsgValue>) {
@@ -110,29 +107,14 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
         }
     }
     setActiveTextEditor(activeTextId?:string): void {
-        const editors = cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
+        // const editors = cloneDeep(this.props.maranger.control.textEditorManager.filterEditor(this.props.maranger.viewId));
         this.setState({
             activeTextId,
-            editors
+            editors:this.editors
         })
     }
     setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }) {
         this.setState({cursorInfo});
-    }
-    setSize(scale:{width:number, height:number, workState:EvevtWorkState}) {
-        if (scale.workState === EvevtWorkState.Done) {
-            this.state.floatBarData && this.setState({
-                floatBarData:{...this.state.floatBarData, w: scale.width, h: scale.height}, 
-                scale:[1,1], 
-                operationType: EmitEventType.None,
-            })
-        } else {
-            this.state.floatBarData && this.setState({
-                floatBarData:{...this.state.floatBarData, w: scale.width, h: scale.height}, 
-                scale:[1,1], 
-                operationType: EmitEventType.ScaleNode,
-            })
-        }
     }
     setFloatZIndex(zIndex: number) {
         this.setState({zIndex})
@@ -152,6 +134,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
         this.setState({operationType: type})
     }
     render(): ReactNode {
+        const showFloatBtns = !!(this.props.maranger.control?.room as any)?.floatBarOptions;
         return (
             <React.Fragment>
                 <div className={styles['Container']} 
@@ -172,7 +155,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                     </div>
                     <DisplayerContext.Provider value={{
                             maranger: this.props.maranger,
-                            floatBarColors: (this.props.maranger.control?.room as any)?.floatBarOptions?.colors || [],
+                            floatBarColors: showFloatBtns && (this.props.maranger.control?.room as any)?.floatBarOptions?.colors || [],
                             floatBarData: this.state.floatBarData, 
                             zIndex: this.state.zIndex,
                             dpr: this.state.dpr,
@@ -181,7 +164,6 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                             operationType: this.state.operationType,
                             scale: this.state.scale,
                             setPosition: this.setPosition.bind(this),
-                            setSize: this.setSize.bind(this),
                             setAngle:this.setAngle.bind(this),
                             setOperationType:this.setOperationType.bind(this),
                             setFloatBarData:this.setFloatBarData.bind(this),
@@ -192,31 +174,35 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                                 ref={this.props.refs.floatBarCanvasRef} 
                                 editors={this.state.editors}
                                 activeTextId={this.state.activeTextId}
-                            />
+                            /> || null
                         }
                         {
                             this.state.editors?.size && 
                                 <TextEditorContainer className={styles['TextEditorContainer']} 
+                                    showFloatBtns = {showFloatBtns}
                                     manager={this.props.maranger}
                                     selectIds={this.state.floatBarData?.selectIds || []}
                                     editors={this.state.editors}
                                     activeTextId={this.state.activeTextId}
-                                />
+                                /> || null
                         }
                         { 
                             this.state.floatBarData?.canRotate && this.state.floatBarData?.selectIds?.length === 1 && 
                             (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.RotateNode) &&
-                            <RotateBtn className={styles['RotateBtn']}  />
+                            <RotateBtn className={styles['RotateBtn']}  /> || null
                         }
                         { 
-                            this.state.floatBarData?.scaleType === EScaleType.all && this.state.showFloatBar && 
+                            (this.state.floatBarData?.scaleType === EScaleType.all || this.state.floatBarData?.scaleType === EScaleType.proportional) && this.state.showFloatBar && 
                             (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.ScaleNode) && 
-                            <ResizableBox className={styles['ResizeBtn']} />
+                            <ResizableBox className={styles['ResizeBtn']} /> || null
                         }
                         { 
                             this.state.floatBarData?.scaleType === EScaleType.both && this.state.showFloatBar && 
                             (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.SetPoint) && 
-                            <ResizableTwoBox className={styles['ResizeTowBox']} />
+                            <ResizableTwoBox className={styles['ResizeTowBox']} /> || null
+                        }
+                        {
+                            this.state.showFloatBar && showFloatBtns && <FloatBarBtn className={styles['FloatBarBtn']} /> || null
                         }
                     </DisplayerContext.Provider>
                     {

@@ -20,6 +20,7 @@ export interface IUndoStackItem {
     sdkStep?: number;
     data?: Set<ILocalStorageDataItem>;
     scenePath: string;
+    tickStartStorerCache?: Map<string, BaseCollectorReducerAction | undefined>;
 }
 export interface ILocalStorageDataItem {
     dataType: EUndoDataType;
@@ -49,6 +50,7 @@ export declare class UndoRedoMethod {
     get collector(): import("../collector").Collector | undefined;
     addExcludeIds(ids: string[]): void;
     undoTickerStart(id: number, scenePath: string): void;
+    undoTickerEndSync(id: number, viewId: string, scenePath: string, isTmp?: boolean): void;
     undoTickerEnd: import("lodash").DebouncedFunc<(id: number, viewId: string, scenePath: string) => void>;
     undo(scenePath: string): number;
     redo(scenePath: string): number;
@@ -57,6 +59,8 @@ export declare class UndoRedoMethod {
     clearRedo(): void;
     canUndo(): boolean;
     canRedo(): boolean;
+    onChangeScene: import("lodash").DebouncedFunc<() => void>;
+    onFocusView(): void;
     private diffFun;
     private isDrawEffectiveScene;
     private isDeleteEffectiveScene;

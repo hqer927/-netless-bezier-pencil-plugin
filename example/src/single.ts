@@ -1,6 +1,6 @@
 import { ECanvasContextType, TeachingAidsPlugin, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
 import { CursorTool } from '@netless/cursor-tool';
-import { WhiteWebSdk, DeviceType} from "white-web-sdk";
+import { WhiteWebSdk, DeviceType, DefaultHotKeys} from "white-web-sdk";
 
 export async function createWhiteWebSdk(params:{
     elm:HTMLDivElement;
@@ -30,6 +30,19 @@ export async function createWhiteWebSdk(params:{
             userId: uid.split('uid-')[1],
             userUUID: uid,
             cursorName: `user-${uid}`,
+        },
+        hotKeys: {
+            ...DefaultHotKeys,
+            changeToSelector: "s",
+            changeToLaserPointer: "z",
+            changeToPencil: "p",
+            changeToRectangle: "r",
+            changeToEllipse: "c",
+            changeToEraser: "e",
+            changeToText: "t",
+            changeToStraight: "l",
+            changeToArrow: "a",
+            changeToHand: "h",
         },
         disableNewPencil: false,
     })

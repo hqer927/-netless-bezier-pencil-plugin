@@ -1,7 +1,7 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethodForWorker } from "../baseForWorker";
-import { IWorkerMessage } from "../../types";
-import { EDataType, EPostMessageType } from "../../enum";
+import { IMainMessage, IMainMessageRenderData, IUpdateSelectorCallbackPropsType, IWorkerMessage } from "../../types";
+import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
 import { SelectorShape } from "../../tools";
 
 export class SetColorNodeMethodForWorker extends BaseMsgMethodForWorker {
@@ -10,27 +10,62 @@ export class SetColorNodeMethodForWorker extends BaseMsgMethodForWorker {
         const {msgType, dataType, emitEventType, undoTickerId} = data;
         if (msgType !== EPostMessageType.UpdateNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data);
-            if (undoTickerId) {
-                setTimeout(()=>{
-                    this.localWork?._post({
-                        sp:[{
-                            type: EPostMessageType.None,
-                            undoTickerId,
-                        }]
-                    })
-                },0)
-            }
+            this.consumeForLocalWorker(data).finally(()=>{
+                if (undoTickerId) {
+                    setTimeout(()=>{
+                        this.localWork?._post({
+                            sp:[{
+                                type: EPostMessageType.None,
+                                undoTickerId,
+                            }]
+                        })
+                    },0)
+                }
+            })
             return true;
         }        
     }
-    consumeForLocalWorker(data: IWorkerMessage): void {
+    async consumeForLocalWorker(data: IWorkerMessage): Promise<void> {
         const {workId, updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker} = data;
         if (workId === SelectorShape.selectorId && updateNodeOpt) {
-            this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, willSyncService, willSerializeData, textUpdateForWoker})
+            await this.localWork?.updateSelector({updateSelectorOpt: updateNodeOpt, willRefreshSelector, 
+                willSyncService, willSerializeData, textUpdateForWoker, callback:this.updateSelectorCallback})
         } 
-        // else if (workId && updateNodeOpt) {
-        //     this.localWork?.updateNode({workId, updateNodeOpt, willRefresh, willSyncService})
-        // }
+    }
+    private updateSelectorCallback(props:IUpdateSelectorCallbackPropsType){
+        const {param, postData, newServiceStore} = props;
+        const {willSyncService, isSync, textUpdateForWoker} = param;
+        const render: IMainMessageRenderData[] =   postData.render || [];
+        const sp: IMainMessage[] =  postData.sp || [];
+        if (willSyncService) {
+            for (const [workId, info] of newServiceStore.entries()) {
+                if (textUpdateForWoker && info.toolsType === EToolsKey.Text) {
+                    sp.push({
+                        ...info,
+                        workId,
+                        type: EPostMessageType.TextUpdate,
+                        dataType: EDataType.Local,
+                        willSyncService:true
+                    })
+                } else  {
+                    sp.push(
+                        {
+                            ...info,
+                            workId,
+                            type: EPostMessageType.UpdateNode,
+                            updateNodeOpt: {
+                                useAnimation: false
+                            },
+                            isSync
+                        }
+                    )
+                }
+            }
+        }
+        // console.log('updateSelector---0---0--SetColor', render, sp)
+        return {
+            render,
+            sp
+        }
     }
 }

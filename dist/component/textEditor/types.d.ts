@@ -27,6 +27,8 @@ export interface TextOptions extends BaseShapeOptions {
     boxSize?: [number, number];
     /** 状态 */
     workState?: EvevtWorkState;
+    /** 正在编辑的用户 */
+    uid?: string;
 }
 export type TextEditorInfo = {
     x: number;

@@ -81,7 +81,7 @@ export class Collector extends BaseCollector {
         this.stateDisposer = autorun(async () => {
             const newStorage = this.getNamespaceData();
             const diff = this.diffFun(this.serviceStorage, newStorage);
-            // console.log('addStorageStateListener', newStorage, this.serviceStorage, diff)
+            // console.log('addStorageStateListener', cloneDeep(newStorage), cloneDeep(this.serviceStorage), diff)
             this.serviceStorage = newStorage;
             for (const [key, value] of Object.entries(diff)) {
                 if (value && value.newValue === undefined) {
@@ -223,7 +223,7 @@ export class Collector extends BaseCollector {
             case EPostMessageType.DrawWork:
                 if (scenePath && workId && typeof index === 'number' && op?.length) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[viewId][scenePath][key];
+                    const old = this.storage[viewId] && this.storage[viewId][scenePath] && this.storage[viewId][scenePath][key] || undefined;
                     const _op = index ? (old?.op || []).slice(0, index).concat(op) : (op || old?.op);
                     if (old && _op) {
                         this.updateValue(key.toString(), {
@@ -238,7 +238,7 @@ export class Collector extends BaseCollector {
             case EPostMessageType.FullWork:
                 if (scenePath && workId) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[viewId][scenePath][key];
+                    const old = this.storage[viewId] && this.storage[viewId][scenePath] && this.storage[viewId][scenePath][key] || undefined;
                     const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
                     const _toolsType = toolsType || old?.toolsType;
                     const _opt = opt || old?.opt;
@@ -275,7 +275,7 @@ export class Collector extends BaseCollector {
             case EPostMessageType.UpdateNode:
                 if (scenePath && workId && (updateNodeOpt || ops || opt)) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
-                    const old = this.storage[viewId][scenePath][key];
+                    const old = this.storage[viewId] && this.storage[viewId][scenePath] && this.storage[viewId][scenePath][key] || undefined;
                     if (old) {
                         old.updateNodeOpt = updateNodeOpt;
                         if (ops || op) {
@@ -304,7 +304,7 @@ export class Collector extends BaseCollector {
                     });
                 }
                 const key = this.transformKey(Storage_Selector_key);
-                const old = this.storage[viewId][scenePath][key];
+                const old = this.storage[viewId] && this.storage[viewId][scenePath] && this.storage[viewId][scenePath][key] || undefined;
                 const _opt = opt || old?.opt;
                 _selectIds && this.checkOtherSelector(key, _selectIds, { isSync, viewId, scenePath });
                 this.updateValue(key, _selectIds && {
@@ -367,6 +367,7 @@ export class Collector extends BaseCollector {
             if (!this.storage[viewId][scenePath]) {
                 this.storage[viewId][scenePath] = {};
             }
+            // console.log('updateValue', cloneDeep(value), this.serviceStorage[viewId] && this.serviceStorage[viewId][scenePath] && this.serviceStorage[viewId][scenePath][key] && cloneDeep(this.serviceStorage[viewId][scenePath][key]))
             this.storage[viewId][scenePath][key] = value;
         }
         this.runSyncService(options);

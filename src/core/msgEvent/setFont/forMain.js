@@ -2,8 +2,9 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import cloneDeep from "lodash/cloneDeep";
-import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
+import { EToolsKey } from "../../enum";
 import { ETextEditorType } from "../../../component/textEditor";
+import { Storage_Selector_key } from "../../../collector";
 import { getTextEditorType } from "../../../component/textEditor/utils";
 import isBoolean from "lodash/isBoolean";
 export class SetFontStyleMethod extends BaseMsgMethod {
@@ -16,7 +17,7 @@ export class SetFontStyleMethod extends BaseMsgMethod {
             value: EmitEventType.SetFontStyle
         });
     }
-    setTextStyle(key, curStore, updateNodeOpt, viewId) {
+    setTextStyle(key, curStore, updateNodeOpt, viewId, undoTickerId) {
         const { bold, underline, lineThrough, italic, fontSize } = updateNodeOpt;
         if (curStore.toolsType) {
             const type = getTextEditorType(curStore.toolsType);
@@ -38,11 +39,14 @@ export class SetFontStyleMethod extends BaseMsgMethod {
                         curStore.opt.fontSize = fontSize;
                     }
                 }
+                // console.log('setTextStyle', curStore.opt)
                 this.control.textEditorManager.updateTextForMasterController({
                     workId: key,
                     opt: curStore.opt,
-                    viewId
-                });
+                    viewId,
+                    canSync: true,
+                    canWorker: true
+                }, undoTickerId);
             }
             if (type === ETextEditorType.Shape) {
                 // TODO
@@ -61,8 +65,9 @@ export class SetFontStyleMethod extends BaseMsgMethod {
         const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
-        const localMsgs = [];
-        const undoTickerId = Date.now();
+        // const localMsgs: IWorkerMessage[] = [];
+        // const undoTickerId = Date.now();
+        const memberState = {};
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -80,42 +85,49 @@ export class SetFontStyleMethod extends BaseMsgMethod {
                 const updateNodeOpt = curStore.updateNodeOpt || {};
                 if (bold) {
                     updateNodeOpt.bold = bold;
+                    memberState.bold = bold === 'bold';
                 }
                 if (italic) {
                     updateNodeOpt.italic = italic;
+                    memberState.italic = italic === 'italic';
                 }
                 if (isBoolean(lineThrough)) {
                     updateNodeOpt.lineThrough = lineThrough;
+                    memberState.lineThrough = lineThrough;
                 }
                 if (isBoolean(underline)) {
                     updateNodeOpt.underline = underline;
+                    memberState.underline = underline;
                 }
                 if (fontSize) {
                     updateNodeOpt.fontSize = fontSize;
+                    memberState.textSize = fontSize;
                 }
                 if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
                     this.setTextStyle(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId);
                     continue;
                 }
-                const taskData = {
-                    workId: localWorkId,
-                    msgType: EPostMessageType.UpdateNode,
-                    dataType: EDataType.Local,
-                    updateNodeOpt,
-                    emitEventType: this.emitEventType,
-                    willRefresh: true,
-                    willRefreshSelector: true,
-                    willSyncService: true,
-                    textUpdateForWoker: true,
-                    undoTickerId,
-                    viewId
-                };
-                localMsgs.push(taskData);
+                if (curStore && localWorkId === Storage_Selector_key && curStore.selectIds?.length) {
+                    for (const name of curStore.selectIds) {
+                        const isLocalId = this.serviceColloctor?.isLocalId(name);
+                        let key = isLocalId && this.serviceColloctor?.transformKey(name) || name;
+                        const subStore = store[viewId][scenePath][key] || undefined;
+                        if (!isLocalId && this.serviceColloctor?.isOwn(key)) {
+                            key = this.serviceColloctor.getLocalId(key);
+                        }
+                        if (subStore && subStore.toolsType === EToolsKey.Text && curStore.opt) {
+                            this.setTextStyle(key, cloneDeep(subStore), updateNodeOpt, viewId);
+                            continue;
+                        }
+                    }
+                }
             }
         }
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
-        if (localMsgs.length) {
-            this.collectForLocalWorker(localMsgs);
+        if (Object.keys(memberState).length) {
+            setTimeout(() => {
+                this.control.room?.setMemberState(memberState);
+            }, 0);
         }
+        // this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
     }
 }

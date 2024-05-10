@@ -42,7 +42,7 @@ export async function createReplayMultiWhiteWebSdk(params:{
     const player = await whiteWebSdk.replayRoom(
         {
             slice,
-            beginTimestamp: beginAt && parseInt(beginAt, 10) || undefined,
+            beginTimestamp: beginAt && parseInt(beginAt, 10) + 1000 || undefined,
             duration: duration && parseInt(duration, 10) || undefined,
             region,
             room: uuid,
@@ -64,7 +64,7 @@ export async function createReplayMultiWhiteWebSdk(params:{
     const managerPromise = WindowManager.mount({ room:player , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true});
     player.play();
     const manager = await managerPromise;
-    await TeachingAidsPlugin.getInstance(manager,
+    const plugin = await TeachingAidsPlugin.getInstance(manager,
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {
                 syncOpt: {
@@ -79,8 +79,8 @@ export async function createReplayMultiWhiteWebSdk(params:{
     player.pause();
     // await player.seekToProgressTime(1);
     player.play();
-    // window.pluginRoom = plugin;
-    // window.manager = manager;
+    window.pluginRoom = plugin;
+    window.manager = manager;
     console.log('player', player)
     return {player, whiteWebSdk}
 }

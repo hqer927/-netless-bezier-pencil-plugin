@@ -30,7 +30,9 @@ export declare enum EToolsKey {
     /** 多边形工具 */
     Polygon = 15,
     /** 聊天泡泡框 */
-    SpeechBalloon = 16
+    SpeechBalloon = 16,
+    /** 图片 */
+    Image = 17
 }
 export declare enum EDataType {
     /** 本地数据 */
@@ -54,42 +56,44 @@ export declare enum EvevtWorkState {
  * 服务端数据:
  */
 export declare enum EPostMessageType {
-    /** 初始化,仅用于本地 */
-    Init = 0,
-    /** 本地视口切换,仅用于本地 */
-    UpdateCamera = 1,
-    /** 更新tool配置数据,仅用于本地 */
-    UpdateTools = 2,
-    /** 创建一次work */
-    CreateWork = 3,
-    /** 绘制当次work（高频） */
-    DrawWork = 4,
-    /** 完成完整的一次work */
-    FullWork = 5,
-    /** 更新已有node */
-    UpdateNode = 6,
-    /** 删除node */
-    RemoveNode = 7,
-    /** 清空 */
-    Clear = 8,
-    /** 选中 */
-    Select = 9,
-    /** 销毁 */
-    Destroy = 10,
     /** 什么也不需要做 */
-    None = 11,
+    None = 0,
+    /** 初始化,仅用于本地 */
+    Init = 1,
+    /** 本地视口切换,仅用于本地 */
+    UpdateCamera = 2,
+    /** 更新tool配置数据,仅用于本地 */
+    UpdateTools = 3,
+    /** 创建一次work */
+    CreateWork = 4,
+    /** 绘制当次work（高频） */
+    DrawWork = 5,
+    /** 完成完整的一次work */
+    FullWork = 6,
+    /** 更新已有node */
+    UpdateNode = 7,
+    /** 删除node */
+    RemoveNode = 8,
+    /** 清空 */
+    Clear = 9,
+    /** 选中 */
+    Select = 10,
+    /** 销毁 */
+    Destroy = 11,
     /** 获取指定场景快照 */
     Snapshot = 12,
     /** 获取指定场所有元素的的包围盒 */
     BoundingBox = 13,
-    /**  */
+    /** 指针事件 */
     Cursor = 14,
-    /** */
+    /** 更新文本 */
     TextUpdate = 15,
-    /**  */
+    /** 获取获奖的文本信息 */
     GetTextActive = 16,
     /** 批量队列化处理 */
-    TasksQueue = 17
+    TasksQueue = 17,
+    /** 指针hover元素事件 */
+    CursorHover = 18
 }
 export declare enum ECanvasContextType {
     Webgl2 = "webgl2",
@@ -118,5 +122,7 @@ export declare enum EScaleType {
     /** 八个方向都可以拉伸 */
     all = 2,
     /** 两个方向拉伸 */
-    both = 3
+    both = 3,
+    /** 等比例 */
+    proportional = 4
 }

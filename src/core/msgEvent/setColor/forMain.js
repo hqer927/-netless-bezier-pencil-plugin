@@ -26,7 +26,9 @@ export class SetColorNodeMethod extends BaseMsgMethod {
             this.control.textEditorManager.updateTextForMasterController({
                 workId: key,
                 opt: curStore.opt,
-                viewId
+                viewId,
+                canSync: true,
+                canWorker: true
             });
         }
     }
@@ -43,7 +45,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
         const localMsgs = [];
-        const undoTickerId = Date.now();
+        const memberState = {};
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -63,12 +65,14 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     if (fontColor) {
                         updateNodeOpt.fontColor = fontColor;
                         const [r, g, b, a] = colorRGBA2Array(fontColor);
-                        this.control.room?.setMemberState({ textColor: [r, g, b], textOpacity: a });
+                        memberState.textColor = [r, g, b];
+                        memberState.textOpacity = a;
                     }
                     if (fontBgColor) {
                         updateNodeOpt.fontBgColor = fontBgColor;
                         const [r, g, b, a] = colorRGBA2Array(fontBgColor);
-                        this.control.room?.setMemberState({ textBgColor: [r, g, b], textOpacity: a });
+                        memberState.textBgColor = [r, g, b];
+                        memberState.textBgOpacity = a;
                     }
                     if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
                         this.setTextColor(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId);
@@ -77,9 +81,15 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                 }
                 if (strokeColor) {
                     updateNodeOpt.strokeColor = strokeColor;
+                    const [r, g, b, a] = colorRGBA2Array(strokeColor);
+                    memberState.strokeColor = [r, g, b];
+                    memberState.strokeOpacity = a;
                 }
                 if (fillColor) {
                     updateNodeOpt.fillColor = fillColor;
+                    const [r, g, b, a] = colorRGBA2Array(fillColor);
+                    memberState.fillColor = [r, g, b];
+                    memberState.fillOpacity = a;
                 }
                 const taskData = {
                     workId: localWorkId,
@@ -91,15 +101,23 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     willRefreshSelector: true,
                     willSyncService: true,
                     textUpdateForWoker: true,
-                    undoTickerId,
-                    viewId
+                    viewId,
+                    // undoTickerId
                 };
-                localMsgs.push(taskData);
+                localMsgs.push([taskData, {
+                        workId: localWorkId,
+                        msgType: EPostMessageType.UpdateNode,
+                        emitEventType: this.emitEventType
+                    }]);
             }
         }
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
+        }
+        if (Object.keys(memberState).length) {
+            setTimeout(() => {
+                this.control.room?.setMemberState(memberState);
+            }, 0);
         }
     }
 }

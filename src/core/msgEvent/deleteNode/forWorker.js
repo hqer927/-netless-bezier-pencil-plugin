@@ -41,6 +41,9 @@ export class DeleteNodeMethodForWorker extends BaseMsgMethodForWorker {
         for (const workId of removeIds) {
             if (workId === SelectorShape.selectorId) {
                 const workShapeNode = this.localWork.workShapes.get(SelectorShape.selectorId);
+                if (!workShapeNode) {
+                    return;
+                }
                 const selectIds = workShapeNode.selectIds && [...workShapeNode.selectIds] || [];
                 for (const key of selectIds) {
                     const info = this.localWork.vNodes.get(key);

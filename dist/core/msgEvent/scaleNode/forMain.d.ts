@@ -1,20 +1,20 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
-import { IworkId } from "../../types";
+import { IRectType, IworkId } from "../../types";
 import { EvevtWorkState } from "../../enum";
+import type { Direction } from "re-resizable/lib/resizer";
 export type ScaleNodeEmtData = {
     workIds: IworkId[];
     workState: EvevtWorkState;
-    box: {
-        x: number;
-        y: number;
-        w: number;
-        h: number;
-    };
+    box: IRectType;
     viewId: string;
+    dir?: Direction;
 };
 export declare class ScaleNodeMethod extends BaseMsgMethod {
     readonly emitEventType: EmitEventType;
     private undoTickerId?;
-    collect(data: ScaleNodeEmtData): void;
+    private targetBox;
+    private targetText;
+    private cacheTextInfo;
+    collect(data: ScaleNodeEmtData): Promise<void>;
 }

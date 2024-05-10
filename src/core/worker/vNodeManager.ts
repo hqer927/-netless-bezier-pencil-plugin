@@ -3,6 +3,9 @@ import { BaseNodeMapItem, IRectType } from "../types";
 import { computRect, isIntersect, isRenderNode } from "../utils";
 import cloneDeep from "lodash/cloneDeep";
 import { getShapeTools } from "../tools/utils";
+import { EToolsKey, EvevtWorkState } from "..";
+import { ImageOptions } from "../tools";
+import { TextOptions } from "../../component/textEditor";
 
 export class VNodeManager {
     viewId:string;
@@ -64,28 +67,36 @@ export class VNodeManager {
         } else {
             this.curNodeMap.delete(name);
         }
-        // console.log('setInfo',value.rect)
+        // console.log('setInfo',name, value.opt?.workState,value.opt?.uid)
+        // if(value.toolsType === EToolsKey.Text && (value.opt as TextOptions)?.workState === EvevtWorkState.Done){
+        //     debugger;
+        // }
     }
     delete(name:string){
-        // console.log('VNodeManager-del', this.curNodeMap.size)
         this.curNodeMap.delete(name);
     }
     clear(){
         this.curNodeMap.clear();
-        this.targetNodeMap.length = 0;
+        this.targetNodeMap.length = 0;true
     }
-    getRectIntersectRange(rect:IRectType):{
+    getRectIntersectRange(rect:IRectType, filterLock:boolean = true):{
         rectRange: IRectType | undefined,
         nodeRange: Map<string, BaseNodeMapItem>
     }{
         let rectRange:IRectType | undefined;
         const nodeRange: Map<string, BaseNodeMapItem> = new Map();
-        this.curNodeMap.forEach((v,key) => {
+        for (const [key,v] of this.curNodeMap.entries()) {
             if (isIntersect(rect, v.rect)) {
+                if(filterLock && v.toolsType === EToolsKey.Image && (v.opt as ImageOptions).locked){
+                    continue;
+                }
+                if(filterLock && v.toolsType === EToolsKey.Text && ((v.opt as TextOptions).workState === EvevtWorkState.Doing || (v.opt as TextOptions).workState === EvevtWorkState.Start)) {
+                    continue;
+                }
                 rectRange = computRect(rectRange, v.rect) as IRectType;
                 nodeRange.set(key, v);
             }
-        })
+        }
         return {
             rectRange,
             nodeRange

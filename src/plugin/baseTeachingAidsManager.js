@@ -9,6 +9,7 @@ import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
 import { rgbToRgba } from "../collector/utils/color";
 import throttle from "lodash/throttle";
+import { HotkeyManagerImpl } from "../hotkey";
 /** 插件管理器 */
 export class BaseTeachingAidsManager {
     constructor(params) {
@@ -31,6 +32,12 @@ export class BaseTeachingAidsManager {
             value: void 0
         });
         Object.defineProperty(this, "collector", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "hotkeyManager", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -110,7 +117,7 @@ export class BaseTeachingAidsManager {
             configurable: true,
             writable: true,
             value: (viewId, scenePath) => {
-                // console.log('internalSceneChange', viewId, scenePath)
+                this.textEditorManager.checkEmptyTextBlur();
                 this.worker?.clearViewScenePath(viewId, true).then(() => {
                     this.worker?.pullServiceData(viewId, scenePath);
                 });
@@ -137,6 +144,7 @@ export class BaseTeachingAidsManager {
         this.cursor = new CursorManagerImpl(props);
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
+        this.hotkeyManager = new HotkeyManagerImpl(props);
     }
     bindPlugin(plugin) {
         this.plugin = plugin;
@@ -327,39 +335,43 @@ export class BaseTeachingAidsManager {
             case EToolsKey.Star:
             case EToolsKey.Polygon:
             case EToolsKey.SpeechBalloon:
+            case EToolsKey.Triangle:
+            case EToolsKey.Rhombus:
                 this.room.disableDeviceInputs = true;
                 this.worker?.abled();
-                setTimeout(() => {
-                    const views = this.viewContainerManager.getAllViews();
-                    views.forEach(view => {
-                        if (view?.displayer) {
-                            view.displayer.bindToolsClass();
-                        }
-                    });
-                }, 0);
                 break;
             case EToolsKey.Eraser:
             case EToolsKey.Selector:
                 this.room.disableDeviceInputs = false;
-                this.cursor?.unable();
+                this.cursor?.unabled();
                 this.worker?.abled();
                 break;
             default:
                 this.room.disableDeviceInputs = false;
                 this.worker?.unabled();
-                this.cursor?.unable();
+                this.cursor?.unabled();
                 break;
         }
+        setTimeout(() => {
+            const views = this.viewContainerManager.getAllViews();
+            views.forEach(view => {
+                if (view?.displayer) {
+                    view.displayer.bindToolsClass();
+                }
+            });
+        }, 0);
     }
     /** 异步获取指定路径下绘制内容的区域大小 */
     async getBoundingRect(scenePath) {
         const rect = await this.worker?.getBoundingRect(scenePath);
         if (rect) {
+            const originPoint = this.viewContainerManager.mainView?.viewData?.convertToPointInWorld({ x: rect.x, y: rect.y }) || { x: rect.x, y: rect.y };
+            const scale = this.viewContainerManager.mainView?.viewData?.camera.scale || 1;
             return {
-                width: rect.w,
-                height: rect.h,
-                originX: rect.x,
-                originY: rect.y,
+                width: Math.floor(rect.w / scale) + 1,
+                height: Math.floor(rect.h / scale) + 1,
+                originX: originPoint.x,
+                originY: originPoint.y,
             };
         }
     }

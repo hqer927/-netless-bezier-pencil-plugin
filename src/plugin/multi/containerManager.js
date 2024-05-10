@@ -25,18 +25,35 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             writable: true,
             value: void 0
         });
+        /** 针对windowmanager的focusedChange先于onAppViewMounted*/
+        Object.defineProperty(this, "tmpFocusedViewId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "checkScaleTimer", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "onMainViewRelease", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: (bindMainView) => {
+                this.control.textEditorManager.clear(MainViewMultiDisplayerManager.viewId, true);
+                // console.log('onMainViewRelease', bindMainView)
+                this.onMainViewMounted(bindMainView);
+            }
+        });
         Object.defineProperty(this, "onMainViewMounted", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: (bindMainView) => {
-                console.log('onMainViewMounted', bindMainView);
+                // console.log('onMainViewMounted', bindMainView)
                 const container = bindMainView.divElement;
                 if (!container || !bindMainView.focusScenePath) {
                     return;
@@ -45,6 +62,15 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 if (!focusScenePath) {
                     // console.log('onMainViewMounted--0', focusScenePath)
                     return;
+                }
+                if (this.mainView && this.mainView.displayer) {
+                    this.mainView.displayer.destroy();
+                    const nodes = container.getElementsByClassName('teaching-aids-plugin-main-view-displayer');
+                    for (const node of nodes) {
+                        node.remove();
+                    }
+                    this.control.worker?.destroyViewWorker(this.mainView.id, true);
+                    this.mainView = undefined;
                 }
                 const displayer = new MainViewMultiDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
                 // const {width, height, dpr} = displayer;
@@ -78,14 +104,6 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 };
                 this.focuedViewId = MainViewMultiDisplayerManager.viewId;
                 // console.log('ContainerManager - bindMainView', container)
-                if (this.mainView && this.mainView.displayer) {
-                    this.mainView.displayer.destroy();
-                    const nodes = container.getElementsByClassName('teaching-aids-plugin-main-view-displayer');
-                    for (const node of nodes) {
-                        node.remove();
-                    }
-                    this.mainView = undefined;
-                }
                 this.createMianView({
                     id: MainViewMultiDisplayerManager.viewId,
                     container,
@@ -98,6 +116,7 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 displayer.createMainViewDisplayer(container);
                 bindMainView.callbacks.on('onSizeUpdated', this.onMainViewSizeUpdated);
                 bindMainView.callbacks.on('onCameraUpdated', this.onMainViewCameraUpdated);
+                bindMainView.callbacks.on("onActiveHotkey", this.onActiveHotkeyChange.bind(this));
             }
         });
         Object.defineProperty(this, "onMainViewSizeUpdated", {
@@ -159,6 +178,15 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 if (!container || !view.focusScenePath) {
                     return;
                 }
+                const viewInfo = this.appViews.get(appId);
+                if (viewInfo && viewInfo.displayer) {
+                    const nodes = container.getElementsByClassName('teaching-aids-plugin-app-view-displayer');
+                    for (const node of nodes) {
+                        node.remove();
+                    }
+                    this.destroyAppView(payload.appId, true);
+                    this.control.worker?.destroyViewWorker(appId, true);
+                }
                 const displayer = new AppViewDisplayerManagerImpl(appId, this.control, BaseTeachingAidsManager.InternalMsgEmitter);
                 // const {width, height, dpr} = displayer;
                 const width = view.size.width || displayer.width;
@@ -196,6 +224,11 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 displayer.createAppViewDisplayer(appId, container);
                 view.callbacks.on('onSizeUpdated', this.onAppViewSizeUpdated.bind(this, appId));
                 view.callbacks.on('onCameraUpdated', this.onAppViewCameraUpdated.bind(this, appId));
+                view.callbacks.on("onActiveHotkey", this.onActiveHotkeyChange.bind(this));
+                if (this.tmpFocusedViewId === appId) {
+                    this.setFocuedViewId(appId);
+                    this.tmpFocusedViewId = undefined;
+                }
             }
         });
         Object.defineProperty(this, "onAppViewSizeUpdated", {
@@ -300,7 +333,6 @@ export class ViewContainerMultiManager extends ViewContainerManager {
             }
         });
         windowManager.emitter.on("focusedChange", focus => {
-            // console.log("ContainerManager focusedChange", focus);
             const focuedViewId = focus || MainViewDisplayerManager.viewId;
             if (this.focuedViewId !== focuedViewId) {
                 const view = this.getView(focuedViewId);
@@ -309,6 +341,9 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                     this.setFocuedViewId(focuedViewId);
                     // this.focuedView = view;
                     // this.focuedViewId = focuedViewId;
+                }
+                else {
+                    this.tmpFocusedViewId = focuedViewId;
                 }
             }
         });
@@ -320,14 +355,13 @@ export class ViewContainerMultiManager extends ViewContainerManager {
         });
         windowManager.emitter.on('onMainViewMounted', this.onMainViewMounted);
         windowManager.emitter.on('onAppViewMounted', this.onAppViewMounted);
-        windowManager.emitter.on('onAppSetup', (appId) => {
-            // console.log('ContainerManager - onAppSetup', appId)
-            const view = this.appViews.get(appId);
-            if (view && view.displayer) {
-                // console.log('ContainerManager - setupApp', appId, view.viewData?.camera, view.viewData?.size)
-                view.displayer.reflashContainerOffset();
-            }
-        });
+        windowManager.emitter.on("onMainViewRebind", this.onMainViewRelease);
+        // windowManager.emitter.on('onAppSetup', (appId:string) => {
+        //     const view = this.appViews.get(appId);
+        //     if (view && view.displayer) {
+        //         console.log('ContainerManager - onAppSetup', appId)
+        //     }    
+        // })
         windowManager.emitter.on('onBoxMove', (payload) => {
             // console.log('ContainerManager - onBoxMove', payload);
             const view = this.getView(payload.appId);
@@ -432,5 +466,8 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 imageBitmap?.close();
             }
         }
+    }
+    onActiveHotkeyChange(hotkey) {
+        this.control.hotkeyManager.onActiveHotkey(hotkey);
     }
 }

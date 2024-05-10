@@ -9,7 +9,7 @@ export declare class LocalWorkForSubWorker extends LocalWork {
     private closeAnimationTime;
     private runLaserPenStep;
     constructor(opt: ISubWorkerInitOption);
-    runFullWork(data: IWorkerMessage, isDrawLabel?: boolean): IRectType | undefined;
+    runFullWork(data: IWorkerMessage, isDrawLabel?: boolean): Promise<IRectType | undefined>;
     runSelectWork(data: IWorkerMessage): undefined;
     consumeDraw(data: IWorkerMessage): IMainMessage | undefined;
     consumeDrawAll(data: IWorkerMessage): undefined;

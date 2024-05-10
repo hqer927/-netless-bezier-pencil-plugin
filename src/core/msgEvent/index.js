@@ -10,6 +10,8 @@ import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
 import { SetFontStyleMethod } from './setFont/forMain';
 import { SetPointMethod } from './setPoint/forMain';
+import { SetLockMethod } from './setLock/forMain';
+import { SetShapeOptMethod } from './setShape/forMain';
 export { ZIndexNodeMethod };
 export class MethodBuilderMain {
     constructor(emitTypes) {
@@ -43,6 +45,10 @@ export class MethodBuilderMain {
                 return new SetFontStyleMethod();
             case EmitEventType.SetPoint:
                 return new SetPointMethod();
+            case EmitEventType.SetLock:
+                return new SetLockMethod();
+            case EmitEventType.SetShapeOpt:
+                return new SetShapeOptMethod();
         }
         return undefined;
     }

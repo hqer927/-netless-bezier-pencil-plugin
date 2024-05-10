@@ -44,7 +44,7 @@ export class ViewContainerSingleManager extends ViewContainerManager {
             }
         }  as ViewWorkerOptions;
         const viewData = this.control.room  && (this.control.room as any).mainView || (this.control.play && (this.control.play as any).mainView);
-        console.log('ContainerManager - bindMainView', viewData)
+        // console.log('ContainerManager - bindMainView', viewData)
         if (viewData) {
             const {scale,...camera} = viewData.camera;
             opt.cameraOpt = {

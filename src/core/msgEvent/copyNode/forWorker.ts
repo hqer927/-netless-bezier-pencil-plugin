@@ -6,18 +6,29 @@ import { EDataType, EPostMessageType } from "../../enum";
 export class CopyNodeMethodForWorker extends BaseMsgMethodForWorker {
     readonly emitEventType: EmitEventType = EmitEventType.CopyNode;
     consume(data: IWorkerMessage): boolean | undefined {
-        const {msgType, dataType, emitEventType} = data;
+        const {msgType, dataType, emitEventType,undoTickerId} = data;
         if (msgType !== EPostMessageType.FullWork) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data);
+            this.consumeForLocalWorker(data).finally(() => {
+                if (undoTickerId) {
+                    setTimeout(()=>{
+                        this.localWork?._post({
+                            sp:[{
+                                type: EPostMessageType.None,
+                                undoTickerId,
+                            }]
+                        })
+                    },0)
+                }
+            });
             return true;
         }        
     }
-    consumeForLocalWorker(data: IWorkerMessage): void {
+    async consumeForLocalWorker(data: IWorkerMessage): Promise<void> {
         const { workId } = data;
         if (workId) {
             // console.log('consumeForLocalWorker', data)
-            this.localWork?.consumeFull(data)
+            await this.localWork?.consumeFull(data, this.scene)
         }
     }
 }

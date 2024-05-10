@@ -57,7 +57,6 @@ export async function createReplaySingleWhiteWebSdk(params:{
         },
     );
     cursorAdapter.setPlayer(player);
-    console.log('first---1')
     await TeachingAidsPlugin.getInstance(player,
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {

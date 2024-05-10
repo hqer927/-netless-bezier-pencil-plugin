@@ -1,9 +1,11 @@
 import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction, DiffOne } from "../collector";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
-import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpdateNodeOpt, IWorkerMessage, IworkId, ViewWorkerOptions } from "./types";
+import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../plugin/types";
+import { MethodBuilderMain } from "./msgEvent";
 import { EPostMessageType, EvevtWorkState } from "./enum";
+import { ImageInformation } from "white-web-sdk";
 export declare abstract class MasterController {
     /** 异步同步时间间隔 */
     maxLastSyncTime: number;
@@ -22,7 +24,7 @@ export declare abstract class MasterController {
     /** 子线程和工作线程通信机 */
     protected abstract subWorker: Worker;
     /** 当前选中的工具配置数据 */
-    abstract currentToolsData: IActiveToolsDataType;
+    abstract currentToolsData?: IActiveToolsDataType;
     /** 当前工作任务数据 */
     protected abstract currentLocalWorkData: IActiveWorkDataType;
     /** 设置当前选中的工具配置数据 */
@@ -62,10 +64,16 @@ export declare abstract class MasterController {
     /** 获取某个场景路径下的包围盒 */
     abstract getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
     abstract getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
+    /** 根据查询条件查询事件任务处理批量池中任务 */
+    abstract queryTaskBatchData(query: IqueryTask): IWorkerMessage[];
+    abstract insertImage(imageInfo: ImageInformation): void;
+    abstract lockImage(uuid: string, locked: boolean): void;
+    abstract completeImageUpload(uuid: string, src: string): void;
+    abstract getImagesInformation(scenePath: string): ImageInformation[];
 }
 export declare class MasterControlForWorker extends MasterController {
     isActive: boolean;
-    currentToolsData: IActiveToolsDataType;
+    currentToolsData?: IActiveToolsDataType;
     protected currentLocalWorkData: IActiveWorkDataType;
     control: BaseTeachingAidsManager;
     internalMsgEmitter: EventEmitter2;
@@ -74,7 +82,7 @@ export declare class MasterControlForWorker extends MasterController {
     protected dpr: number;
     protected fullWorker: Worker;
     protected subWorker: Worker;
-    private methodBuilder?;
+    methodBuilder?: MethodBuilderMain;
     private zIndexNodeMethod?;
     /** master\fullwoker\subworker 三者高频绘制时队列化参数 */
     private subWorkerDrawCount;
@@ -103,6 +111,7 @@ export declare class MasterControlForWorker extends MasterController {
     private get isCanDrawWork();
     private get isUseZIndex();
     private get isCanRecordUndoRedo();
+    private get isCanSentCursor();
     init(): void;
     on(): void;
     private collectorSyncData;
@@ -110,7 +119,7 @@ export declare class MasterControlForWorker extends MasterController {
     setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
     setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType, msgType?: EPostMessageType): void;
     createViewWorker(viewId: string, options: ViewWorkerOptions): void;
-    destroyViewWorker(viewId: string): void;
+    destroyViewWorker(viewId: string, isLocal?: boolean): void;
     onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
     pullServiceData(viewId: string, scenePath: string): void;
     runAnimation(): void;
@@ -134,4 +143,9 @@ export declare class MasterControlForWorker extends MasterController {
     blurSelector(viewId: string, scenePath: string, undoTickerId?: number): void;
     getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
     getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
+    queryTaskBatchData(query: IqueryTask): IWorkerMessage[];
+    insertImage(imageInfo: ImageInformation): void;
+    lockImage(uuid: string, locked: boolean): void;
+    completeImageUpload(uuid: string, src: string): void;
+    getImagesInformation(scenePath: string): ImageInformation[];
 }

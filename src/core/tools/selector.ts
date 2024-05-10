@@ -1,4 +1,4 @@
-import { Path, Rect, Group, Layer } from "spritejs";
+import { Path, Rect, Group, Layer, Scene } from "spritejs";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkItem, BaseNodeMapItem } from "../types";
@@ -6,10 +6,12 @@ import { computRect, getRectFromPoints, isSameArray, isSealedGroup } from "../ut
 import { Point2d } from "../utils/primitives/Point2d";
 import { Storage_Selector_key } from "../../collector/const";
 import { VNodeManager } from "../worker/vNodeManager";
-import { ShapeNodes, getShapeTools } from ".";
+import { ImageOptions, ImageShape, PolygonOptions, ShapeNodes, SpeechBalloonOptions, StarOptions, findShapeBody, getShapeTools } from ".";
 import isNumber from "lodash/isNumber";
 import { TextOptions } from "../../component/textEditor/types";
 import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
+import isEqual from "lodash/isEqual";
+import { ShapeOptType } from "../../displayer/types";
 export interface SelectorOptions extends BaseShapeOptions {
 }
 type ComputSelectorResult = {
@@ -30,15 +32,26 @@ export class SelectorShape extends BaseShapeTool {
     oldSelectRect?: IRectType;
     canRotate:boolean = false;
     canTextEdit:boolean = false;
+    canLock:boolean = false;
     scaleType: EScaleType = EScaleType.all;
+    toolsTypes?:EToolsKey[];
+    shapeOpt?: ShapeOptType;
     textOpt?: TextOptions;
+    isLocked?: boolean;
     constructor(props:BaseShapeToolProps) {
         super(props);
         this.workOptions = props.toolsOpt as BaseShapeOptions;
     }
-    private computSelector() {
+    private computSelector(filterLock:boolean = true) {
         const interRect = getRectFromPoints(this.tmpPoints);
-        const {rectRange, nodeRange}  = this.vNodes.getRectIntersectRange(interRect)
+        if (interRect.w === 0 || interRect.h === 0) {
+            return {
+                selectIds: [],
+                intersectRect: undefined,
+                subNodeMap: new Map()
+            }
+        }
+        const {rectRange, nodeRange}  = this.vNodes.getRectIntersectRange(interRect, filterLock)
         return {
             selectIds: [...nodeRange.keys()],
             intersectRect: rectRange,
@@ -65,12 +78,13 @@ export class SelectorShape extends BaseShapeTool {
         isService: boolean;
     }){
         const {drawRect, subNodeMap, selectorId, layer, isService} = data; 
+        // console.log('drawSelector', selectorId, isService)
         const group = new Group({
             pos: [drawRect.x, drawRect.y],
             anchor: [0, 0],
             size: [drawRect.w, drawRect.h],
             id: selectorId,
-            name: SelectorShape.selectorId,
+            name: selectorId,
             zIndex: 1000
         })
         const childrenNode:Path[] = []
@@ -79,7 +93,7 @@ export class SelectorShape extends BaseShapeTool {
                 normalize: true,
                 pos:[drawRect.w / 2, drawRect.h / 2],
                 lineWidth: 1,
-                strokeColor: this.workOptions.strokeColor,
+                strokeColor: this.selectorColor || this.workOptions.strokeColor,
                 width: drawRect.w,
                 height: drawRect.h,
                 name: SelectorShape.selectorBorderId
@@ -95,7 +109,7 @@ export class SelectorShape extends BaseShapeTool {
                 normalize: true,
                 pos: rectPos,
                 lineWidth: 1,
-                strokeColor: subNodeMap.size > 1 ? this.workOptions.strokeColor : undefined,
+                strokeColor: subNodeMap.size > 1 ? this.selectorColor || this.workOptions.strokeColor : undefined,
                 width: item.rect.w,
                 height: item.rect.h,
                 id:`selector-${key}`,
@@ -122,15 +136,50 @@ export class SelectorShape extends BaseShapeTool {
     private getSelecteorInfo(subNodeMap: Map<string, BaseNodeMapItem>){
         this.scaleType = EScaleType.all;
         this.canRotate = false;
+        this.textOpt = undefined;
+        this.strokeColor = undefined;
+        this.fillColor = undefined;
+        this.canTextEdit = false;
+        this.canLock = false;
+        this.isLocked = false;
+        this.toolsTypes = undefined;
+        this.shapeOpt = undefined;
+        const toolsTypes:Set<EToolsKey> = new Set();
+        let image: BaseNodeMapItem | undefined;
         for (const item of subNodeMap.values()) {
             const {opt, canRotate, scaleType, toolsType}= item;
             this.selectorColor = this.workOptions.strokeColor;
-            this.strokeColor = opt.strokeColor;
+            if (opt.strokeColor) {
+                this.strokeColor = opt.strokeColor;
+            }
             if (opt.fillColor) {
                 this.fillColor = opt.fillColor;
             }
             if (opt.textOpt) {
                 this.textOpt = opt.textOpt;
+            }
+            if (toolsType === EToolsKey.SpeechBalloon) {
+                toolsTypes.add(toolsType);
+                if (!this.shapeOpt) {
+                    this.shapeOpt = {};
+                }
+                this.shapeOpt.placement = (opt as SpeechBalloonOptions).placement;
+            }
+            if (toolsType === EToolsKey.Polygon) {
+                toolsTypes.add(toolsType);
+                if (!this.shapeOpt) {
+                    this.shapeOpt = {};
+                }
+                this.shapeOpt.vertices = (opt as PolygonOptions).vertices;
+            }
+            if (toolsType === EToolsKey.Star) {
+                toolsTypes.add(toolsType);
+                if (!this.shapeOpt) {
+                    this.shapeOpt = {};
+                }
+                this.shapeOpt.vertices = (opt as StarOptions).vertices;
+                this.shapeOpt.innerRatio = (opt as StarOptions).innerRatio;
+                this.shapeOpt.innerVerticeStep = (opt as StarOptions).innerVerticeStep;
             }
             if (toolsType === EToolsKey.Text) {
                 this.textOpt = opt as TextOptions;
@@ -140,9 +189,35 @@ export class SelectorShape extends BaseShapeTool {
                     this.canTextEdit = true;
                 }
                 this.canRotate = canRotate;
-                this.scaleType = scaleType; 
-            } else if (scaleType === EScaleType.none) {
-                this.scaleType = scaleType;  
+                this.scaleType = scaleType;
+            } 
+            if (scaleType === EScaleType.none) {
+                this.scaleType = scaleType;
+            }
+            if (toolsType === EToolsKey.Image) {
+                image = item;
+            }
+        }
+        if(toolsTypes.size){
+            this.toolsTypes = [...toolsTypes];
+        }
+        if (image) {
+            if (subNodeMap.size === 1) {
+                this.canLock = true;
+                if ((image.opt as ImageOptions).locked) {
+                    this.isLocked = true;
+                    this.scaleType = EScaleType.none;
+                    this.canRotate = false;
+                    this.textOpt = undefined;
+                    this.fillColor = undefined;
+                    this.selectorColor = 'rgb(177,177,177)';
+                    this.strokeColor = undefined;
+                    this.canTextEdit = false;
+                }
+            }
+            else if (subNodeMap.size > 1 && !(image.opt as ImageOptions).locked) {
+                this.canLock = false;
+                this.canRotate = false;
             }
         }
     }
@@ -175,8 +250,8 @@ export class SelectorShape extends BaseShapeTool {
         }
         this.selectIds = result.selectIds;
         const rect: IRectType | undefined = result.intersectRect;
-        this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, result);
         this.getSelecteorInfo(result.subNodeMap);
+        this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, result);
         this.oldSelectRect = rect;
         const points = this.getChildrenPoints();
         return {
@@ -192,33 +267,45 @@ export class SelectorShape extends BaseShapeTool {
             textOpt: this.textOpt,
             canTextEdit: this.canTextEdit,
             canRotate: this.canRotate,
+            canLock:this.canLock,
             scaleType: this.scaleType,
             willSyncService: true,
-            points
-            
+            points,
+            isLocked:this.isLocked,
+            toolsTypes: this.toolsTypes,
+            shapeOpt:this.shapeOpt
         }
     }
-    consumeAll(): IMainMessage {
+    consumeAll(props?:{hoverId?:string}): IMainMessage {
+        if(!this.selectIds?.length && this.tmpPoints[0]){
+            this.selectSingleTool(this.tmpPoints[0].XY,SelectorShape.selectorId, false, props?.hoverId);
+        }
         if (this.selectIds?.length) {
             this.sealToDrawLayer(this.selectIds);
         }
         if (this.oldSelectRect) {
             const points = this.getChildrenPoints();
+            // console.log('consumeAll---01', this.selectIds)
             return {
                 type: EPostMessageType.Select,
                 dataType: EDataType.Local,
                 rect: this.oldSelectRect,
                 selectIds: this.selectIds,
                 opt: this.workOptions,
+                selectorColor: this.selectorColor,
                 selectRect:  this.oldSelectRect,
                 strokeColor: this.strokeColor,
                 fillColor: this.fillColor,
                 textOpt: this.textOpt,
                 canTextEdit: this.canTextEdit,
                 canRotate: this.canRotate,
+                canLock: this.canLock,
                 scaleType: this.scaleType,
-                willSyncService: false,
-                points
+                willSyncService: true,
+                points,
+                isLocked:this.isLocked,
+                toolsTypes: this.toolsTypes,
+                shapeOpt:this.shapeOpt
             }
         }
         return {
@@ -234,6 +321,63 @@ export class SelectorShape extends BaseShapeTool {
     clearSelectData(): void {
         this.selectIds = undefined;
         this.oldSelectRect = undefined;
+    }
+    private selectSingleTool(point:[number,number], key:string = SelectorShape.selectorId, isService:boolean = false, hoverId?:string){
+        if (point.length === 2) {
+            const x = point[0];
+            const y = point[1];
+            let collision:ShapeNodes | undefined;
+            for (const node of this.fullLayer.children) {
+                const bodys = findShapeBody([node]);
+                let isCollision:boolean = false;
+                const isOptimal:boolean = hoverId && hoverId === node.name || false;
+                if (isOptimal && bodys.find(body=>body.isPointCollision(x,y))) {
+                    collision = node as ShapeNodes;
+                    break;
+                }
+                for (const body of bodys) {
+                    isCollision = body.isPointCollision(x,y);
+                    if (isCollision) {
+                        if (!collision) {
+                            collision = node as ShapeNodes;
+                        } else {
+                            const newNodeInfo = this.vNodes.get(node.name);
+                            const oldNodeInfo = this.vNodes.get(collision.name);
+                            if (newNodeInfo?.toolsType !== EToolsKey.Text && oldNodeInfo?.toolsType === EToolsKey.Text) {
+                                break;
+                            }
+                            if (newNodeInfo?.toolsType === EToolsKey.Text && oldNodeInfo?.toolsType !== EToolsKey.Text) {
+                                collision = node as ShapeNodes;
+                            } else {
+                                const newZIndex = newNodeInfo?.opt.zIndex || 0;
+                                const oldZIndex = oldNodeInfo?.opt.zIndex || 0;
+                                if (Number(newZIndex) >= Number(oldZIndex)) {
+                                    collision = node as ShapeNodes;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            if (collision) {
+               const name = collision.name;
+               const v = this.vNodes.get(name);
+                if (v) {
+                    if (!isEqual(this.oldSelectRect, v.rect)) {
+                        const subNodeMap = new Map([[name, v]]);
+                        this.getSelecteorInfo(subNodeMap);
+                        this.draw(key, this.drawLayer || this.fullLayer, {
+                            intersectRect: v.rect,
+                            subNodeMap,
+                            selectIds: this.selectIds || []
+                        }, isService);
+                    }
+                    this.selectIds = [name];
+                    this.oldSelectRect = v.rect;
+                }
+            }
+        }
     }
     private backToFullLayer(backToFullIds?:string[]): IRectType | undefined {
         let rect:IRectType | undefined;
@@ -308,25 +452,28 @@ export class SelectorShape extends BaseShapeTool {
         }
         return false
     }
-    updateSelector(param:{
+    async updateSelector(param:{
         updateSelectorOpt: IUpdateNodeOpt, 
         vNodes: VNodeManager,
         selectIds?: string[],
         willSerializeData?: boolean,
         worker?: LocalWorkForFullWorker,
-    }): IMainMessage | undefined {
-        const {updateSelectorOpt, selectIds, vNodes, willSerializeData, worker} = param;
+        offset?:[number,number],
+        scene?: Scene;
+    }): Promise<IMainMessage | undefined> {
+        const {updateSelectorOpt, selectIds, vNodes, willSerializeData, worker, offset, scene} = param;
         const layer = this.drawLayer;
         if (!layer) {
             return;
         }
         let intersectRect:IRectType | undefined;
         const subNodeMap:Map<string,BaseNodeMapItem> = new Map();
-        const {box,workState, angle, translate} = updateSelectorOpt;
+        const {box, workState, angle, translate} = updateSelectorOpt;
         let _translate:[number,number] = [0,0];
         let scale:[number,number] = [1,1];
         let targetRectCenter:[number,number] = [0,0];
         let targetNodes: Map<string, BaseNodeMapItem> | undefined;
+        let targetBox:IRectType|undefined;
         if (box || translate || isNumber(angle)) {
             if (workState === EvevtWorkState.Start) {
                 vNodes.setTarget();
@@ -349,80 +496,136 @@ export class SelectorShape extends BaseShapeTool {
                     _translate = [(box.x + box.w / 2) - (targetRect.x + targetRect.w/2), (box.y + box.h / 2) - (targetRect.y + targetRect.h/2)];
                     targetRectCenter = [targetRect.x + targetRect.w / 2, targetRect.y + targetRect.h / 2];
                 }
+                targetBox = targetRect;
             }
         }
-        selectIds?.forEach((name:string) => {
-            const info = vNodes.get(name);
-            if(info){
-                const {toolsType} = info
-                let node = (layer?.getElementsByName(name) as ShapeNodes[])[0];
-                if (node) {
-                    const itemOpt: IUpdateNodeOpt = {...updateSelectorOpt};
-                    let targetNode: BaseNodeMapItem | undefined;
-                    if (toolsType) {
-                        if (targetNodes) {
-                            targetNode = targetNodes.get(name);
-                            if (targetNode && box) {
-                                itemOpt.boxScale = scale;
-                                const subCenter = [(targetNode.rect.x + targetNode.rect.w / 2), (targetNode.rect.y + targetNode.rect.h / 2)];
-                                const oldDistance = [subCenter[0] - targetRectCenter[0], subCenter[1] - targetRectCenter[1]];
-                                itemOpt.boxTranslate = [oldDistance[0] * (scale[0] - 1) + _translate[0], oldDistance[1] * (scale[1]-1) + _translate[1]];
+        if(selectIds){
+            for (const name of selectIds) {
+                const info = vNodes.get(name);
+                if(info){
+                    const {toolsType} = info
+                    let node = (layer?.getElementsByName(name) as ShapeNodes[])[0];
+                    if (node) {
+                        const itemOpt: IUpdateNodeOpt = {...updateSelectorOpt};
+                        let targetNode: BaseNodeMapItem | undefined;
+                        if (toolsType) {
+                            if (targetNodes) {
+                                targetNode = targetNodes.get(name);
+                                if (targetNode && box) {
+                                    itemOpt.boxScale = scale;
+                                    const subCenter = [(targetNode.rect.x + targetNode.rect.w / 2), (targetNode.rect.y + targetNode.rect.h / 2)];
+                                    const oldDistance = [subCenter[0] - targetRectCenter[0], subCenter[1] - targetRectCenter[1]];
+                                    itemOpt.boxTranslate = [oldDistance[0] * (scale[0] - 1) + _translate[0] + (offset && offset[0] || 0), oldDistance[1] * (scale[1]-1) + _translate[1] + (offset && offset[1] || 0)];
+                                }
                             }
-                        }
-                        const shape = getShapeTools(toolsType)
-                        shape?.updateNodeOpt({
-                            node, 
-                            opt: itemOpt, 
-                            vNodes, 
-                            willSerializeData,
-                            targetNode,
-                        })
-                        if (info && worker && (
-                                (willSerializeData && (itemOpt.angle || itemOpt.translate)) ||
-                                (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start) ||
-                                (itemOpt.pointMap && itemOpt.pointMap.has(name))
-                        )){
-                            const workShape = worker.createWorkShapeNode({
-                                toolsType,
-                                toolsOpt: info.opt
+                            const shape = getShapeTools(toolsType)
+                            shape?.updateNodeOpt({
+                                node, 
+                                opt: itemOpt, 
+                                vNodes, 
+                                willSerializeData,
+                                targetNode,
                             })
-                            workShape?.setWorkId(name);
-                            const r = workShape?.consumeService({
-                                op: info.op,
-                                isFullWork: false,
-                                replaceId: name,
-                                isClearAll: false
-                            })
-                            if (r) {
-                                info.rect = r;
-                                vNodes.setInfo(name, info);
+                            if (info && worker && (
+                                    (willSerializeData && (itemOpt.angle || itemOpt.translate)) ||
+                                    (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start) ||
+                                    (itemOpt.pointMap && itemOpt.pointMap.has(name)) ||
+                                    (toolsType === EToolsKey.Text && (itemOpt.fontSize || (itemOpt.textInfos && itemOpt.textInfos.get(name)))) ||
+                                    (toolsType === EToolsKey.Image && (itemOpt.angle || itemOpt.translate || itemOpt.boxScale)) || 
+                                    (toolsType === itemOpt.toolsType && itemOpt.willRefresh)
+                            )){
+                                const workShape = worker.createWorkShapeNode({
+                                    toolsType,
+                                    toolsOpt: info.opt
+                                })
+                                workShape?.setWorkId(name);
+                                let r:IRectType|undefined;
+                                if (toolsType === EToolsKey.Image && scene) {
+                                    r = await (workShape as ImageShape).consumeServiceAsync({
+                                        isFullWork: false,
+                                        replaceId: name,
+                                        scene
+                                    })
+                                } else {
+                                    r = workShape?.consumeService({
+                                        op: info.op,
+                                        isFullWork: false,
+                                        replaceId: name,
+                                        isClearAll: false
+                                    })
+                                }
+                                if (r) {
+                                    info.rect = r;
+                                    vNodes.setInfo(name, info);
+                                }
+                                node = (layer?.getElementsByName(name) as ShapeNodes[])[0];
                             }
-                            node = (layer?.getElementsByName(name) as ShapeNodes[])[0];
-                        }
-                        if (info) {
-                            subNodeMap.set(name,info);
-                            intersectRect = computRect(intersectRect, info.rect);
+                            if (info) {
+                                subNodeMap.set(name,info);
+                                intersectRect = computRect(intersectRect, info.rect);
+                            }
                         }
                     }
-                }
+                } 
             }
-        }, this );
+        }
         if (targetNodes && workState === EvevtWorkState.Done) {
             vNodes.deleteLastTarget();
         }
+        const selectRect = intersectRect;
+        if (targetBox && updateSelectorOpt.dir && selectRect) {
+            let translate:[number,number] = [0,0];
+            switch (updateSelectorOpt.dir) {
+                case 'topLeft':
+                case 'left':{
+                    const moveToBlockPoint = [targetBox.x+targetBox.w,targetBox.y+targetBox.h];
+                    translate = [moveToBlockPoint[0]-(selectRect.x+ selectRect.w),moveToBlockPoint[1]-(selectRect.y+selectRect.h)];
+                    break;
+                } 
+                case 'bottomLeft':
+                case 'bottom':{
+                    const moveToBlockPoint = [targetBox.x+targetBox.w,targetBox.y];
+                    translate = [moveToBlockPoint[0]-(selectRect.x+ selectRect.w),moveToBlockPoint[1]-(selectRect.y)];
+                    break;
+                }
+                case 'topRight':
+                case 'top':{
+                    const moveToBlockPoint = [targetBox.x,targetBox.y+targetBox.h];
+                    translate = [moveToBlockPoint[0]-(selectRect.x),moveToBlockPoint[1]-(selectRect.y+selectRect.h)];
+                    break;
+                }  
+                case 'right':
+                case 'bottomRight':{
+                    const moveToBlockPoint = [targetBox.x,targetBox.y];
+                    translate = [moveToBlockPoint[0]-selectRect.x,moveToBlockPoint[1]-selectRect.y];
+                    break;
+                } 
+            }
+            if (translate[0] || translate[1]) {
+                selectRect.x = selectRect.x + translate[0];
+                selectRect.y = selectRect.y + translate[1];
+                // console.log('updateSelector---0---0--00--00', intersectRect, intersectRect && [intersectRect.x+intersectRect?.w,intersectRect.y+intersectRect.h], translate,
+                // selectRect, selectRect && [selectRect.x+selectRect?.w,selectRect.y+selectRect.h])
+                return await this.updateSelector({...param, offset:translate});
+            }
+        }
+        this.getSelecteorInfo(subNodeMap);
         this.draw(SelectorShape.selectorId, layer, {
             selectIds: selectIds || [],
             subNodeMap,
-            intersectRect
+            intersectRect: selectRect
         });
         const rect = computRect(this.oldSelectRect, intersectRect)
         this.oldSelectRect = intersectRect;
-        // console.log('intersectRect', intersectRect)
+        // if (!this.oldSelectRect) {
+        //     debugger;
+        // }
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
-            selectRect: intersectRect,
-            rect
+            selectRect,
+            renderRect: intersectRect,
+            rect:computRect(rect, selectRect)
         }
     }
     blurSelector(){
@@ -441,6 +644,7 @@ export class SelectorShape extends BaseShapeTool {
     selectServiceNode(workId:string, workItem: Pick<IServiceWorkItem, 'selectIds'>, isService:boolean) {
         const {selectIds} = workItem;
         const rightWorkId = this.getRightServiceId(workId);
+        // console.log('selectServiceNode', rightWorkId)
         const oldRect:IRectType | undefined = this.getSelectorRect(this.fullLayer, rightWorkId);
         let intersectRect:IRectType | undefined;
         const subNodeMap:Map<string,BaseNodeMapItem> = new Map();
@@ -452,6 +656,7 @@ export class SelectorShape extends BaseShapeTool {
                 subNodeMap.set(name,c);
             }
         })
+        this.getSelecteorInfo(subNodeMap);
         this.draw(rightWorkId,this.fullLayer, {
             intersectRect,
             selectIds: selectIds || [],
@@ -469,12 +674,13 @@ export class SelectorShape extends BaseShapeTool {
                 subNodeMap.set(name, nodeMap);
             }
         },this);
+        // console.log('reRenderSelector', this.selectIds, subNodeMap)
+        this.getSelecteorInfo(subNodeMap);
         this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, {
             intersectRect,
             subNodeMap,
             selectIds: this.selectIds || []
         });
-        this.getSelecteorInfo(subNodeMap);
         this.oldSelectRect = intersectRect;
         return intersectRect;
     }
@@ -500,5 +706,42 @@ export class SelectorShape extends BaseShapeTool {
             bgRect,
             selectRect
         } 
+    }
+    cursorHover(point:[number,number]) {
+        const rect = this.oldSelectRect;
+        this.selectIds = [];
+        const key = this.workId?.toString();
+        const nPoint:[number,number] = [point[0] * this.fullLayer.worldScaling[0]  + this.fullLayer.worldPosition[0], point[1] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[1]];
+        this.selectSingleTool(nPoint, key, true);
+        if (this.oldSelectRect && !isEqual(rect, this.oldSelectRect)) {
+            return {
+                type: EPostMessageType.CursorHover,
+                dataType: EDataType.Local,
+                rect: computRect(rect, this.oldSelectRect),
+                selectorColor: this.selectorColor,
+                willSyncService: false,
+            }
+        }
+        if (!this.selectIds?.length) {
+            this.oldSelectRect = undefined;
+        }
+        if (rect && !this.oldSelectRect) {
+            this.cursorBlur();
+            return {
+                type: EPostMessageType.CursorHover,
+                dataType: EDataType.Local,
+                rect: rect,
+                selectorColor: this.selectorColor,
+                willSyncService: false,
+            }
+        }
+    }
+    cursorBlur(){
+        const key = this.workId?.toString();
+        (this.fullLayer?.parent as Layer).children.forEach(c=>{
+            if (c.name === key) {
+                c.remove();
+            }
+        });
     }
 }

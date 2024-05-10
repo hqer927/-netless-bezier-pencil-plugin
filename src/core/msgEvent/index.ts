@@ -11,6 +11,8 @@ import { RotateNodeMethod } from './rotateNode/forMain';
 import { BaseTeachingAidsManager } from '../../plugin/baseTeachingAidsManager';
 import { SetFontStyleMethod } from './setFont/forMain';
 import { SetPointMethod } from './setPoint/forMain';
+import { SetLockMethod } from './setLock/forMain';
+import { SetShapeOptMethod } from './setShape/forMain';
 export { ZIndexNodeMethod };
 
 export type MsgMethod<T extends BaseMsgMethod> = T;
@@ -40,7 +42,11 @@ export class MethodBuilderMain {
             case EmitEventType.SetFontStyle:
                 return new SetFontStyleMethod();
             case EmitEventType.SetPoint:
-                return new SetPointMethod();      
+                return new SetPointMethod();
+            case EmitEventType.SetLock:
+                return new SetLockMethod();
+            case EmitEventType.SetShapeOpt:
+                return new SetShapeOptMethod();  
        }
        return undefined
     }

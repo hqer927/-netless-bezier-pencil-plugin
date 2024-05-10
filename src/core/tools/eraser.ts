@@ -7,6 +7,8 @@ import { Vec2d } from "../utils/primitives/Vec2d";
 import lineclip from "lineclip";
 import type { Size } from "white-web-sdk";
 import { Point2d } from "../utils/primitives/Point2d";
+import cloneDeep from "lodash/cloneDeep";
+import type { ServiceWorkForFullWorker } from "../worker/fullWorkerService";
 
 export interface EraserOptions extends BaseShapeOptions {
     thickness: number;
@@ -16,6 +18,7 @@ export class EraserShape extends BaseShapeTool{
     readonly canRotate: boolean = false;
     readonly scaleType: EScaleType = EScaleType.none;
     readonly toolsType: EToolsKey = EToolsKey.Eraser;
+    readonly serviceWork?: ServiceWorkForFullWorker;
     private static readonly eraserSizes: readonly Size[] = Object.freeze([
       Object.freeze({ width: 18, height: 26 }),
       Object.freeze({ width: 26, height: 34 }),
@@ -27,8 +30,9 @@ export class EraserShape extends BaseShapeTool{
     worldScaling:[number, number];
     eraserRect:IRectType | undefined;
     eraserPolyline?:[number,number,number,number];
-    constructor(props:BaseShapeToolProps) {
+    constructor(props:BaseShapeToolProps, serviceWork?:ServiceWorkForFullWorker) {
       super(props);
+      this.serviceWork = serviceWork
       this.workOptions = props.toolsOpt as EraserOptions;
       this.worldPosition = this.fullLayer.worldPosition as [number, number];
       this.worldScaling = this.fullLayer.worldScaling as [number, number];
@@ -286,9 +290,10 @@ export class EraserShape extends BaseShapeTool{
         toolsType: EToolsKey;
       }> = new Map();
       this.vNodes.setTarget();
+      const curNodeMap = this.getUnLockNodeMap(this.vNodes.getLastTarget());
       for (let i = 0; i < points.length-1; i+=2) {
         this.createEraserRect(points.slice(i,i+2));
-        const rect = this.remove({curNodeMap: this.vNodes.getLastTarget(), removeIds, newWorkDatas});
+        const rect = this.remove({curNodeMap, removeIds, newWorkDatas});
         totalRect = computRect(totalRect, rect);
       }
       this.vNodes.deleteLastTarget();
@@ -316,5 +321,24 @@ export class EraserShape extends BaseShapeTool{
     }
     clearTmpPoints(): void {
         this.tmpPoints.length = 0;
+    }
+    private getUnLockNodeMap(curNodeMap: Map<string, BaseNodeMapItem>): Map<string, BaseNodeMapItem> {
+      if(this.serviceWork){
+        const filterCurNodeMap: Map<string, BaseNodeMapItem> = cloneDeep(curNodeMap);
+        const selectorWorkShapes = this.serviceWork.selectorWorkShapes;
+        const workShapes = this.serviceWork.workShapes;
+        for (const value of selectorWorkShapes.values()) {
+            if (value.selectIds?.length) {
+                for (const id of value.selectIds) {
+                    filterCurNodeMap.delete(id);
+                }
+            }
+        }
+        for (const id of workShapes.keys()) {
+          filterCurNodeMap.delete(id);
+        }
+        return filterCurNodeMap;
+      }
+      return curNodeMap;
     }
 }

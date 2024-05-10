@@ -1,10 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Scene } from 'spritejs';
 import { BaseCollectorReducerAction, INormalPushMsg, ISerializableStorageData } from '../collector/types';
 import { ETextEditorType, FontStyleType, FontWeightType, TextOptions } from '../component/textEditor/types';
+import { EmitEventType } from '../plugin/types';
 import { ECanvasContextType, ECanvasShowType, EDataType, EPostMessageType, EScaleType, EToolsKey, ElayerType, EvevtWorkState } from './enum';
 import { BaseShapeOptions, BaseShapeTool, ShapeOptions } from './tools';
-
+import type { SelectorShape } from './tools';
+import type { Direction } from "re-resizable/lib/resizer";
+import { ShapeOptType } from '../displayer/types';
 export type IworkId = string | number; 
+
+export type IqueryTask = Partial<IWorkerMessage> | undefined
 
 export type ViewWorkerOptions = {
     offscreenCanvasOpt: IOffscreenCanvasOptionType;
@@ -55,6 +61,7 @@ export interface IUpdateNodeOpt {
         w: number,
         h: number
     },
+    dir?:Direction;
     translate?: [number,number],
     selectorColor?: string,
     strokeColor?: string,
@@ -80,6 +87,11 @@ export interface IUpdateNodeOpt {
     lineThrough?:boolean;
     fontSize?:number;
     pointMap?:Map<string,[number,number][]>;
+    textInfos?:Map<string,Partial<TextOptions>>;
+    isLocked?:boolean;
+    toolsType?:EToolsKey;
+    willRefresh?:boolean;
+    [key: string]: any;
 }
 
 export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
@@ -116,13 +128,14 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>,'op'> & {
     }>;
     willSerializeData?:boolean;
     isRunSubWork?:boolean;
-    // isSafari?:boolean;
     undoTickerId?:number;
     scenes?:ISerializableStorageData;
     textType?:ETextEditorType;
     mainTasksqueueCount?:number;
     textUpdateForWoker?:boolean;
     tasksqueue?:Map<string,IWorkerMessage>;
+    point?:[number,number]
+    [key: string]: any;
 }
 export interface IRectType {
     x:number;
@@ -164,10 +177,16 @@ export interface IMainMessage extends INormalPushMsg {
     workState?:EvevtWorkState;
     canTextEdit?:boolean;
     canRotate?:boolean;
+    canLock?:boolean;
     scaleType?: EScaleType;
     textOpt?:TextOptions;
     viewId?:string;
     points?:[number,number][];
+    isRefresh?:boolean;
+    renderRect?:IRectType;
+    isLocked?:boolean;
+    shapeOpt?: ShapeOptType
+    toolsTypes?: EToolsKey[];
 }
 export interface IMainMessageRenderData {
     viewId: string
@@ -207,6 +226,28 @@ export interface ICameraOpt {
     // animationMode?: "continuous",
 }
 
+export interface IUpdateSelectorPropsType {
+    updateSelectorOpt: IUpdateNodeOpt;
+    willRefreshSelector?: boolean;
+    willSyncService?: boolean;
+    willSerializeData?:boolean;
+    emitEventType?: EmitEventType;
+    isSync?:boolean;
+    textUpdateForWoker?:boolean;
+    scene?:Scene;
+}
+
+export interface IUpdateSelectorCallbackPropsType {
+    res?: IMainMessage,
+    param: IUpdateSelectorPropsType, 
+    postData: Pick<IBatchMainMessage,'sp'|'render'>,
+    workShapeNode: SelectorShape,
+    newServiceStore:Map<string,{
+        opt: BaseShapeOptions;
+        toolsType: EToolsKey;
+        ops?: string;
+    }>
+}
 export interface IActiveToolsDataType {
     toolsType: EToolsKey;
     toolsOpt: ShapeOptions;

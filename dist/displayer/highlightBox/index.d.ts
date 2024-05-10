@@ -1,3 +1,5 @@
 import React from "react";
-export declare const HightLightBox: () => React.JSX.Element;
-export declare const HightLightTwoBox: () => React.JSX.Element;
+export declare const HighlightBox: () => React.JSX.Element;
+export declare const HighlightTwoBox: () => React.JSX.Element;
+export declare const HighlightFourBox: () => React.JSX.Element;
+export declare const LockedBox: () => React.JSX.Element;

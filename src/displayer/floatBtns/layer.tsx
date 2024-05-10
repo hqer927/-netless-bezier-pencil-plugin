@@ -21,16 +21,23 @@ const SubBtn = (props: {
     )
 }
 export const Layer = (props:SubButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn} = props;
-    const {floatBarData, maranger, position} = useContext(DisplayerContext);
+    const {open: showSubBtn, setOpen: setShowSubBtn, style} = props;
+    const {floatBarData, maranger} = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(false);
     const [selectIds,setSelectIds] = useState<string[]>([]);
+    const subBtnStyle = useMemo(()=>{
+        if (style && style.bottom) {
+            const value:React.CSSProperties = {};
+            value.top = 'inherit';
+            value.bottom = 50;
+            return value;
+        }
+        return undefined;
+    }, [style])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="image-layer-menu" style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }>
+                <div className="image-layer-menu" style={ subBtnStyle }>
                     <SubBtn icon={'to-top'} 
                         onClickHandler={(e) => {
                             e.preventDefault();
@@ -61,7 +68,7 @@ export const Layer = (props:SubButProps) => {
             )
         }
         return null
-    }, [showSubBtn, position])
+    }, [showSubBtn, subBtnStyle])
     const onClickHandler = (e:any) => {
         e.preventDefault();
         e.stopPropagation();
@@ -70,7 +77,7 @@ export const Layer = (props:SubButProps) => {
         setShowSubBtn(isActive)
         if (isActive) {
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive})
+                EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive, viewId:maranger?.viewId })
         }
     }
     const onTouchEndHandler = (e:any) => {
@@ -79,7 +86,7 @@ export const Layer = (props:SubButProps) => {
         const isActive = !showSubBtn;
         setShowSubBtn(isActive)
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive})
+            EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive, viewId:maranger?.viewId})
     }
     useEffect(()=>{
         if (!isEqual(floatBarData?.selectIds, selectIds)) {
@@ -93,7 +100,7 @@ export const Layer = (props:SubButProps) => {
         return ()=> {
             if (showSubBtn) {
                 MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive:false})
+                    EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive:false, viewId:maranger?.viewId})
             }
         }
     },[showSubBtn])

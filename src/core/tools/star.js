@@ -297,16 +297,17 @@ export class StarShape extends BaseShapeTool {
     }
     static updateNodeOpt(param) {
         const { node, opt, vNodes } = param;
-        const { strokeColor, fillColor } = opt;
+        const { strokeColor, fillColor, toolsType, vertices, innerVerticeStep, innerRatio } = opt;
         const nodeOpt = vNodes.get(node.name);
+        const _Opt = nodeOpt?.opt;
         let n = node;
         if (node.tagName === 'GROUP') {
             n = node.children[0];
         }
         if (strokeColor) {
             n.setAttribute('strokeColor', strokeColor);
-            if (nodeOpt?.opt?.strokeColor) {
-                nodeOpt.opt.strokeColor = strokeColor;
+            if (_Opt?.strokeColor) {
+                _Opt.strokeColor = strokeColor;
             }
         }
         if (fillColor) {
@@ -316,11 +317,22 @@ export class StarShape extends BaseShapeTool {
             else {
                 n.setAttribute('fillColor', fillColor);
             }
-            if (nodeOpt?.opt?.fillColor) {
-                nodeOpt.opt.fillColor = fillColor;
+            if (_Opt?.fillColor) {
+                _Opt.fillColor = fillColor;
             }
         }
-        nodeOpt && vNodes.setInfo(node.name, nodeOpt);
+        if (toolsType === EToolsKey.Star) {
+            if (vertices) {
+                _Opt.vertices = vertices;
+            }
+            if (innerVerticeStep) {
+                _Opt.innerVerticeStep = innerVerticeStep;
+            }
+            if (innerRatio) {
+                _Opt.innerRatio = innerRatio;
+            }
+        }
+        nodeOpt && vNodes.setInfo(node.name, { ...nodeOpt, opt: _Opt });
         return BaseShapeTool.updateNodeOpt(param);
     }
 }

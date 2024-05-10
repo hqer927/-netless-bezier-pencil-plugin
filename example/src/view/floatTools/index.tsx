@@ -4,7 +4,6 @@ import {useContext, useEffect, useState} from 'react';
 import {
     EditOutlined,
     DeleteOutlined,
-    FileImageOutlined,
     FilePdfOutlined,
     DownloadOutlined,
     FilePptOutlined
@@ -17,6 +16,7 @@ import { PencilTools } from '../pencilTools';
 import { WindowManager, BuiltinApps } from '@netless/window-manager';
 import SlideApp, { addHooks } from "@netless/app-slide";
 import { GeometryButtons } from '../geometryTools';
+import { ImageButtons } from '../imageTools';
 export const FloatTools = () => {
     const [docsViewerIndex, setDocsViewerIndex] = useState<number>(1);
     const [pptViewerIndex, setPptViewerIndex] = useState<number>(1);
@@ -118,6 +118,7 @@ export const FloatTools = () => {
                         window.pluginRoom.cleanCurrentScene();
                     }}
                 />
+                <ImageButtons/>
                 <FloatButton 
                     type={toolsKey === EToolsKey.Text?'primary':'default'} 
                     icon={<TextIcon style={{color:toolsKey === EToolsKey.Text?'white':'black' }}  />} 
@@ -133,23 +134,22 @@ export const FloatTools = () => {
                         const context = canvas.getContext("2d");
                         const width =  window.manager && window.manager.mainView.size.width || window.room.state.cameraState.width;
                         const height =  window.manager && window.manager.mainView.size.height || window.room.state.cameraState.height;
-                        const camera = window.manager && window.manager.mainView.camera || window.room.state.cameraState;
-                        const rect = await window.pluginRoom.getBoundingRectAsync(window.room.state.sceneState.scenePath);
+                        // const camera = window.manager && window.manager.mainView.camera || window.room.state.cameraState;
+                        const scenePath = window.manager && window.manager.mainView.focusScenePath || window.room.state.scenePath;
+                        const rect = await window.pluginRoom.getBoundingRectAsync(scenePath);
+                        // console.log('rect', rect)
                         const w = Math.max(rect?.width, width);
                         const h = Math.max(rect?.height, height);
                         canvas.width = w;
                         canvas.height = h;
-                        context && await window.pluginRoom.screenshotToCanvasAsync(context, window.room.state.sceneState.scenePath, w, h, camera, devicePixelRatio);
-                        canvas.toBlob(blobCallback('test', canvas), "image/png")
-                    }}
-                />
-                <FloatButton 
-                    type={'default'} 
-                    icon={<FileImageOutlined />} 
-                    onClick={async ()=>{
-                        const uuid = window.room.uuid;
-                        window.room.insertImage({ uuid, centerX: 0, centerY: 0, width: 400, height: 400, locked: false });
-                        window.room.completeImageUpload(uuid, 'https://placekitten.com/g/200/200')
+                        const centerCamera = {
+                            scale: 1,
+                            centerX: rect.originX + rect.width / 2,
+                            centerY: rect.originY + rect.height / 2,
+                        }
+                        // console.log('rect-1', centerCamera, w, h)
+                        context && await window.pluginRoom.screenshotToCanvasAsync(context, scenePath, w, h, centerCamera, devicePixelRatio);
+                        canvas.toBlob(blobCallback(window.room.uid, canvas), "image/png")
                     }}
                 />
                 {/* <FloatButton 

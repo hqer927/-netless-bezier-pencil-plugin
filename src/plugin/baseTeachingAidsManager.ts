@@ -14,6 +14,7 @@ import { rgbToRgba } from "../collector/utils/color";
 import { EraserOptions, LaserPenOptions, PencilOptions, PolygonOptions, StarOptions, SpeechBalloonOptions } from "../core/tools";
 import { ICameraOpt } from "../core/types";
 import throttle from "lodash/throttle";
+import { HotkeyManager, HotkeyManagerImpl } from "../hotkey";
 
 export interface BaseTeachingAidsManagerProps {
     displayer: Displayer<DisplayerCallbacks>
@@ -27,6 +28,7 @@ export abstract class BaseTeachingAidsManager {
     room?: Room;
     play?: Player;
     collector?: Collector;
+    readonly hotkeyManager: HotkeyManager;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
     readonly cursor: CursorManager;
@@ -47,6 +49,7 @@ export abstract class BaseTeachingAidsManager {
         this.cursor = new CursorManagerImpl(props)
         this.textEditorManager = new TextEditorManagerImpl(props);
         this.worker = new MasterControlForWorker(props);
+        this.hotkeyManager = new HotkeyManagerImpl(props);
     }
     bindPlugin(plugin:TeachingAidsPluginLike){
         this.plugin = plugin;
@@ -267,32 +270,34 @@ export abstract class BaseTeachingAidsManager {
             case EToolsKey.Star:
             case EToolsKey.Polygon:
             case EToolsKey.SpeechBalloon:
+            case EToolsKey.Triangle:
+            case EToolsKey.Rhombus:               
                 (this.room as Room).disableDeviceInputs = true;
                 this.worker?.abled()
-                setTimeout(() => {
-                    const views = this.viewContainerManager.getAllViews();
-                    views.forEach(view => {
-                        if (view?.displayer) {
-                            view.displayer.bindToolsClass();
-                        }
-                    });
-                }, 0);
                 break;
             case EToolsKey.Eraser:
             case EToolsKey.Selector:
                 (this.room as Room).disableDeviceInputs = false;
-                this.cursor?.unable();
+                this.cursor?.unabled();
                 this.worker?.abled();
                 break;
             default:
                 (this.room as Room).disableDeviceInputs = false;
                 this.worker?.unabled();
-                this.cursor?.unable();
+                this.cursor?.unabled();
                 break;
         }
+        setTimeout(() => {
+            const views = this.viewContainerManager.getAllViews();
+            views.forEach(view => {
+                if (view?.displayer) {
+                    view.displayer.bindToolsClass();
+                }
+            });
+        }, 0);
     }
     internalSceneChange = (viewId: string, scenePath: string) => {
-        // console.log('internalSceneChange', viewId, scenePath)
+        this.textEditorManager.checkEmptyTextBlur();
         this.worker?.clearViewScenePath(viewId, true).then(()=>{
             this.worker?.pullServiceData(viewId, scenePath);
         });
@@ -304,11 +309,13 @@ export abstract class BaseTeachingAidsManager {
     async getBoundingRect(scenePath: string): Promise<Rectangle | undefined> {
         const rect = await this.worker?.getBoundingRect(scenePath);
         if(rect) {
+            const originPoint = this.viewContainerManager.mainView?.viewData?.convertToPointInWorld({x:rect.x, y:rect.y}) || {x:rect.x, y:rect.y};
+            const scale = this.viewContainerManager.mainView?.viewData?.camera.scale || 1;
             return {
-                width: rect.w,
-                height: rect.h,
-                originX: rect.x,
-                originY: rect.y,
+                width: Math.floor(rect.w / scale) + 1,
+                height: Math.floor(rect.h / scale) + 1,
+                originX: originPoint.x,
+                originY: originPoint.y,
             }
         }
     }

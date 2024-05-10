@@ -1,5 +1,5 @@
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { IWorkerMessage } from "../types";
+import { IWorkerMessage, IqueryTask } from "../types";
 import { BaseCollectorReducerAction } from "../../collector/types";
 import { requestAsyncCallBack } from "../utils";
 import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
@@ -26,8 +26,11 @@ export abstract class BaseMsgMethod {
     destroy() {
         this.emtType && this.mainEngine && this.mainEngine.internalMsgEmitter.off([this.emtType, this.emitEventType], this.collect.bind(this));
     }
-    collectForLocalWorker(data: IWorkerMessage[] ): void {
-        for (const d of data) {
+    collectForLocalWorker(data:[IWorkerMessage,IqueryTask][]): void {
+        for (const [d, query] of data) {
+            this.mainEngine?.queryTaskBatchData(query).forEach(task=>{
+                this.mainEngine?.taskBatchData.delete(task);
+            })
             this.mainEngine?.taskBatchData.add(d);
         }
         this.mainEngine?.runAnimation();

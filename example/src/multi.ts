@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import '@netless/window-manager/dist/style.css';
-import { WhiteWebSdk, DeviceType} from "white-web-sdk";
+import { WhiteWebSdk, DeviceType, DefaultHotKeys} from "white-web-sdk";
 import { WindowManager } from "@netless/window-manager";
 import { TeachingAidsPlugin, ECanvasContextType } from '@hqer/bezier-pencil-plugin';
 
@@ -19,10 +19,8 @@ export async function createMultiWhiteWebSdk(params:{
         //     "api-cn-hz.netless.group",
         // ],
     })
-    const uid = 
-    // localStorage.getItem('uid') || 
-    'uid-' + Math.floor(Math.random() * 10000);
-    // localStorage.setItem('uid', uid);
+    const uid = sessionStorage.getItem('uid') || 'uid-' + Math.floor(Math.random() * 10000);
+    sessionStorage.setItem('uid', uid);
     // const cursorAdapter = new CursorTool();
     const room = await whiteWebSdk.joinRoom({
         uuid,
@@ -37,9 +35,22 @@ export async function createMultiWhiteWebSdk(params:{
             userUUID: uid,
             cursorName: `user-${uid}`,
         },
+        hotKeys: {
+            ...DefaultHotKeys,
+            changeToSelector: "s",
+            changeToLaserPointer: "z",
+            changeToPencil: "p",
+            changeToRectangle: "r",
+            changeToEllipse: "c",
+            changeToEraser: "e",
+            changeToText: "t",
+            changeToStraight: "l",
+            changeToArrow: "a",
+            changeToHand: "h",
+        },
         invisiblePlugins: [WindowManager, TeachingAidsPlugin],
         disableNewPencil: false,
-        useMultiViews: true,
+        useMultiViews: true, 
     })
     if (room.isWritable) {
         room.setScenePath("/init");

@@ -82,7 +82,15 @@ const OpacityBtn = (props: {
         setCurOpacity(curOpacity, activeColor, EvevtWorkState.Done)
     }, 100, {'leading':false})
     return (
-        <div className={'font-color-opacity'} style={{marginLeft: '10px'}} >
+        <div className={'font-color-opacity'} style={{marginLeft: '10px'}}
+            onClick={(e)=>{
+                // console.log('first1', e.nativeEvent.offsetX)
+                const x = e.nativeEvent.offsetX;
+                const curOpacity = Math.min(Math.max(x - 12, 0), 100) / 100;
+                setPosition({x: curOpacity * 100 + 8, y: 0})
+                setCurOpacity(curOpacity, activeColor, EvevtWorkState.Done)
+            }}
+        >
             <div className="range-color"
                 style={{
                     background: `linear-gradient(to right, ${hexToRgba(activeColor, 0)}, ${hexToRgba(activeColor, 1)})`
@@ -100,6 +108,10 @@ const OpacityBtn = (props: {
                         style={{
                             backgroundColor: hexToRgba(activeColor, opacity)
                         }}
+                        onClick={(e)=>{
+                            e?.preventDefault();
+                            e?.stopPropagation();
+                        }}
                     ></div>
                 </Draggable>
             </div>
@@ -107,7 +119,7 @@ const OpacityBtn = (props: {
     )
 }
 export const StrokeColors = (props:SubButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, floatBarRef} = props;
     const {floatBarData, floatBarColors, maranger, position, setFloatBarData} = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(open);
     const [activeColor,setColor] = useState<string>();
@@ -120,6 +132,23 @@ export const StrokeColors = (props:SubButProps) => {
             setOpacity(opacity);
         }
     }, [floatBarData])
+    const subBtnStyle = useMemo(()=>{
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            } 
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120){
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger])
     const SubOpacityBtn = useMemo(()=>{
         return <OpacityBtn key={'strokeColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
             if (workState === EvevtWorkState.Start && maranger?.control.room) {
@@ -137,13 +166,11 @@ export const StrokeColors = (props:SubButProps) => {
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor, workState, viewId:maranger?.viewId})
         }} />
-    },[opacity, activeColor, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData])
+    },[opacity, activeColor, maranger?.control.room, maranger?.viewId, floatBarData])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }
+                <div className="font-colors-menu" style={ subBtnStyle }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -191,7 +218,7 @@ export const StrokeColors = (props:SubButProps) => {
             )
         }
         return null
-    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData, maranger?.viewId, setFloatBarData])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData, maranger?.viewId, subBtnStyle])
     const RingBar = useMemo(() => {
         if (activeColor) {
             return (
@@ -222,17 +249,34 @@ export const StrokeColors = (props:SubButProps) => {
     )
 }
 export const FillColors = (props:SubButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, floatBarRef} = props;
     const { floatBarData, floatBarColors, maranger, position, setFloatBarData} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
         if (floatBarData?.fillColor) {
-            const [hex, opacity] = floatBarData?.fillColor === 'transparent' && ['transparent', 0] || colorRGBA2Hex(floatBarData.fillColor);
+            const [hex, opacity] = floatBarData?.fillColor === 'transparent' && ['transparent', 1] || colorRGBA2Hex(floatBarData.fillColor);
             setColor(hex);
             setOpacity(opacity);
         }
     }, [floatBarData])
+    const subBtnStyle = useMemo(()=>{
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 200) {
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            } 
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140){
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if( activeColor && activeColor !== 'transparent'){
             return <OpacityBtn key={'fillColors'} opacity={opacity || 0} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
@@ -253,13 +297,11 @@ export const FillColors = (props:SubButProps) => {
             }} />
         }
         return null
-    },[activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData, setFloatBarData])
+    },[activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }
+                <div className="font-colors-menu" style={ subBtnStyle }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -332,7 +374,7 @@ export const FillColors = (props:SubButProps) => {
             )
         }
         return null
-    }, [showSubBtn, position, activeColor, floatBarColors, SubOpacityBtn, floatBarData, maranger?.viewId, setFloatBarData, opacity])
+    }, [showSubBtn, activeColor, floatBarColors, SubOpacityBtn, floatBarData, maranger?.viewId, opacity, subBtnStyle])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (
@@ -360,10 +402,8 @@ export const FillColors = (props:SubButProps) => {
         </div>
     )
 }
-
-
 export const TextColors = (props:TextButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef} = props;
     const { floatBarColors, maranger, position, setFloatBarData, floatBarData} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
@@ -375,6 +415,23 @@ export const TextColors = (props:TextButProps) => {
             setOpacity(opacity);
         }
     }, [textOpt?.fontColor])
+    const subBtnStyle = useMemo(()=>{
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            } 
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120){
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
             return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
@@ -402,13 +459,11 @@ export const TextColors = (props:TextButProps) => {
             }} />
         }
         return null;
-    },[activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds, setFloatBarData])
+    },[activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu"  style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }
+                <div className="font-colors-menu"  style={ subBtnStyle }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -456,7 +511,7 @@ export const TextColors = (props:TextButProps) => {
             )
         }
         return null
-    }, [showSubBtn, position, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData?.textOpt, workIds, maranger?.viewId, setFloatBarData])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, activeColor, opacity, floatBarData?.textOpt, workIds, maranger?.viewId, subBtnStyle])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (
@@ -486,7 +541,7 @@ export const TextColors = (props:TextButProps) => {
     )
 }
 export const TextBgColors = (props:TextButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt} = props;
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, floatBarRef} = props;
     const { floatBarColors, maranger, position} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
@@ -498,6 +553,23 @@ export const TextBgColors = (props:TextButProps) => {
             setOpacity(opacity);
         }
     }, [textOpt?.fontBgColor])
+    const subBtnStyle = useMemo(()=>{
+        if (floatBarRef?.current && position && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 150) {
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            } 
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140){
+                const value:React.CSSProperties = {};
+                value.top = 'inherit';
+                value.bottom = 50;
+                return value;
+            }
+        }
+        return undefined;
+    }, [floatBarRef, position, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
             return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
@@ -517,9 +589,7 @@ export const TextBgColors = (props:TextButProps) => {
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-colors-menu" style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }
+                <div className="font-colors-menu" style={ subBtnStyle }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -572,7 +642,7 @@ export const TextBgColors = (props:TextButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, position])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, subBtnStyle])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (

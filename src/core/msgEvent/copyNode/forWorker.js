@@ -12,19 +12,30 @@ export class CopyNodeMethodForWorker extends BaseMsgMethodForWorker {
         });
     }
     consume(data) {
-        const { msgType, dataType, emitEventType } = data;
+        const { msgType, dataType, emitEventType, undoTickerId } = data;
         if (msgType !== EPostMessageType.FullWork)
             return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data);
+            this.consumeForLocalWorker(data).finally(() => {
+                if (undoTickerId) {
+                    setTimeout(() => {
+                        this.localWork?._post({
+                            sp: [{
+                                    type: EPostMessageType.None,
+                                    undoTickerId,
+                                }]
+                        });
+                    }, 0);
+                }
+            });
             return true;
         }
     }
-    consumeForLocalWorker(data) {
+    async consumeForLocalWorker(data) {
         const { workId } = data;
         if (workId) {
             // console.log('consumeForLocalWorker', data)
-            this.localWork?.consumeFull(data);
+            await this.localWork?.consumeFull(data, this.scene);
         }
     }
 }

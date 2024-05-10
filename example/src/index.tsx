@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { Button, Flex, Select } from "antd";
 import { useState } from "react";
 import { Region, regions } from "./region";
@@ -7,14 +6,17 @@ const IndexPage = ()=>{
     const [region,setRegion] = useState<Region>('cn-hz');
     const [loading,setLoading] = useState<boolean>(false);
     const [loading1,setLoading1] = useState<boolean>(false);
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
     const handleChange = (value: Region) => {
         setRegion(value);
     };
-    async function go(url:string){
+    async function go(hash:string){
         const room = await createRoom(region);
         const {roomToken,roomUUID} = room
-        navigate(`${url}?roomToken=${roomToken}&uuid=${roomUUID}`)
+        window.location.href= `${document.location.origin}${document.location.pathname}#${hash}?roomToken=${roomToken}&uuid=${roomUUID}`;
+        setTimeout(()=>{
+            window.location.reload();
+        },500)
     }
     return <Flex justify="center" align="center" vertical style={{position:'absolute',width:'100vw', height:'100vh'}}>
         <Flex style={{width:200}} vertical justify="center" align="center" gap='small'>

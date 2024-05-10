@@ -86,46 +86,17 @@ export class RotateNodeMethod extends BaseMsgMethod {
                         taskData.undoTickerId = this.undoTickerId;
                         this.cacheOriginRotate = 0;
                     }
-                    localMsgs.push(taskData);
+                    localMsgs.push([taskData, {
+                            workId: curKey,
+                            msgType: EPostMessageType.UpdateNode,
+                            emitEventType: this.emitEventType
+                        }]);
                 }
                 continue;
             }
-            // if (curStore) {
-            //     const opt = curStore.opt;
-            //     const updateNodeOpt = curStore.updateNodeOpt || {};
-            //     // let pos = updateNodeOpt.pos || 0;
-            //     if (opt) {
-            //         updateNodeOpt.angle = angle;
-            //         serviceMsgs.push({
-            //             ...curStore,
-            //             type: EPostMessageType.UpdateNode,
-            //             updateNodeOpt
-            //         });
-            //         if (!selectIds.includes(curKeyStr)) {
-            //             let localWorkId:string | undefined = curKeyStr;
-            //             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-            //                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-            //             }
-            //             localMsgs.push({
-            //                 workId: localWorkId,
-            //                 msgType: EPostMessageType.UpdateNode,
-            //                 dataType: EDataType.Local,
-            //                 updateNodeOpt,
-            //                 emitEventType: this.emitEventType,
-            //                 willSyncService: false,
-            //                 willRefresh: true
-            //             })
-            //         }
-            //     }
-            // }
         }
         if (localMsgs.length) {
-            // console.log('localMsgs', localMsgs)
             this.collectForLocalWorker(localMsgs);
         }
-        // if (serviceMsgs.length) {
-        //     // console.log('serviceMsgs', serviceMsgs)
-        //     this.collectForServiceWorker(serviceMsgs);
-        // }
     }
 }

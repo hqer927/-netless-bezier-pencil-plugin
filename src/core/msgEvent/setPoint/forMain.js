@@ -67,7 +67,11 @@ export class SetPointMethod extends BaseMsgMethod {
                 if (workState === EvevtWorkState.Done) {
                     taskData.undoTickerId = this.undoTickerId;
                 }
-                localMsgs.push(taskData);
+                localMsgs.push([taskData, {
+                        workId: curKey,
+                        msgType: EPostMessageType.UpdateNode,
+                        emitEventType: this.emitEventType
+                    }]);
             }
         }
         if (localMsgs.length) {

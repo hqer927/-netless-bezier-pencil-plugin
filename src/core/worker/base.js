@@ -1,7 +1,8 @@
 import { Group, Scene } from "spritejs";
 import { VNodeManager } from "./vNodeManager";
-import { EDataType, EPostMessageType, EvevtWorkState } from "../enum";
+import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { getShapeInstance } from "../tools/utils";
+import { Cursor_Hover_Id } from "..";
 export class WorkThreadEngineBase {
     constructor(viewId, opt) {
         Object.defineProperty(this, "viewId", {
@@ -47,12 +48,21 @@ export class WorkThreadEngineBase {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "isSafari", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
         this.viewId = viewId;
         this.opt = opt;
         this.dpr = opt.dpr;
         this.scene = this.createScene(opt.offscreenCanvasOpt);
         this.fullLayer = this.createLayer('fullLayer', this.scene, { ...opt.layerOpt, bufferSize: this.viewId === 'mainView' ? 6000 : 3000 });
         this.vNodes = new VNodeManager(viewId, this.scene);
+    }
+    setIsSafari(isSafari) {
+        this.isSafari = isSafari;
     }
     on(msg) {
         const { msgType, toolsType, opt, workId, workState, dataType } = msg;
@@ -202,6 +212,12 @@ export class LocalWork {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "thread", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "fullLayer", {
             enumerable: true,
             configurable: true,
@@ -256,6 +272,7 @@ export class LocalWork {
             writable: true,
             value: 0
         });
+        this.thread = opt.thread;
         this.viewId = opt.viewId;
         this.vNodes = opt.vNodes;
         this.fullLayer = opt.fullLayer;
@@ -293,7 +310,11 @@ export class LocalWork {
         this.workShapes.get(workId)?.setWorkOptions(opt);
     }
     createWorkShapeNode(opt) {
-        return getShapeInstance({ ...opt, vNodes: this.vNodes, fullLayer: this.fullLayer, drawLayer: this.drawLayer });
+        const { toolsType, workId } = opt;
+        if (toolsType === EToolsKey.Selector && workId === Cursor_Hover_Id) {
+            return getShapeInstance({ ...opt, vNodes: this.vNodes, fullLayer: this.fullLayer, drawLayer: this.fullLayer });
+        }
+        return getShapeInstance({ ...opt, vNodes: this.vNodes, fullLayer: this.fullLayer, drawLayer: this.drawLayer }, this.thread?.serviceWork);
     }
     setToolsOpt(opt) {
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
@@ -319,7 +340,8 @@ export class LocalWork {
         if (workId && opt && toolsType) {
             const curWorkShapes = (workId && this.workShapes.get(workId)) || this.createWorkShapeNode({
                 toolsOpt: opt,
-                toolsType
+                toolsType,
+                workId
             });
             if (!curWorkShapes) {
                 return;

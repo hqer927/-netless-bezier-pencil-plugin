@@ -430,16 +430,17 @@ export class SpeechBalloonShape extends BaseShapeTool{
         willSerializeData?: boolean,
     }){
         const {node, opt, vNodes} = param;
-        const {strokeColor, fillColor} = opt;
+        const {strokeColor, fillColor, toolsType, placement} = opt;
         const nodeOpt = vNodes.get(node.name);
+        const _Opt = nodeOpt?.opt as SpeechBalloonOptions;
         let n = node;
         if (node.tagName === 'GROUP') {
             n = (node as Group).children[0]
         }
         if (strokeColor) {
             n.setAttribute('strokeColor', strokeColor);
-            if (nodeOpt?.opt?.strokeColor ) {
-                nodeOpt.opt.strokeColor = strokeColor;
+            if (_Opt?.strokeColor ) {
+                _Opt.strokeColor = strokeColor;
             }
         }
         if (fillColor) {
@@ -448,11 +449,16 @@ export class SpeechBalloonShape extends BaseShapeTool{
             } else {
                 n.setAttribute('fillColor', fillColor);
             }
-            if (nodeOpt?.opt?.fillColor ) {
-                nodeOpt.opt.fillColor = fillColor;
+            if (_Opt?.fillColor ) {
+                _Opt.fillColor = fillColor;
             }
         }
-        nodeOpt && vNodes.setInfo(node.name, nodeOpt);
+        if (toolsType === EToolsKey.SpeechBalloon) {
+            if (placement) {
+                _Opt.placement = placement;
+            }
+        }
+        nodeOpt && vNodes.setInfo(node.name, {...nodeOpt,opt:_Opt});
         return BaseShapeTool.updateNodeOpt(param);
     }
 }

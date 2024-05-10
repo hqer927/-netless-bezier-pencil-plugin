@@ -48,6 +48,12 @@ export class CursorManagerImpl {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "asyncEndInfo", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "animationPointWorkers", {
             enumerable: true,
             configurable: true,
@@ -318,7 +324,11 @@ export class CursorManagerImpl {
                 if (this.removeTimerId) {
                     clearTimeout(this.removeTimerId);
                     this.removeTimerId = undefined;
+                    if (this.asyncEndInfo && this.asyncEndInfo.viewId !== viewId && this.asyncEndInfo.uid === uid) {
+                        this.activeDrawWorkShape(uid, [undefined, undefined], EvevtWorkState.Done, this.asyncEndInfo.viewId);
+                    }
                 }
+                this.asyncEndInfo = { uid, viewId };
                 this.removeTimerId = setTimeout(() => {
                     this.removeTimerId = undefined;
                     this.activeDrawWorkShape(uid, [undefined, undefined], EvevtWorkState.Done, viewId);
@@ -332,7 +342,7 @@ export class CursorManagerImpl {
             this.runAnimation();
         }
     }
-    unable() {
+    unabled() {
         this.eventCollector?.dispatch({
             type: EventMessageType.Cursor,
             op: [undefined, undefined],

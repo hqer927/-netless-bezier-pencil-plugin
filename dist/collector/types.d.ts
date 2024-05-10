@@ -41,6 +41,7 @@ export interface INormalPushMsg {
     undoTickerId?: number;
     viewId?: string;
     scenePath?: string;
+    isActive?: string;
 }
 export interface INormalStorageData {
     [key: string]: IStorageValueItem | undefined;

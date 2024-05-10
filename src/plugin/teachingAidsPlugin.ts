@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Camera, Cursor, RenderEngine, Room, RoomState} from "white-web-sdk";
+import type { Camera, Cursor, ImageInformation, RenderEngine, Room, RoomState} from "white-web-sdk";
 import { WindowManager } from "@netless/window-manager";
-import { InvisiblePlugin, isRoom, Displayer, isPlayer, RoomPhase, ApplianceNames } from "white-web-sdk";
+import { InvisiblePlugin, isRoom, Displayer, isPlayer, ApplianceNames } from "white-web-sdk";
 import { TeachingAidsPluginAttributes, TeachingAidsPluginOptions, DisplayerForPlugin, Logger, MemberState, TeachingAidsAdaptor, TeachingAidsManagerLike } from "./types";
 import { computRectangle } from "../core/utils";
 import { CursorTool } from "@netless/cursor-tool";
@@ -64,6 +64,9 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
                 TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] getBoundingRect`);
                 const originRect = (this.windowManager && this.windowManager.mainView || this.displayer).getBoundingRect(scenePath);
                 const pluginRect = await TeachingAidsPlugin.currentManager?.getBoundingRect(scenePath);
+                if (!originRect.width || !originRect.height) {
+                    return pluginRect;
+                }
                 return computRectangle(originRect, pluginRect)
             },
             screenshotToCanvasAsync: async function (context: CanvasRenderingContext2D, scenePath: string, width: number, height: number, camera: Camera, ratio?: number) {
@@ -144,6 +147,31 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
                     (this.displayer as Room).cleanCurrentScene(retainPpt);
                 }
             },
+            insertImage:function(imageInfo: ImageInformation){
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] insertImage`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && (this.displayer as Room).isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.insertImage(imageInfo);
+                }
+            },
+            lockImage:function(uuid: string, locked: boolean){
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] lockImage`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && (this.displayer as Room).isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.lockImage(uuid, locked);
+                }
+            },
+            completeImageUpload:function(uuid: string, src: string){
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] completeImageUpload`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && (this.displayer as Room).isWritable) {
+                    TeachingAidsPlugin.currentManager.worker.completeImageUpload(uuid, src);
+                }
+            },
+            getImagesInformation:function(scenePath: string){
+                TeachingAidsPlugin.logger.info(`[TeachingAidsSinglePlugin plugin] completeImageUpload`);
+                if (TeachingAidsPlugin.currentManager && isRoom(this.displayer) && (this.displayer as Room).isWritable) {
+                    return TeachingAidsPlugin.currentManager.worker.getImagesInformation(scenePath);
+                }
+                return []
+            }
         }
         return {
             ...origin,
@@ -156,7 +184,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
         };
     }
     static onCreate(plugin: InvisiblePlugin<TeachingAidsPluginAttributes, any> ) {
-        console.log('onCreate', plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.windowManager);
+        // console.log('onCreate', plugin, TeachingAidsPlugin.options, TeachingAidsPlugin.windowManager);
         if (plugin && TeachingAidsPlugin.currentManager) {
             // console.log('teachingAidsPlugin--2', plugin, plugin.displayer, TeachingAidsPlugin.windowManager)
             TeachingAidsPlugin.currentManager.bindPlugin(plugin as TeachingAidsPlugin);
@@ -249,22 +277,22 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
         }
         this.displayer.callbacks.on(this.callbackName, this.roomStateChangeListener);
         this.displayer.callbacks.on("onEnableWriteNowChanged", this.updateRoomWritable);
-        this.displayer.callbacks.on("onPhaseChanged", this.onPhaseChanged);
+        // this.displayer.callbacks.on("onPhaseChanged", this.onPhaseChanged);
     }
-    private onPhaseChanged = (phase: RoomPhase): void => {
-        if (phase === RoomPhase.Disconnected) {
-            this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
-            this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
-            this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
-            console.log('[TeachingAidsPlugin plugin] Disconnected');
-            this.destroy();
-        }
-        if(phase === RoomPhase.Reconnecting){
-            console.log('[TeachingAidsPlugin plugin] Reconnecting');
-            // TODO
-            this.init(this.displayer);
-        }
-    };
+    // private onPhaseChanged = (phase: RoomPhase): void => {
+    //     if (phase === RoomPhase.Disconnected) {
+    //         this.displayer.callbacks.off(this.callbackName, this.roomStateChangeListener);
+    //         this.displayer.callbacks.off("onEnableWriteNowChanged", this.updateRoomWritable);
+    //         this.displayer.callbacks.off("onPhaseChanged", this.onPhaseChanged);
+    //         console.log('[TeachingAidsPlugin plugin] Disconnected');
+    //     }
+    //     if(phase === RoomPhase.Reconnecting){
+    //         console.log('[TeachingAidsPlugin plugin] Reconnecting');
+    //     }
+    //     if (phase === RoomPhase.Connected) {
+    //         console.log('[TeachingAidsPlugin plugin] Connected');
+    //     }
+    // };
     private updateRoomWritable = () => {
         TeachingAidsPlugin.currentManager?.onWritableChange((this.displayer as Room).isWritable);
     }
@@ -288,7 +316,7 @@ export class TeachingAidsPlugin extends InvisiblePlugin<TeachingAidsPluginAttrib
         }
     }
     override destroy(): void {
-        // console.log('currentManager--destroy -- 1')
+        console.log('currentManager--destroy -- 1')
         TeachingAidsPlugin.currentManager?.destroy();
         TeachingAidsPlugin.currentManager = undefined;
         TeachingAidsPlugin.windowManager = undefined;

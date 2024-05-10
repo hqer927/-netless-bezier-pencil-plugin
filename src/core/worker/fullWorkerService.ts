@@ -1,10 +1,10 @@
-import { Group, Node } from "spritejs";
+import { Group, Node, Scene } from "spritejs";
 import { ISubWorkerInitOption, ServiceWork } from "./base";
 import { VNodeManager } from "./vNodeManager";
 import { IBatchMainMessage, IMainMessageRenderData, IRectType, IServiceWorkItem, IWorkerMessage } from "../types";
 import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { computRect, getSafetyRect } from "../utils";
-import { ArrowShape, BaseShapeOptions, LaserPenOptions, SelectorShape, ShapeNodes, getShapeInstance } from "../tools";
+import { ArrowShape, BaseShapeOptions, ImageShape, LaserPenOptions, SelectorShape, ShapeNodes, getShapeInstance } from "../tools";
 import { Storage_Splitter } from "../../collector/const";
 import { transformToNormalData } from "../../collector/utils";
 
@@ -13,9 +13,9 @@ export class ServiceWorkForFullWorker implements ServiceWork {
     vNodes: VNodeManager;
     fullLayer: Group;
     drawLayer: Group;
-    protected workShapes: Map<string, IServiceWorkItem> = new Map();
-    protected animationId?: number | undefined;
+    workShapes: Map<string, IServiceWorkItem> = new Map();
     selectorWorkShapes: Map<string, IServiceWorkItem> = new Map();
+    protected animationId?: number | undefined;
     private willRunEffectSelectorIds: Set<string> = new Set;
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
@@ -68,7 +68,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             vNodes: this.vNodes, 
             fullLayer: this.fullLayer, 
             drawLayer: this.drawLayer,
-        });
+        }, this);
         return workShape;
     }
     runReverseSelectWork(selectIds: string[]){
@@ -185,8 +185,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         if (workShape.node && workShape.node.getWorkId() !== key) {
             workShape.node.setWorkId(key);
         }
-        if (workShape.toolsType !== toolsType && toolsType && opt) {
-            this.setNodeKey(workShape, toolsType, opt)
+        if (toolsType && opt) {
+            if (workShape.toolsType !== toolsType && toolsType && opt) {
+                this.setNodeKey(workShape, toolsType, opt)
+            }
+            if(workShape.node){
+                // console.log('setWorkOptions', opt)
+                workShape.node.setWorkOptions(opt);                
+            }
         }
     }
     private hasDiffData(oldOp: number[], newOp:number[], toolsType:EToolsKey) {
@@ -214,7 +220,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
         return false;
     }
-    private animationDraw() {
+    private async animationDraw() {
         this.animationId = undefined;
         let isNext:boolean = false;
         const cursorPoints: Map<string,{
@@ -227,8 +233,40 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         const bgClearRenders: IMainMessageRenderData[] = [];
         const floatClearRenders: IMainMessageRenderData[] = [];
 
-        this.workShapes.forEach((workShape,key) => {
+        for (const [key,workShape] of this.workShapes.entries()) {
             switch (workShape.toolsType) {
+                case EToolsKey.Image:
+                {
+                        const oldRect =  workShape.oldRect;
+                        if (oldRect) {
+                            bgClearRenders.push({
+                                rect: oldRect,
+                                isClear: true,
+                                clearCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            })
+                        }
+                        const rect = await (workShape.node as ImageShape)?.consumeServiceAsync({
+                            isFullWork:true,
+                            scene: (this.fullLayer.parent?.parent) as Scene
+                        });
+                        this.selectorWorkShapes.forEach((s,selectorId)=>{
+                            if (s.selectIds?.includes(key)) {
+                                this.willRunEffectSelectorIds.add(selectorId);
+                                this.noAnimationRect = computRect(this.noAnimationRect, oldRect);
+                                this.noAnimationRect = computRect(this.noAnimationRect, rect);
+                                this.runEffect();
+                            }
+                        })
+                        this.workShapes.delete(key);
+                        bgRenders.push({
+                            rect,
+                            drawCanvas: ECanvasShowType.Bg,
+                            isFullWork: true,
+                            viewId: this.viewId
+                        })
+                    break;
+                }
                 case EToolsKey.Text: {
                     if (workShape.node) {
                         const oldRect =  workShape.oldRect;
@@ -522,7 +560,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 default:
                     break;
             }
-        })
+        }
         if (isNext) {
             this.runAnimation();
         }
@@ -630,6 +668,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         let rect: IRectType | undefined = this.noAnimationRect;
         this.willRunEffectSelectorIds.forEach(id => {
             const workShape = this.selectorWorkShapes.get(id);
+            // console.log('effectRunSelector', id)
             const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape,true);
             rect = computRect(rect, r);
             if (!workShape?.selectIds?.length) {

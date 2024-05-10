@@ -4,6 +4,7 @@ import isEqual from "lodash/isEqual";
 import clone from "lodash/clone";
 import { UndoRedoMethod } from "../undo";
 import isNumber from "lodash/isNumber";
+import { getPosition } from "../utils";
 /** view容器管理器抽象 */
 export class ViewContainerManager {
     constructor(props) {
@@ -44,9 +45,14 @@ export class ViewContainerManager {
             view.displayer.commiter.undoTickerStart(id, view.focusScenePath);
         }
     }
-    undoTickerEnd(id, viewId) {
+    undoTickerEnd(id, viewId, isSync) {
         const view = this.getView(viewId);
         if (view && view.displayer && view.focusScenePath) {
+            if (isSync) {
+                // console.log('undoTickerEnd---undoTickerEnd', id, viewId)
+                view.displayer.commiter.undoTickerEndSync(id, viewId, view.focusScenePath);
+                return;
+            }
             view.displayer.commiter.undoTickerEnd(id, viewId, view.focusScenePath);
         }
     }
@@ -77,9 +83,9 @@ export class ViewContainerManager {
     validator(target, key, value) {
         const oldValue = clone(target[key]);
         const newValue = clone(value);
-        // console.log('validator - cameraOpt', target.id, oldValue, newValue)
         if (key === 'focusScenePath' && value && !isEqual(oldValue, newValue)) {
             this.control.internalSceneChange(target.id, newValue);
+            this.focuedView?.displayer.commiter.onChangeScene();
         }
         if (key === 'cameraOpt' && !isEqual(oldValue, newValue)) {
             if (newValue.width !== oldValue?.width || newValue.height !== oldValue?.height) {
@@ -89,10 +95,10 @@ export class ViewContainerManager {
             this.control.internalCameraChange(target.id, newValue);
         }
     }
-    destroyAppView(viewId) {
+    destroyAppView(viewId, justLocal = false) {
         const viewInfo = this.appViews.get(viewId);
         if (viewInfo) {
-            this.control.textEditorManager.clear(viewId);
+            this.control.textEditorManager.clear(viewId, justLocal);
             viewInfo.displayer.destroy();
             this.appViews.delete(viewId);
         }
@@ -172,6 +178,10 @@ export class ViewContainerManager {
             this.focuedView = viewId && this.appViews?.get(viewId) || undefined;
         }
         this.control.cursor.onFocusViewChange();
+        if (this.focuedView) {
+            // console.log('commiter---0', this.focuedView.focusScenePath);
+            this.focuedView.displayer.commiter.onFocusView();
+        }
     }
     setViewFocusScenePath(viewId, scenePath) {
         let info;
@@ -399,6 +409,14 @@ export class AppViewDisplayerManager {
                 }
             }, 30, { 'leading': false })
         });
+        Object.defineProperty(this, "keydown", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: (e) => {
+                this.control.hotkeyManager.colloctHotkey(e);
+            }
+        });
         this.viewId = viewId;
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
@@ -411,8 +429,21 @@ export class AppViewDisplayerManager {
     }
     bindToolsClass() {
         const toolsKey = this.control.worker?.currentToolsData?.toolsType;
-        if (this.eventTragetElement && toolsKey) {
-            this.eventTragetElement.className = `netless-whiteboard ${toolsKey === EToolsKey.Text ? 'cursor-text' : toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen ? 'cursor-pencil' : 'cursor-arrow'}`;
+        switch (toolsKey) {
+            case EToolsKey.Text:
+            case EToolsKey.Pencil:
+            case EToolsKey.LaserPen:
+            case EToolsKey.Arrow:
+            case EToolsKey.Straight:
+            case EToolsKey.Rectangle:
+            case EToolsKey.Ellipse:
+            case EToolsKey.Star:
+            case EToolsKey.Polygon:
+            case EToolsKey.SpeechBalloon:
+                if (this.eventTragetElement) {
+                    this.eventTragetElement.className = `netless-whiteboard ${toolsKey === EToolsKey.Text ? 'cursor-text' : toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen ? 'cursor-pencil' : 'cursor-arrow'}`;
+                }
+                break;
         }
     }
     mountView() {
@@ -437,16 +468,9 @@ export class AppViewDisplayerManager {
         }
     }
     getPoint(e) {
-        if (e instanceof TouchEvent) {
-            const event = e.targetTouches[0] || e.changedTouches[0];
-            if (event) {
-                const point = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
-                return point;
-            }
-        }
-        if (isNumber(e.pageX) && isNumber(e.pageY)) {
-            const point = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
-            return point;
+        const point = getPosition(e);
+        if (point && isNumber(point.x) && isNumber(point.y)) {
+            return [point.x - this.containerOffset.x, point.y - this.containerOffset.y];
         }
     }
     getTranslate(element) {
@@ -477,6 +501,7 @@ export class AppViewDisplayerManager {
         window.addEventListener('touchend', this.touchend, false);
         div.addEventListener('mousemove', this.cursorMouseMove, false);
         div.addEventListener('mouseleave', this.cursorMouseLeave, false);
+        div.addEventListener('keydown', this.keydown, true);
     }
     removeDisplayerEvent(div) {
         div.removeEventListener('mousedown', this.mousedown);
@@ -486,8 +511,9 @@ export class AppViewDisplayerManager {
         window.removeEventListener('mouseup', this.mouseup);
         window.removeEventListener('touchmove', this.touchmove);
         window.removeEventListener('touchend', this.touchend);
-        div.addEventListener('mousemove', this.cursorMouseMove);
-        div.addEventListener('mouseleave', this.cursorMouseLeave);
+        div.removeEventListener('mousemove', this.cursorMouseMove);
+        div.removeEventListener('mouseleave', this.cursorMouseLeave);
+        div.removeEventListener('keydown', this.keydown);
     }
 }
 /** 主容器管理器抽象 */
@@ -617,6 +643,14 @@ export class MainViewDisplayerManager {
                 this.control.worker.sendCursorEvent(this.cacheCursorPoint, this.viewId);
             }, 30, { 'leading': false })
         });
+        Object.defineProperty(this, "keydown", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: (e) => {
+                this.control.hotkeyManager.colloctHotkey(e);
+            }
+        });
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
         const props = {
@@ -628,8 +662,21 @@ export class MainViewDisplayerManager {
     }
     bindToolsClass() {
         const toolsKey = this.control.worker?.currentToolsData?.toolsType;
-        if (this.eventTragetElement && toolsKey) {
-            this.eventTragetElement.className = `netless-whiteboard ${toolsKey === EToolsKey.Text ? 'cursor-text' : toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen ? 'cursor-pencil' : 'cursor-arrow'}`;
+        switch (toolsKey) {
+            case EToolsKey.Text:
+            case EToolsKey.Pencil:
+            case EToolsKey.LaserPen:
+            case EToolsKey.Arrow:
+            case EToolsKey.Straight:
+            case EToolsKey.Rectangle:
+            case EToolsKey.Ellipse:
+            case EToolsKey.Star:
+            case EToolsKey.Polygon:
+            case EToolsKey.SpeechBalloon:
+                if (this.eventTragetElement) {
+                    this.eventTragetElement.className = `netless-whiteboard ${toolsKey === EToolsKey.Text ? 'cursor-text' : toolsKey === EToolsKey.Pencil || toolsKey === EToolsKey.LaserPen ? 'cursor-pencil' : 'cursor-arrow'}`;
+                }
+                break;
         }
     }
     mountView() {
@@ -653,16 +700,9 @@ export class MainViewDisplayerManager {
         this.vDom = undefined;
     }
     getPoint(e) {
-        if (e instanceof TouchEvent) {
-            const event = e.targetTouches[0] || e.changedTouches[0];
-            if (event) {
-                const point = [event.pageX - this.containerOffset.x, event.pageY - this.containerOffset.y];
-                return point;
-            }
-        }
-        if (isNumber(e.pageX) && isNumber(e.pageY)) {
-            const point = [e.pageX - this.containerOffset.x, e.pageY - this.containerOffset.y];
-            return point;
+        const point = getPosition(e);
+        if (point && isNumber(point.x) && isNumber(point.y)) {
+            return [point.x - this.containerOffset.x, point.y - this.containerOffset.y];
         }
     }
     getTranslate(element) {
@@ -693,6 +733,7 @@ export class MainViewDisplayerManager {
         window.addEventListener('touchend', this.touchend, false);
         div.addEventListener('mousemove', this.cursorMouseMove, false);
         div.addEventListener('mouseleave', this.cursorMouseLeave, false);
+        div.addEventListener('keydown', this.keydown, true);
     }
     removeDisplayerEvent(div) {
         div.removeEventListener('mousedown', this.mousedown);
@@ -702,8 +743,9 @@ export class MainViewDisplayerManager {
         window.removeEventListener('mouseup', this.mouseup);
         window.removeEventListener('touchmove', this.touchmove);
         window.removeEventListener('touchend', this.touchend);
-        div.addEventListener('mousemove', this.cursorMouseMove);
-        div.addEventListener('mouseleave', this.cursorMouseLeave);
+        div.removeEventListener('mousemove', this.cursorMouseMove);
+        div.removeEventListener('mouseleave', this.cursorMouseLeave);
+        div.removeEventListener('keydown', this.keydown);
     }
 }
 Object.defineProperty(MainViewDisplayerManager, "viewId", {

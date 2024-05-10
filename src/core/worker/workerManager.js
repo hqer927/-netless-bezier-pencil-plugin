@@ -3,7 +3,7 @@ import { EmitEventType } from "../../plugin/types";
 import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "../enum";
 import { MethodBuilderWorker } from "../msgEvent/forWorker";
 import { SelectorShape } from "../tools";
-import { isRenderNode, computRect, outerRect } from "../utils";
+import { isRenderNode, computRect, getSafetyRect } from "../utils";
 import { WorkThreadEngineBase } from "./base";
 import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
@@ -39,7 +39,7 @@ export class WorkerManager {
         this.register();
     }
     init(value) {
-        const { viewId, dpr, offscreenCanvasOpt, layerOpt } = value;
+        const { viewId, dpr, offscreenCanvasOpt, layerOpt, isSafari } = value;
         if (!dpr || !offscreenCanvasOpt || !layerOpt) {
             return;
         }
@@ -58,13 +58,13 @@ export class WorkerManager {
                 layerOpt
             }, this.post.bind(this));
         }
+        if (workThread && isSafari) {
+            workThread.setIsSafari(isSafari);
+        }
         if (workThread && value.cameraOpt) {
             workThread.setCameraOpt(value.cameraOpt);
         }
         workThread && this.workThreadMap.set(viewId, workThread);
-        // if (this.type === EWorkThreadType.Full) {
-        //     console.log('init', viewId, workThread, this.workThreadMap.size)
-        // }
     }
     register() {
         onmessage = (e) => {
@@ -74,9 +74,6 @@ export class WorkerManager {
                 for (const value of data.values()) {
                     const { msgType, viewId, tasksqueue, mainTasksqueueCount } = value;
                     if (msgType === EPostMessageType.Init) {
-                        // if (this.type === EWorkThreadType.Full) {
-                        //     console.log('onmessage- init', this.type, e.data)
-                        // }
                         this.init(value);
                         continue;
                     }
@@ -112,7 +109,7 @@ export class WorkerManager {
         };
     }
     post(msg, transfer) {
-        // console.log('onmessage - post', msg)
+        // console.log('updateSelector---0---0--00--0', msg)
         if (transfer) {
             this._self.postMessage(msg, transfer);
         }
@@ -164,6 +161,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         this._post = _post;
         this.drawLayer = this.createLayer('drawLayer', this.scene, { ...opt.layerOpt, bufferSize: 1000 });
         const subWorkOpt = {
+            thread: this,
             viewId: this.viewId,
             vNodes: this.vNodes,
             fullLayer: this.fullLayer,
@@ -176,8 +174,8 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
             EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.SetFontStyle,
-            EmitEventType.SetPoint
-        ]).registerForWorker(this.localWork, this.serviceWork);
+            EmitEventType.SetPoint, EmitEventType.SetLock, EmitEventType.SetShapeOpt
+        ]).registerForWorker(this.localWork, this.serviceWork, this.scene);
         this.vNodes.init(this.fullLayer, this.drawLayer);
     }
     async post(msg, transfer) {
@@ -197,22 +195,20 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                 }
                 if (renderData.drawCanvas) {
                     const renderLayer = renderData.isFullWork ? this.fullLayer : this.drawLayer;
+                    // console.log('mainEngine---03---005', (renderLayer?.parent as Layer).children.map(c=>c.name));
                     (renderLayer?.parent).render();
-                    // if (renderData.isFullWork) {
-                    //     console.log('onmessage - post - 0', renderData.isFullWork ,(renderLayer?.parent as Layer).children.length, renderLayer.children.length)
-                    // }
                 }
                 if (renderData.rect) {
                     if (renderData.clearCanvas === renderData.drawCanvas && renderData.drawCanvas === ECanvasShowType.Bg) {
-                        // console.log('onmessage - post - 1', cloneDeep(renderData.rect))
                         renderData.rect = this.checkRightRectBoundingBox(renderData.rect);
-                        // console.log('onmessage - post - 2', cloneDeep(renderData.rect))
                     }
                     const oldRect = renderData.rect;
-                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
-                    if (renderData.drawCanvas === ECanvasShowType.Selector) {
-                        // console.log('onmessage - post - 3', cloneDeep(oldRect), this.viewId, this.scene.width, this.scene.height, cloneDeep(renderData.rect))
+                    if (this.isSafari) {
+                        renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
                     }
+                    // if (renderData.drawCanvas === ECanvasShowType.Selector) {
+                    //     console.log('onmessage - post - 3', cloneDeep(oldRect), this.viewId, this.scene.width, this.scene.height, cloneDeep(renderData.rect))
+                    // }
                     if (!renderData.rect) {
                         continue;
                     }
@@ -281,7 +277,6 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             case EPostMessageType.Select:
                 if (dataType === EDataType.Service) {
                     if (workId === SelectorShape.selectorId) {
-                        // console.log('WorkThreadEngineForFullWorker', workId)
                         this.localWork.updateFullSelectWork(msg);
                     }
                     else {
@@ -299,19 +294,24 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             case EPostMessageType.GetTextActive:
                 this.checkTextActive(msg);
                 break;
+            case EPostMessageType.CursorHover:
+                this.cursorHover(msg);
         }
         super.on(msg);
     }
-    removeNode(data) {
+    async removeNode(data) {
         const { dataType, workId } = data;
         if (workId === SelectorShape.selectorId) {
             this.localWork.blurSelector(data);
-        }
-        if (dataType === EDataType.Service) {
-            this.serviceWork.removeWork(data);
+            return;
         }
         if (dataType === EDataType.Local) {
             this.localWork.removeWork(data);
+            this.localWork.colloctEffectSelectWork(data);
+        }
+        if (dataType === EDataType.Service) {
+            this.serviceWork.removeWork(data);
+            this.localWork.colloctEffectSelectWork(data);
         }
     }
     checkTextActive(data) {
@@ -359,11 +359,11 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         const layer = (isFullWork ? this.fullLayer.parent : this.drawLayer.parent);
         return layer.canvas;
     }
-    consumeFull(type, data) {
-        if (type === EDataType.Local) {
-            this.localWork.consumeFull(data);
+    async consumeFull(type, data) {
+        const noLocalEffectData = await this.localWork.colloctEffectSelectWork(data);
+        if (noLocalEffectData && type === EDataType.Local) {
+            await this.localWork.consumeFull(noLocalEffectData, this.scene);
         }
-        const noLocalEffectData = this.localWork.colloctEffectSelectWork(data);
         if (noLocalEffectData && type === EDataType.Service) {
             this.serviceWork.consumeFull(noLocalEffectData);
         }
@@ -434,7 +434,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     }
                     if (rect) {
                         render.push({
-                            rect: outerRect(rect, 100),
+                            rect: getSafetyRect(rect, 100),
                             drawCanvas: ECanvasShowType.Bg,
                             isClear: false,
                             isFullWork: true,
@@ -465,8 +465,8 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         const newRect = {
             x: 0,
             y: 0,
-            w: this.scene.width,
-            h: this.scene.height
+            w: Math.floor(this.scene.width),
+            h: Math.floor(this.scene.height)
         };
         if (rect.x < 0) {
             if (rect.w + rect.x < this.scene.width) {
@@ -475,7 +475,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         }
         else if (rect.w + rect.x > 0) {
             newRect.x = rect.x;
-            newRect.w = this.scene.width - rect.x;
+            newRect.w = Math.floor(this.scene.width - rect.x);
         }
         if (rect.y < 0) {
             if (rect.h + rect.y < this.scene.height) {
@@ -484,7 +484,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         }
         else if (rect.h + rect.y > 0) {
             newRect.y = rect.y;
-            newRect.h = this.scene.height - rect.y;
+            newRect.h = Math.floor(this.scene.height - rect.y);
         }
         if (newRect.w <= 0 || newRect.h <= 0) {
             return undefined;
@@ -496,12 +496,15 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
         return {
             x: 0,
             y: 0,
-            w: width,
-            h: height
+            w: Math.floor(width),
+            h: Math.floor(height)
         };
     }
     checkRightRectBoundingBox(rect) {
         return this.vNodes.combineIntersectRect(rect);
+    }
+    cursorHover(msg) {
+        this.localWork.cursorHover(msg);
     }
 }
 /** sub worker */
@@ -540,6 +543,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
         });
         this._post = _post;
         const subWorkOpt = {
+            thread: this,
             viewId: this.viewId,
             vNodes: this.vNodes,
             fullLayer: this.fullLayer,
@@ -559,7 +563,9 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                     this.fullLayer.parent.render();
                 }
                 if (renderData.rect) {
-                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
+                    if (this.isSafari) {
+                        renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
+                    }
                     if (!renderData.rect) {
                         continue;
                     }
@@ -645,8 +651,8 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
         const newRect = {
             x: 0,
             y: 0,
-            w: this.scene.width,
-            h: this.scene.height
+            w: Math.floor(this.scene.width),
+            h: Math.floor(this.scene.height)
         };
         if (rect.x < 0) {
             if (rect.w + rect.x < this.scene.width) {
@@ -655,7 +661,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
         }
         else if (rect.w + rect.x > 0) {
             newRect.x = rect.x;
-            newRect.w = this.scene.width - rect.x;
+            newRect.w = Math.floor(this.scene.width - rect.x);
         }
         if (rect.y < 0) {
             if (rect.h + rect.y < this.scene.height) {
@@ -664,7 +670,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
         }
         else if (rect.h + rect.y > 0) {
             newRect.y = rect.y;
-            newRect.h = this.scene.height - rect.y;
+            newRect.h = Math.floor(this.scene.height - rect.y);
         }
         if (newRect.w <= 0 || newRect.h <= 0) {
             return undefined;
@@ -693,7 +699,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
         }
     }
     async getSnapshot(data) {
-        const { scenePath, scenes, cameraOpt, w, h } = data;
+        const { scenePath, scenes, cameraOpt, w, h, maxZIndex } = data;
         if (scenePath && scenes && cameraOpt && this.snapshotFullLayer) {
             const curCameraOpt = cloneDeep(this.cameraOpt);
             this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
@@ -707,11 +713,15 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
                             const { toolsType, opt } = value;
-                            if (toolsType === EToolsKey.Text && opt && (opt.lineThrough || opt.underline)) {
-                                willRenderMap.set(key, value);
+                            if (toolsType === EToolsKey.Text && opt) {
+                                opt.zIndex = opt.zIndex + (maxZIndex || 0);
+                                if ((opt.lineThrough || opt.underline)) {
+                                    willRenderMap.set(key, value);
+                                }
                             }
-                            const r = this.localWork.runFullWork({
+                            const r = await this.localWork.runFullWork({
                                 ...value,
+                                opt,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service,
@@ -734,11 +744,13 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                     resizeHeight: h,
                 };
             }
-            await new Promise((resolve) => {
-                setTimeout(resolve, 500);
-            });
-            this.willRenderSpecialLabel(willRenderMap);
-            await this.getSnapshotRender({ scenePath, curCameraOpt, options, willRenderMap });
+            if (willRenderMap.size) {
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 500);
+                });
+                this.willRenderSpecialLabel(willRenderMap);
+            }
+            await this.getSnapshotRender({ scenePath, curCameraOpt, options });
         }
     }
     willRenderSpecialLabel(willRenderMap) {
@@ -779,7 +791,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
-                            const r = this.localWork.runFullWork({
+                            const r = await this.localWork.runFullWork({
                                 ...value,
                                 workId: key,
                                 msgType: EPostMessageType.FullWork,

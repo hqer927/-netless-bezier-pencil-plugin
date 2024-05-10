@@ -32,6 +32,8 @@ export var EToolsKey;
     EToolsKey[EToolsKey["Polygon"] = 15] = "Polygon";
     /** 聊天泡泡框 */
     EToolsKey[EToolsKey["SpeechBalloon"] = 16] = "SpeechBalloon";
+    /** 图片 */
+    EToolsKey[EToolsKey["Image"] = 17] = "Image";
 })(EToolsKey || (EToolsKey = {}));
 export var EDataType;
 (function (EDataType) {
@@ -58,42 +60,44 @@ export var EvevtWorkState;
  */
 export var EPostMessageType;
 (function (EPostMessageType) {
-    /** 初始化,仅用于本地 */
-    EPostMessageType[EPostMessageType["Init"] = 0] = "Init";
-    /** 本地视口切换,仅用于本地 */
-    EPostMessageType[EPostMessageType["UpdateCamera"] = 1] = "UpdateCamera";
-    /** 更新tool配置数据,仅用于本地 */
-    EPostMessageType[EPostMessageType["UpdateTools"] = 2] = "UpdateTools";
-    /** 创建一次work */
-    EPostMessageType[EPostMessageType["CreateWork"] = 3] = "CreateWork";
-    /** 绘制当次work（高频） */
-    EPostMessageType[EPostMessageType["DrawWork"] = 4] = "DrawWork";
-    /** 完成完整的一次work */
-    EPostMessageType[EPostMessageType["FullWork"] = 5] = "FullWork";
-    /** 更新已有node */
-    EPostMessageType[EPostMessageType["UpdateNode"] = 6] = "UpdateNode";
-    /** 删除node */
-    EPostMessageType[EPostMessageType["RemoveNode"] = 7] = "RemoveNode";
-    /** 清空 */
-    EPostMessageType[EPostMessageType["Clear"] = 8] = "Clear";
-    /** 选中 */
-    EPostMessageType[EPostMessageType["Select"] = 9] = "Select";
-    /** 销毁 */
-    EPostMessageType[EPostMessageType["Destroy"] = 10] = "Destroy";
     /** 什么也不需要做 */
-    EPostMessageType[EPostMessageType["None"] = 11] = "None";
+    EPostMessageType[EPostMessageType["None"] = 0] = "None";
+    /** 初始化,仅用于本地 */
+    EPostMessageType[EPostMessageType["Init"] = 1] = "Init";
+    /** 本地视口切换,仅用于本地 */
+    EPostMessageType[EPostMessageType["UpdateCamera"] = 2] = "UpdateCamera";
+    /** 更新tool配置数据,仅用于本地 */
+    EPostMessageType[EPostMessageType["UpdateTools"] = 3] = "UpdateTools";
+    /** 创建一次work */
+    EPostMessageType[EPostMessageType["CreateWork"] = 4] = "CreateWork";
+    /** 绘制当次work（高频） */
+    EPostMessageType[EPostMessageType["DrawWork"] = 5] = "DrawWork";
+    /** 完成完整的一次work */
+    EPostMessageType[EPostMessageType["FullWork"] = 6] = "FullWork";
+    /** 更新已有node */
+    EPostMessageType[EPostMessageType["UpdateNode"] = 7] = "UpdateNode";
+    /** 删除node */
+    EPostMessageType[EPostMessageType["RemoveNode"] = 8] = "RemoveNode";
+    /** 清空 */
+    EPostMessageType[EPostMessageType["Clear"] = 9] = "Clear";
+    /** 选中 */
+    EPostMessageType[EPostMessageType["Select"] = 10] = "Select";
+    /** 销毁 */
+    EPostMessageType[EPostMessageType["Destroy"] = 11] = "Destroy";
     /** 获取指定场景快照 */
     EPostMessageType[EPostMessageType["Snapshot"] = 12] = "Snapshot";
     /** 获取指定场所有元素的的包围盒 */
     EPostMessageType[EPostMessageType["BoundingBox"] = 13] = "BoundingBox";
-    /**  */
+    /** 指针事件 */
     EPostMessageType[EPostMessageType["Cursor"] = 14] = "Cursor";
-    /** */
+    /** 更新文本 */
     EPostMessageType[EPostMessageType["TextUpdate"] = 15] = "TextUpdate";
-    /**  */
+    /** 获取获奖的文本信息 */
     EPostMessageType[EPostMessageType["GetTextActive"] = 16] = "GetTextActive";
     /** 批量队列化处理 */
     EPostMessageType[EPostMessageType["TasksQueue"] = 17] = "TasksQueue";
+    /** 指针hover元素事件 */
+    EPostMessageType[EPostMessageType["CursorHover"] = 18] = "CursorHover";
 })(EPostMessageType || (EPostMessageType = {}));
 export var ECanvasContextType;
 (function (ECanvasContextType) {
@@ -128,4 +132,6 @@ export var EScaleType;
     EScaleType[EScaleType["all"] = 2] = "all";
     /** 两个方向拉伸 */
     EScaleType[EScaleType["both"] = 3] = "both";
+    /** 等比例 */
+    EScaleType[EScaleType["proportional"] = 4] = "proportional";
 })(EScaleType || (EScaleType = {}));

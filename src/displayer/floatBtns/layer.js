@@ -13,15 +13,22 @@ const SubBtn = (props) => {
         React.createElement("img", { src: IconURL(icon) })));
 };
 export const Layer = (props) => {
-    const { open: showSubBtn, setOpen: setShowSubBtn } = props;
-    const { floatBarData, maranger, position } = useContext(DisplayerContext);
+    const { open: showSubBtn, setOpen: setShowSubBtn, style } = props;
+    const { floatBarData, maranger } = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(false);
     const [selectIds, setSelectIds] = useState([]);
+    const subBtnStyle = useMemo(() => {
+        if (style && style.bottom) {
+            const value = {};
+            value.top = 'inherit';
+            value.bottom = 50;
+            return value;
+        }
+        return undefined;
+    }, [style]);
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
-            return (React.createElement("div", { className: "image-layer-menu", style: position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                } : undefined },
+            return (React.createElement("div", { className: "image-layer-menu", style: subBtnStyle },
                 React.createElement(SubBtn, { icon: 'to-top', onClickHandler: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -40,7 +47,7 @@ export const Layer = (props) => {
                     } })));
         }
         return null;
-    }, [showSubBtn, position]);
+    }, [showSubBtn, subBtnStyle]);
     const onClickHandler = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -48,7 +55,7 @@ export const Layer = (props) => {
         const isActive = !showSubBtn;
         setShowSubBtn(isActive);
         if (isActive) {
-            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive });
+            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive, viewId: maranger?.viewId });
         }
     };
     const onTouchEndHandler = (e) => {
@@ -56,7 +63,7 @@ export const Layer = (props) => {
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(isActive);
-        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive });
+        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive, viewId: maranger?.viewId });
     };
     useEffect(() => {
         if (!isEqual(floatBarData?.selectIds, selectIds)) {
@@ -69,7 +76,7 @@ export const Layer = (props) => {
     useEffect(() => {
         return () => {
             if (showSubBtn) {
-                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive: false });
+                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ZIndexActive, { workId: Storage_Selector_key, isActive: false, viewId: maranger?.viewId });
             }
         };
     }, [showSubBtn]);

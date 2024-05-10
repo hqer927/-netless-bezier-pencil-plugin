@@ -99,8 +99,8 @@ const ItalicBtn = (props: {
     )
 }
 export const FontStyleBtn = (props:FontStyleProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds} = props;
-    const { position, maranger } = useContext(DisplayerContext);
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, style} = props;
+    const { maranger } = useContext(DisplayerContext);
     const [bold,setBold] = useState<FontWeightType>('normal');
     const [italic,setItalic] = useState<FontStyleType>('normal');
     const [underline,setUnderline] = useState<boolean>(false);
@@ -110,21 +110,28 @@ export const FontStyleBtn = (props:FontStyleProps) => {
             setBold(textOpt.bold);
         }
         if (isBoolean(textOpt?.underline)) {
-            setUnderline(textOpt.underline);
+            setUnderline(textOpt.underline || false);
         }
         if (isBoolean(textOpt?.lineThrough)) {
-            setLineThrough(textOpt.lineThrough);
+            setLineThrough(textOpt.lineThrough || false);
         }
         if (textOpt?.italic) {
             setItalic(textOpt.italic);
         }
     }, [textOpt])
+    const subBtnStyle = useMemo(()=>{
+        if (style && style.bottom) {
+            const value:React.CSSProperties = {};
+            value.top = 'inherit';
+            value.bottom = 50;
+            return value;
+        }
+        return undefined;
+    }, [style])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
-                <div className="font-style-menu"  style={ position && position.y < 80 ? {
-                    top: 'inherit', bottom: '50px'
-                  } : undefined }
+                <div className="font-style-menu"  style={ subBtnStyle }
                     onTouchEnd={(e)=>{
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
@@ -143,7 +150,7 @@ export const FontStyleBtn = (props:FontStyleProps) => {
             )
         }
         return null
-    }, [showSubBtn, position, workIds, bold, maranger?.viewId, underline, lineThrough, italic])
+    }, [showSubBtn, workIds, bold, maranger?.viewId, underline, lineThrough, italic, subBtnStyle])
     return (
         <div className={`button normal-button ${showSubBtn && 'active'}`}
             onTouchEnd={(e)=>{
@@ -158,7 +165,7 @@ export const FontStyleBtn = (props:FontStyleProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
         >
-            <img alt="icon" src={IconURL('bold')}/>
+            <img alt="icon" src={IconURL(showSubBtn? 'font-style-active' : 'font-style')}/>
             {SubBtns}
         </div>
     )

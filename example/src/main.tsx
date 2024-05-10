@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import './index.css';
 import '@hqer/bezier-pencil-plugin/dist/style.css';
@@ -16,8 +16,8 @@ import type { Player, Room } from 'white-web-sdk';
 import App from './App';
 import IndexPage from '.';
 import { createReplayMultiWhiteWebSdk } from './replayMulti.ts';
-import PlayerController from "@netless/player-controller";
 import { createReplaySingleWhiteWebSdk } from './replaySingle.ts';
+import { Replay } from './replay.tsx';
 
 const elm = document.getElementById('whiteboard') as HTMLDivElement;
 const appIdentifier = '123456789/987654321';
@@ -25,19 +25,31 @@ const appIdentifier = '123456789/987654321';
 const Container = () => {
   const data = useLoaderData() as {room: Room };
   window.room = data.room;
+  useEffect(()=>{
+    return ()=>{
+      window.pluginRoom?.plugin?.destroy()
+    }
+  })
   if (data.room) {
     return <App/>
   }
   return null
 };
-const Replay = () => {
+
+export const ReplayContainer = () => {
   const data = useLoaderData() as {player: Player };
+  window.player = data.player;
+  useEffect(()=>{
+      return ()=>{
+        window.pluginRoom?.plugin?.destroy()
+      }
+  })
   if (data.player) {
-    window.player = data.player;
-    return <PlayerController player={data.player} />
+    return <Replay />
   }
   return null
 };
+
 if (elm) {
   const routerData = createHashRouter(createRoutesFromElements(
     <Route>
@@ -71,7 +83,7 @@ if (elm) {
             return createReplayMultiWhiteWebSdk({elm,uuid,roomToken, appIdentifier, slice, duration, beginAt});
           }
           return {}
-      }} element={<Replay />} />
+      }} element={<ReplayContainer />} />
       <Route path="/replaySingle" loader={({request})=>{
         const url = new URL(request.url);
         const slice = url.searchParams.get("slice") || undefined;
@@ -83,7 +95,7 @@ if (elm) {
           return createReplaySingleWhiteWebSdk({elm, uuid,roomToken, appIdentifier, slice, duration, beginAt});
         }
         return {}
-    }} element={<Replay />} />
+    }} element={<ReplayContainer />} />
     </Route>
   ))
   ReactDOM.render(

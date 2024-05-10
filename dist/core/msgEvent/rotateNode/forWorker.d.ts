@@ -4,5 +4,6 @@ import { IWorkerMessage } from "../../types";
 export declare class RotateNodeMethodForWorker extends BaseMsgMethodForWorker {
     readonly emitEventType: EmitEventType;
     consume(data: IWorkerMessage): boolean | undefined;
-    consumeForLocalWorker(data: IWorkerMessage): void;
+    consumeForLocalWorker(data: IWorkerMessage): Promise<void>;
+    private updateSelectorCallback;
 }

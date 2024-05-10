@@ -4,8 +4,8 @@ import { useState, useEffect, createContext} from 'react';
 import { FloatTools } from './view/floatTools';
 import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
 import { ZoomController } from './view/zoomController';
-import { EStrokeType, ShapeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
-import { ApplianceNames } from 'white-web-sdk';
+import { EStrokeType, ShapeType, MemberState } from '@hqer/bezier-pencil-plugin/src/plugin/types';
+import { ApplianceNames, Room, RoomState, isRoom } from 'white-web-sdk';
 import { TopTools } from './view/topTools';
 export const AppContext = createContext<{
   toolsKey:EToolsKey;
@@ -20,9 +20,59 @@ export const AppContext = createContext<{
 export default function App() { 
   const [toolsKey, setToolsKey] = useState<EToolsKey>(EToolsKey.Clicker);
   const [beginAt, setBeginAt] = useState<number>(0);
+  function roomStateChangeListener(state: RoomState){
+    if (isRoom(window.room) && !(window.room as Room).isWritable) {
+        return;
+    }
+    if (state.memberState) {
+      onMemberChange(state.memberState as MemberState);
+    }
+  }
+  const onMemberChange =(memberState:MemberState)=>{
+    const {currentApplianceName, useLaserPen}= memberState;
+    switch (currentApplianceName) {
+      case ApplianceNames.pencil:
+        if (useLaserPen) {
+          setToolsKey(EToolsKey.LaserPen);
+        }else {
+          setToolsKey(EToolsKey.Pencil);
+        }
+        break;
+      case ApplianceNames.arrow:
+        setToolsKey(EToolsKey.Arrow);
+        break;
+      case ApplianceNames.clicker:
+        setToolsKey(EToolsKey.Clicker);
+        break;
+      case ApplianceNames.selector:
+        setToolsKey(EToolsKey.Selector);
+        break;
+      case ApplianceNames.ellipse:
+        setToolsKey(EToolsKey.Ellipse);
+        break;
+      case ApplianceNames.eraser:
+        setToolsKey(EToolsKey.Eraser);
+        break;
+      case ApplianceNames.hand:
+        setToolsKey(EToolsKey.Hand);
+        break;
+      case ApplianceNames.rectangle:
+        setToolsKey(EToolsKey.Rectangle);
+        break;
+      case ApplianceNames.text:
+        setToolsKey(EToolsKey.Text);
+        break;
+      case ApplianceNames.straight:
+        setToolsKey(EToolsKey.Straight);
+        break;
+      default:
+        break;
+    }
+  }
   useEffect(()=>{
-    console.log('setBeginAt', Date.now())
+    // console.log('setBeginAt', Date.now())
     setBeginAt(Date.now());
+    window.room.callbacks.on('onRoomStateChanged', roomStateChangeListener);
   },[])
   useEffect(()=>{
       if (window.room) {
@@ -90,7 +140,6 @@ export default function App() {
         }
       }
   },[toolsKey])
-
   return (
     <div className='App' onMouseDown={(e)=>{
       e.stopPropagation();

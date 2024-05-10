@@ -7,6 +7,8 @@ import { BaseShapeOptions, BaseShapeTool } from "../tools/base";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
 import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { LocalWorkForSubWorker } from "./subWorkerLocal";
+import type { WorkThreadEngineForFullWorker, WorkThreadEngineForSubWorker } from "./workerManager";
+import { Cursor_Hover_Id } from "..";
 
 export interface IWorkerInitOption {
     dpr: number,
@@ -14,6 +16,7 @@ export interface IWorkerInitOption {
     layerOpt: ILayerOptionType
 }
 export interface ISubWorkerInitOption {
+    thread: WorkThreadEngineForFullWorker | WorkThreadEngineForSubWorker;
     viewId: string;
     vNodes: VNodeManager;
     fullLayer: Group;
@@ -31,8 +34,9 @@ export abstract class WorkThreadEngineBase {
     // protected scenePath?: string; 
     protected cameraOpt?: ICameraOpt;
     protected scene: Scene;
-    protected abstract localWork: LocalWorkForFullWorker | LocalWorkForSubWorker;
-    protected abstract serviceWork?: ServiceWorkForFullWorker;
+    abstract localWork: LocalWorkForFullWorker | LocalWorkForSubWorker;
+    abstract serviceWork?: ServiceWorkForFullWorker;
+    protected isSafari: boolean = false;
     protected abstract _post:(msg:IBatchMainMessage, transfer?: Transferable[])=>void;
     constructor(viewId:string, opt: IWorkerInitOption) {
         this.viewId = viewId;
@@ -41,6 +45,9 @@ export abstract class WorkThreadEngineBase {
         this.scene = this.createScene(opt.offscreenCanvasOpt);
         this.fullLayer = this.createLayer('fullLayer',this.scene, {...opt.layerOpt, bufferSize: this.viewId === 'mainView' ? 6000 : 3000});
         this.vNodes = new VNodeManager(viewId, this.scene);
+    }
+    setIsSafari(isSafari:boolean){
+        this.isSafari = isSafari;
     }
     on(msg: IWorkerMessage) {
         const {msgType, toolsType, opt, workId, workState, dataType} = msg;
@@ -183,6 +190,7 @@ export abstract class WorkThreadEngineBase {
 export abstract class LocalWork{
     readonly viewId: string;
     readonly vNodes:VNodeManager;
+    readonly thread: WorkThreadEngineForFullWorker | WorkThreadEngineForSubWorker;
     fullLayer: Group;
     drawLayer?: Group;
     readonly _post: (msg: IBatchMainMessage) => Promise<void>;
@@ -193,6 +201,7 @@ export abstract class LocalWork{
     protected effectWorkId?: number;
     protected drawCount:number = 0;
     constructor(opt:ISubWorkerInitOption){
+        this.thread = opt.thread;
         this.viewId = opt.viewId;
         this.vNodes = opt.vNodes;
         this.fullLayer = opt.fullLayer;
@@ -229,8 +238,12 @@ export abstract class LocalWork{
         }
         this.workShapes.get(workId)?.setWorkOptions(opt);
     }
-    createWorkShapeNode(opt: IActiveToolsDataType) {
-        return getShapeInstance({...opt, vNodes:this.vNodes, fullLayer:this.fullLayer,drawLayer:this.drawLayer});
+    createWorkShapeNode(opt: IActiveToolsDataType & {workId?:IworkId}) {
+        const {toolsType,workId} = opt;
+        if (toolsType === EToolsKey.Selector && workId === Cursor_Hover_Id) {
+            return getShapeInstance({...opt, vNodes:this.vNodes, fullLayer:this.fullLayer,drawLayer:this.fullLayer});
+        }
+        return getShapeInstance({...opt, vNodes:this.vNodes, fullLayer:this.fullLayer,drawLayer:this.drawLayer}, this.thread?.serviceWork);
     }
     setToolsOpt(opt: IActiveToolsDataType) {
         if (this.tmpOpt?.toolsType !== opt.toolsType) {
@@ -256,7 +269,8 @@ export abstract class LocalWork{
         if (workId && opt && toolsType) {
             const curWorkShapes = (workId && this.workShapes.get(workId)) || this.createWorkShapeNode({
                 toolsOpt:opt,
-                toolsType
+                toolsType,
+                workId
             })
             if (!curWorkShapes) {
                 return;

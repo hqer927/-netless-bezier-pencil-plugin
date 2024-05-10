@@ -2,7 +2,7 @@ import { DisplayerContext } from "../../plugin/displayerView";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { EvevtWorkState } from "../../core";
+import { EScaleType, EvevtWorkState } from "../../core";
 import { Resizable } from "re-resizable";
 import throttle from "lodash/throttle";
 import { Storage_Selector_key } from "../../collector";
@@ -10,7 +10,7 @@ import Draggable from "react-draggable";
 export const ResizableBox = (props) => {
     const { className } = props;
     const [curSize, setCurSize] = useState({ x: 0, y: 0, h: 0, w: 0 });
-    const { floatBarData, setSize, position, setPosition, maranger } = useContext(DisplayerContext);
+    const { floatBarData, position, maranger } = useContext(DisplayerContext);
     useEffect(() => {
         if (floatBarData) {
             setCurSize({ x: floatBarData.x, y: floatBarData.y, w: floatBarData.w, h: floatBarData.h });
@@ -26,16 +26,14 @@ export const ResizableBox = (props) => {
                 w: floatBarData.w,
                 h: floatBarData.h
             };
-            setSize({ width: box.w, height: box.h, workState: EvevtWorkState.Start });
             setCurSize(box);
-            // console.log('Start_dir', box)
             if (maranger?.control.room) {
                 maranger.control.room.disableDeviceInputs = true;
             }
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, workState: EvevtWorkState.Start, viewId: maranger?.viewId });
         }
     };
-    const onResize = throttle((e, _dir, _ele, delta) => {
+    const onResize = throttle((e, dir, _ele, delta) => {
         e.preventDefault();
         e.stopPropagation();
         // console.log('delta', delta)
@@ -47,7 +45,7 @@ export const ResizableBox = (props) => {
         };
         box.w += delta.width;
         box.h += delta.height;
-        switch (_dir) {
+        switch (dir) {
             case "bottomLeft":
             case "left":
                 box.x -= delta.width;
@@ -64,14 +62,10 @@ export const ResizableBox = (props) => {
                 break;
         }
         if (delta.width !== 0 || delta.height !== 0) {
-            setSize({ width: box.w, height: box.h, workState: EvevtWorkState.Doing });
-            setPosition({ x: box.x, y: box.y });
-            // setCurSize(box);
-            // console.log('Doing_dir', box)
-            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, workState: EvevtWorkState.Doing, viewId: maranger?.viewId });
+            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, dir, workState: EvevtWorkState.Doing, viewId: maranger?.viewId });
         }
     }, 100, { 'leading': false });
-    const onResizeStop = throttle((e, _dir, _ele, delta) => {
+    const onResizeStop = throttle((e, dir, _ele, delta) => {
         e.preventDefault();
         e.stopPropagation();
         const box = {
@@ -82,7 +76,7 @@ export const ResizableBox = (props) => {
         };
         box.w += delta.width;
         box.h += delta.height;
-        switch (_dir) {
+        switch (dir) {
             case "bottomLeft":
             case "left":
                 box.x -= delta.width;
@@ -98,12 +92,10 @@ export const ResizableBox = (props) => {
             default:
                 break;
         }
-        setSize({ width: box.w, height: box.h, workState: EvevtWorkState.Done });
-        setPosition({ x: box.x, y: box.y });
         if (maranger?.control.room) {
             maranger.control.room.disableDeviceInputs = false;
         }
-        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, workState: EvevtWorkState.Done, viewId: maranger?.viewId });
+        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.ScaleNode, { workIds: [Storage_Selector_key], box, dir, workState: EvevtWorkState.Done, viewId: maranger?.viewId });
     }, 100, { 'leading': false });
     return (React.createElement(Resizable, { className: `${className}`, boundsByDirection: true, size: {
             width: floatBarData?.w || 0,
@@ -113,7 +105,16 @@ export const ResizableBox = (props) => {
             pointerEvents: 'auto',
             left: position?.x,
             top: position?.y,
-        }, onResizeStart: onResizeStart, onResize: onResize, onResizeStop: onResizeStop }));
+        }, enable: {
+            top: floatBarData?.scaleType === EScaleType.all && true || false,
+            right: floatBarData?.scaleType === EScaleType.all && true || false,
+            bottom: floatBarData?.scaleType === EScaleType.all && true || false,
+            left: floatBarData?.scaleType === EScaleType.all && true || false,
+            topRight: true,
+            bottomRight: true,
+            bottomLeft: true,
+            topLeft: true
+        }, lockAspectRatio: floatBarData?.scaleType === EScaleType.proportional, onResizeStart: onResizeStart, onResize: onResize, onResizeStop: onResizeStop }));
 };
 export const ResizableTwoBtn = (props) => {
     const { id, pos, pointMap, type } = props;

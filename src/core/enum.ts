@@ -30,7 +30,9 @@ export enum EToolsKey{
     /** 多边形工具 */
     Polygon,
     /** 聊天泡泡框 */
-    SpeechBalloon
+    SpeechBalloon,
+    /** 图片 */
+    Image
 }
 export enum EDataType{
     /** 本地数据 */
@@ -54,6 +56,8 @@ export enum EvevtWorkState{
  * 服务端数据:
  */
 export enum EPostMessageType {
+    /** 什么也不需要做 */
+    None,
     /** 初始化,仅用于本地 */
     Init,
     /** 本地视口切换,仅用于本地 */
@@ -76,20 +80,20 @@ export enum EPostMessageType {
     Select,
     /** 销毁 */
     Destroy,
-    /** 什么也不需要做 */
-    None,
     /** 获取指定场景快照 */
     Snapshot,
     /** 获取指定场所有元素的的包围盒 */
     BoundingBox,
-    /**  */
+    /** 指针事件 */
     Cursor,
-    /** */
+    /** 更新文本 */
     TextUpdate,
-    /**  */
+    /** 获取获奖的文本信息 */
     GetTextActive,
     /** 批量队列化处理 */
-    TasksQueue
+    TasksQueue,
+    /** 指针hover元素事件 */
+    CursorHover
 }
 export enum ECanvasContextType {
     Webgl2 = 'webgl2',
@@ -121,5 +125,7 @@ export enum EScaleType {
     /** 八个方向都可以拉伸 */
     all,
     /** 两个方向拉伸 */
-    both
+    both,
+    /** 等比例 */
+    proportional
 }

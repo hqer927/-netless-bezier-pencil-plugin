@@ -1,6 +1,6 @@
 import { EToolsKey, ECanvasShowType, EPostMessageType } from "..";
 import { transformToNormalData } from "../../collector/utils";
-import { computRect } from "../utils";
+import { computRect, getSafetyRect } from "../utils";
 import { LocalWork } from "./base";
 export class LocalWorkForSubWorker extends LocalWork {
     constructor(opt) {
@@ -36,16 +36,25 @@ export class LocalWorkForSubWorker extends LocalWork {
             value: 0
         });
     }
-    runFullWork(data, isDrawLabel) {
+    async runFullWork(data, isDrawLabel) {
         const workShape = this.setFullWork(data);
         const op = data.ops && transformToNormalData(data.ops);
         if (workShape) {
-            const rect = workShape.consumeService({
-                op,
-                isFullWork: true,
-                replaceId: workShape.getWorkId()?.toString(),
-                isDrawLabel
-            });
+            let rect;
+            if (workShape.toolsType === EToolsKey.Image) {
+                rect = await workShape.consumeServiceAsync({
+                    isFullWork: true,
+                    scene: this.fullLayer.parent?.parent,
+                });
+            }
+            else {
+                rect = workShape.consumeService({
+                    op,
+                    isFullWork: true,
+                    replaceId: workShape.getWorkId()?.toString(),
+                    isDrawLabel
+                });
+            }
             const rect1 = data?.updateNodeOpt && workShape.updataOptService(data.updateNodeOpt);
             data.workId && this.workShapes.delete(data.workId);
             return rect1 || rect;
@@ -228,7 +237,7 @@ export class LocalWorkForSubWorker extends LocalWork {
                     }
                     this._post({
                         render: [{
-                                rect,
+                                rect: getSafetyRect(rect),
                                 drawCanvas: ECanvasShowType.Float,
                                 isClear: true,
                                 clearCanvas: ECanvasShowType.Float,
@@ -258,7 +267,7 @@ export class LocalWorkForSubWorker extends LocalWork {
         this._post({
             drawCount: this.drawCount,
             render: [{
-                    rect: res?.rect,
+                    rect: res?.rect && getSafetyRect(res.rect),
                     drawCanvas: ECanvasShowType.Float,
                     isClear: true,
                     clearCanvas: ECanvasShowType.Float,

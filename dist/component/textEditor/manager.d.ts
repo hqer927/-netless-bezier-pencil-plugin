@@ -1,15 +1,16 @@
 import { TextEditorInfo, TextOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../../plugin/types";
-import { EDataType, ICameraOpt, IWorkerMessage } from "../../core";
-import EventEmitter2 from "eventemitter2";
+import { ICameraOpt, IWorkerMessage } from "../../core";
+import type EventEmitter2 from "eventemitter2";
 import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
 export interface TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
-    /** 本地更新文本编辑器 */
-    updateForLocalEditor(activeId?: string, info?: TextEditorInfo): void;
+    undoTickerId?: number;
+    /** 通过view组建中更新文本 */
+    updateForViewEdited(activeId?: string, info?: TextEditorInfo): void;
     /** 过滤文本编辑器 */
     filterEditor(viewId: string): Map<string, TextEditorInfo>;
     /** 通过点计算获焦的文本 */
@@ -21,24 +22,34 @@ export interface TextEditorManager {
     /** 不激活文本编辑组件 */
     unActive(): void;
     /** 创建文本来源于main */
-    createTextForMasterController(params: Partial<TextEditorInfo> & {
+    createTextForMasterController(params: TextEditorInfo & {
         workId: string;
         x: number;
         y: number;
         opt: TextOptions;
         viewId: string;
-    }): void;
+    }, undoTickerId?: number): void;
     /** 修改文本来源于main */
     updateTextForMasterController(params: Partial<TextEditorInfo> & {
         workId: string;
         viewId: string;
-    }): void;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): void;
+    /** 修改文本来并等到新数据 */
+    updateTextControllerWithEffectAsync(params: Partial<TextEditorInfo> & {
+        workId: string;
+        viewId: string;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): Promise<TextEditorInfo | undefined>;
     /** 修改文本来源于worker */
     updateTextForWorker(params: Partial<TextEditorInfo> & {
         workId: string;
-        dataType?: EDataType;
         viewId: string;
-    }): void;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): void;
     /** 编辑文本 */
     /** 获取组建信息 */
     get(workId: string): TextEditorInfo | undefined;
@@ -60,7 +71,9 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
     readonly control: BaseTeachingAidsManager;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
+    undoTickerId?: number;
     private proxyMap;
+    private taskqueue;
     constructor(props: BaseSubWorkModuleProps);
     get collector(): import("../../collector").Collector | undefined;
     filterEditor(viewId: string): Map<string, TextEditorInfo>;
@@ -73,27 +86,35 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
     checkEmptyTextBlur(): void;
     onCameraChange(cameraOpt: ICameraOpt, viewId: string): void;
     onServiceDerive(data: IWorkerMessage): void;
-    updateForLocalEditor(activeId: string, info: TextEditorInfo): void;
+    updateForViewEdited(activeId: string, info: TextEditorInfo): void;
     active(workId: string): void;
     unActive(): void;
     createTextForMasterController(params: TextEditorInfo & {
         workId: string;
         viewId: string;
-        scenePath: string;
-    }): void;
-    updateTextForMasterController(params: TextEditorInfo & {
+    }, undoTickerId?: number): void;
+    updateTextForMasterController(params: Partial<TextEditorInfo> & {
         workId: string;
         viewId: string;
-        scenePath: string;
-    }): void;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): void;
+    updateTextControllerWithEffectAsync(params: Partial<TextEditorInfo> & {
+        workId: string;
+        viewId: string;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): Promise<TextEditorInfo | undefined>;
     updateTextForWorker(params: TextEditorInfo & {
         workId: string;
         viewId: string;
-        scenePath: string;
-    }): void;
+        canWorker: boolean;
+        canSync: boolean;
+    }, undoTickerId?: number): void;
     get(workId: string): TextEditorInfo | undefined;
     delete(workId: string, canSync?: boolean, canWorker?: boolean): void;
     deleteBatch(workIds: string[], canSync?: boolean | undefined, canWorker?: boolean | undefined): void;
     clear(viewId: string, justLocal?: boolean): void;
     destory(): void;
+    private getMaxZIndex;
 }

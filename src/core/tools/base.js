@@ -55,6 +55,13 @@ export class BaseShapeTool {
     setWorkOptions(workOptions) {
         this.workOptions = workOptions;
         this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
+        const key = this.workId?.toString();
+        const info = key && this.vNodes.get(key) || undefined;
+        if (key && info) {
+            info.opt = workOptions;
+            // console.log('setWorkOptions---0', key, info.opt);
+            this.vNodes.setInfo(key, info);
+        }
     }
     /** 更新服务端同步配置,返回绘制结果 */
     updataOptService(opt) {
@@ -68,7 +75,7 @@ export class BaseShapeTool {
             const path = paths[0];
             const { pos, zIndex, scale, angle, translate } = opt;
             const attr = {};
-            if (typeof zIndex === 'number') {
+            if (isNumber(zIndex)) {
                 attr.zIndex = zIndex;
             }
             if (pos) {
@@ -108,7 +115,7 @@ export class BaseShapeTool {
         const nodeOpt = targetNode && cloneDeep(targetNode) || vNodes.get(node.name);
         if (!nodeOpt)
             return;
-        if (zIndex) {
+        if (isNumber(zIndex)) {
             node.setAttribute('zIndex', zIndex);
             nodeOpt.opt.zIndex = zIndex;
         }

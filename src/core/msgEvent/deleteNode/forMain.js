@@ -24,7 +24,6 @@ export class DeleteNodeMethod extends BaseMsgMethod {
         const store = this.serviceColloctor.storage;
         const keys = [...workIds];
         const localMsgs = [];
-        // const serviceMsgs: BaseCollectorReducerAction[] = [];
         const removeIds = [];
         const undoTickerId = Date.now();
         while (keys.length) {
@@ -48,18 +47,18 @@ export class DeleteNodeMethod extends BaseMsgMethod {
                 removeIds.push(localWorkId);
             }
         }
-        localMsgs.push({
-            msgType: EPostMessageType.RemoveNode,
-            emitEventType: EmitEventType.DeleteNode,
-            removeIds,
-            dataType: EDataType.Local,
-            willSyncService: true,
-            willRefresh: true,
-            undoTickerId,
-            viewId
-        });
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
-        if (localMsgs.length) {
+        if (removeIds.length) {
+            localMsgs.push([{
+                    msgType: EPostMessageType.RemoveNode,
+                    emitEventType: EmitEventType.DeleteNode,
+                    removeIds,
+                    dataType: EDataType.Local,
+                    willSyncService: true,
+                    willRefresh: true,
+                    undoTickerId,
+                    viewId
+                }, undefined]);
+            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
             this.collectForLocalWorker(localMsgs);
         }
     }

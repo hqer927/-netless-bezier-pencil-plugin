@@ -1,6 +1,6 @@
 import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
-import { IUpdateNodeOpt, IWorkerMessage, IworkId } from "../../types";
+import { IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, ElayerType } from "../../enum";
 // import { BaseCollectorReducerAction } from "../../../collector/types";
@@ -46,7 +46,7 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
         const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
-        const localMsgs: IWorkerMessage[] = [];
+        const localMsgs: [IWorkerMessage,IqueryTask][] = [];
         // const serviceMsgs: BaseCollectorReducerAction[] = [];
         const selectIds: string[] = [];
         while (keys.length) {
@@ -118,53 +118,18 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
                     })
                     taskData.selectStore = subStore;
                     taskData.willSerializeData = true;
-                    localMsgs.push(taskData)
+                    localMsgs.push([taskData,{
+                        workId: curKey,
+                        msgType: EPostMessageType.UpdateNode,
+                        emitEventType: this.emitEventType
+                    }])
                 }
                 continue;
             }
-            // if (curStore) {
-            //     if (layer === ElayerType.Top) {
-            //         this.addMaxLayer();
-            //         zIndex = this.max;
-            //     } else {
-            //         this.addMinLayer();
-            //         zIndex = this.min;
-            //     }
-            //     const opt = curStore.opt;
-            //     const updateNodeOpt = curStore.updateNodeOpt || {};
-            //     if (opt) {
-            //         updateNodeOpt.zIndex = zIndex;
-            //         opt.zIndex = zIndex;
-            //         serviceMsgs.push({
-            //             ...curStore,
-            //             type: EPostMessageType.UpdateNode,
-            //             opt
-            //         });
-            //         if (!selectIds.includes(curKeyStr)) {
-            //             let localWorkId:string | undefined = curKeyStr;
-            //             if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-            //                 localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-            //             }
-            //             localMsgs.push({
-            //                 workId: localWorkId,
-            //                 msgType: EPostMessageType.UpdateNode,
-            //                 dataType: EDataType.Local,
-            //                 updateNodeOpt,
-            //                 emitEventType: this.emitEventType,
-            //                 willSyncService: false,
-            //                 willRefresh: true,
-            //                 viewId
-            //             })
-            //         }
-            //     }
-            // }
         }
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }
-        // if (serviceMsgs.length) {
-        //     this.collectForServiceWorker(serviceMsgs);
-        // }
         function getKey(name:string, serviceColloctor: Collector) {
             const isLocalId = serviceColloctor.isLocalId(name);
             return isLocalId && serviceColloctor.transformKey(name) || name;
