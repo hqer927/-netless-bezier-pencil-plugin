@@ -210,7 +210,7 @@ export class PencilShape extends BaseShapeTool {
         this.syncIndex = 0;
     }
     consumeService(params) {
-        const { op, isFullWork, replaceId, isClearAll } = params;
+        const { op, isFullWork, replaceId, isClearAll, isTemp } = params;
         this.tmpPoints.length = 0;
         for (let i = 0; i < op.length; i += 3) {
             const point = new Point2d(op[i], op[i + 1], op[i + 2]);
@@ -230,7 +230,7 @@ export class PencilShape extends BaseShapeTool {
         if (name && tasks.length) {
             const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
             rect = this.draw({ attrs, tasks, replaceId, layer, isClearAll });
-            this.vNodes.setInfo(name, {
+            isFullWork && !isTemp && this.vNodes.setInfo(name, {
                 rect,
                 op,
                 opt: this.workOptions,

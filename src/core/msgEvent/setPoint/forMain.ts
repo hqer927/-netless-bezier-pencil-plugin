@@ -69,6 +69,11 @@ export class SetPointMethod extends BaseMsgMethod {
                 }])
             }
         }
+        if (workState === EvevtWorkState.Start){
+            this.mainEngine.unWritable();
+        } else if (workState === EvevtWorkState.Done) {
+            this.mainEngine.abled();
+        }
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }

@@ -101,9 +101,14 @@ export enum ECanvasContextType {
     Canvas2d = '2d',
 }
 export enum ECanvasShowType {
+    /** 本地前置画布 */
     Float = 1,
+    /** 背景画布 */
     Bg,
+    /** 选择框中的画布 */
     Selector,
+    /** 服务端前置画布 */
+    ServiceFloat,
     None
 }
 

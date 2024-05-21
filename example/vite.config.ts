@@ -16,10 +16,6 @@ export default defineConfig({
   },
   base:"/netless-teaching-aids-demo",
   build: {
-    // lib: {
-    //   entry: path.resolve(__dirname, "src/main.tsx"),
-    //   formats: ["es", "cjs"],
-    // },
     outDir: "dist",
     sourcemap: false,
     rollupOptions:{

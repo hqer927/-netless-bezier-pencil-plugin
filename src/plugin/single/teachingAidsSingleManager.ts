@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
 import { BaseSubWorkModuleProps, InternalMsgEmitterType } from "../types";
-import type { CameraState } from "white-web-sdk";
+import type { CameraState } from "../types";
 import throttle from "lodash/throttle";
 import { ViewContainerSingleManager } from "./containerManager";
 // import { TeachingAidsSigleWrapper } from "./teachingAidsDisplayer";

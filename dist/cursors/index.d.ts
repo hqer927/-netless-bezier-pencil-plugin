@@ -1,7 +1,6 @@
-import { RoomMember } from "white-web-sdk";
 import { EvevtWorkState, IMainMessage } from "../core";
 import { EventCollector } from "../collector/eventCollector";
-import { BaseSubWorkModuleProps } from "../plugin/types";
+import { BaseSubWorkModuleProps, RoomMember } from "../plugin/types";
 import { RoomMemberManager } from "../members";
 import type { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import EventEmitter2 from "eventemitter2";
@@ -20,6 +19,9 @@ export type CursorInfo = {
     x?: number;
     y?: number;
     roomMember?: RoomMember;
+};
+export type CursorInfoMapItem = CursorInfo & {
+    timestamp: number;
 };
 export declare abstract class CursorManager {
     /** 内部消息管理器 */
@@ -44,6 +46,7 @@ export declare abstract class CursorManager {
     abstract onFocusViewChange(): void;
 }
 export declare class CursorManagerImpl implements CursorManager {
+    readonly expirationTime = 5000;
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
     eventCollector?: EventCollector;
@@ -53,6 +56,7 @@ export declare class CursorManagerImpl implements CursorManager {
     private asyncEndInfo?;
     private animationPointWorkers;
     private animationDrawWorkers;
+    private cursorInfoMap;
     constructor(props: BaseSubWorkModuleProps);
     activeCollector(): void;
     onFocusViewChange(): void;

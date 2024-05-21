@@ -5,6 +5,7 @@ import { BaseCollectorReducerAction, DiffOne, Storage_Selector_key, Storage_View
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IMainMessage, IMainMessageRenderData, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps, EmitEventType, InternalMsgEmitterType } from "../plugin/types";
+import type { ImageInformation } from "../plugin/types";
 import FullWorker from './worker/fullWorker.ts?worker&inline';
 import SubWorker from './worker/subWorker.ts?worker&inline';
 import { MethodBuilderMain, ZIndexNodeMethod } from "./msgEvent";
@@ -12,9 +13,8 @@ import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "./enum";
 import { ShowFloatBarMsgValue } from "../displayer/types";
 import { requestAsyncCallBack } from "./utils";
 import { ETextEditorType, TextOptions } from "../component/textEditor/types";
-import cloneDeep from "lodash/cloneDeep";
 import { BaseShapeOptions, ImageOptions } from "./tools";
-import { ImageInformation } from "white-web-sdk";
+import cloneDeep from "lodash/cloneDeep";
 import isBoolean from "lodash/isBoolean";
 
 export abstract class MasterController {
@@ -52,6 +52,10 @@ export abstract class MasterController {
     protected getWorkId():IworkId | undefined {
        return this.currentLocalWorkData.workId;
     }
+    /** 获取当前work的工作状态 */
+    getWorkState():EvevtWorkState {
+        return this.currentLocalWorkData.workState;
+    }
     /** 用于接收服务端同步的数据 */
     abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>):void;
     /** 消费批处理池数据 */
@@ -60,6 +64,8 @@ export abstract class MasterController {
     abstract runAnimation():void;
     /** 禁止使用 */
     abstract unabled():void;
+    /** 禁止写入 */
+    abstract unWritable():void;
     /** 可以使用 */
     abstract abled():void;
     /** 销毁 */
@@ -237,6 +243,20 @@ export class MasterControlForWorker extends MasterController{
         this.isActive = true;
     }
     on(): void {
+        // console.log('FullWorker', new URL(FullWorker, import.meta.url), new URL(SubWorker, import.meta.url))
+        // this.fullWorker = new Worker(new URL('.' + FullWorker, import.meta.url));
+        // this.subWorker = new Worker(new URL('.' + SubWorker, import.meta.url));
+        // const fullUrl = new URL('./worker/fullWorker.ts', import.meta.url);
+        // const subUrl = new URL('./worker/subWorker.ts', import.meta.url);
+        // console.log('FullWorker', fullUrl, subUrl)
+        // this.fullWorker = new Worker(new URL('./worker/fullWorker.ts', import.meta.url), {
+        //     type:'classic',
+        //     name:'fullWorker'
+        // });
+        // this.subWorker = new Worker(new URL('./worker/subWorker.ts', import.meta.url), {
+        //     type:'classic',
+        //     name:'subWorker'
+        // });
         this.fullWorker = new FullWorker();
         this.subWorker = new SubWorker();
         this.fullWorker.onmessage = (e: MessageEvent<IBatchMainMessage>) => {
@@ -360,6 +380,7 @@ export class MasterControlForWorker extends MasterController{
                     }
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
+                        // console.log('dispatch---000', selectIds, isSync)
                         const scenePath = this.viewContainerManager.getCurScenePath(viewId);
                         this.collector?.dispatch({type, selectIds, opt, isSync, viewId, scenePath });
                     }
@@ -526,7 +547,7 @@ export class MasterControlForWorker extends MasterController{
     setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType, msgType: EPostMessageType = EPostMessageType.None) {
         super.setCurrentLocalWorkData(currentLocalWorkData);
         const {workState, workId, toolsOpt} = currentLocalWorkData
-        if(workState === EvevtWorkState.Unwritable) {
+        if(workState === EvevtWorkState.Unwritable || workState === EvevtWorkState.Freeze) {
             return;
         }
         if (msgType !== EPostMessageType.None && this.viewContainerManager.focuedView) {
@@ -600,7 +621,7 @@ export class MasterControlForWorker extends MasterController{
                 })
             }
             if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
-                console.log('onServiceDerive', d, workId, this.collector?.uid)
+                // console.log('onServiceDerive', d, workId, this.collector?.uid)
                 this.control.textEditorManager.onServiceDerive(d);
                 return;
             }
@@ -641,7 +662,7 @@ export class MasterControlForWorker extends MasterController{
                         })
                     }
                     if (data.toolsType === EToolsKey.Text) {
-                        console.log('onServiceDerive---00', data, viewId, this.collector?.uid)
+                        // console.log('onServiceDerive---00', data, viewId, this.collector?.uid)
                         this.control.textEditorManager.onServiceDerive(data)
                         continue;
                     }
@@ -689,7 +710,7 @@ export class MasterControlForWorker extends MasterController{
                         viewId: this.viewContainerManager.focuedViewId,
                         scenePath: this.viewContainerManager.focuedViewId && this.viewContainerManager.getCurScenePath(this.viewContainerManager.focuedViewId)
                     })
-                    this.localPointsBatchData.length = 0;
+                    this.clearLocalPointsBatchData();
                     this.cacheDrawCount = this.maxDrawCount;
                 }
             }
@@ -702,7 +723,7 @@ export class MasterControlForWorker extends MasterController{
                         break;
                     }
                 }
-                // console.log('consume-selector -1', [...this.taskBatchData.values()])
+                // console.log('consume-selector -1', [...this.taskBatchData.values()].filter(m=>m.msgType!==EPostMessageType.CursorHover))
                 this.taskBatchData.clear();
                 if (this.undoTickerId && workState === EvevtWorkState.Done) {
                     this.undoTickerId = undefined;
@@ -714,9 +735,13 @@ export class MasterControlForWorker extends MasterController{
         }
         if (this.tasksqueue.size ||
             this.taskBatchData.size ||
-            this.localPointsBatchData.length ) {
+            this.localPointsBatchData.length 
+        ) {
             this.animationId = requestAnimationFrame(this.consume.bind(this));
         }
+    }
+    unWritable(){
+        this.setCurrentLocalWorkData({workState:EvevtWorkState.Unwritable, workId:undefined}); 
     }
     unabled(): void {
         this.setCurrentLocalWorkData({workState:EvevtWorkState.Freeze, workId:undefined});
@@ -746,7 +771,7 @@ export class MasterControlForWorker extends MasterController{
     destroy(): void {
         this.unabled();
         this.taskBatchData.clear();
-        this.localPointsBatchData.length = 0;
+        this.clearLocalPointsBatchData();
         this.fullWorker.terminate();
         this.subWorker.terminate();
         this.isActive = false;
@@ -827,7 +852,7 @@ export class MasterControlForWorker extends MasterController{
             this.zIndexNodeMethod.maxZIndex = 0;
             this.zIndexNodeMethod.minZIndex = 0;
         }
-        this.localPointsBatchData.length = 0;
+        this.clearLocalPointsBatchData();
         await new Promise<string>((resolve)=>{
             this.clearAllResolve = resolve;
         }).then(()=>{
@@ -848,7 +873,7 @@ export class MasterControlForWorker extends MasterController{
         // console.log('consume-selector---originalEventLintener', workState)
         switch (workState) {
             case EvevtWorkState.Start:
-                this.onLocalEventStart(point, viewId);
+                this.onLocalEventStart(point, viewId, workState);
                 break;
             case EvevtWorkState.Doing:
                 if (viewId === this.viewContainerManager.focuedViewId) {
@@ -872,6 +897,9 @@ export class MasterControlForWorker extends MasterController{
         }
         return opt;
     }
+    clearLocalPointsBatchData(){
+        this.localPointsBatchData.length = 0;
+    }
     private onLocalEventEnd(point: [number, number]): void {
         const workState = this.currentLocalWorkData.workState;
         if(workState === EvevtWorkState.Freeze || workState === EvevtWorkState.Unwritable){
@@ -886,6 +914,13 @@ export class MasterControlForWorker extends MasterController{
                     this.localEventTimerId = undefined;
                     this.setCurrentLocalWorkData({...this.currentLocalWorkData, workState: EvevtWorkState.Done});
                     this.runAnimation();
+                    const workId = this.currentLocalWorkData.workId?.toString();
+                    const viewId = id;
+                    const scenePath = this.viewContainerManager.getCurScenePath(viewId);
+                    workId && scenePath && this.control.runEffectWork(()=>{
+                        // this.blurSelector(viewId, scenePath);
+                        this.setShapeSelectorByWorkId(workId, viewId);
+                    });
                 }, 0) as unknown as number;
                 if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
                     this.viewContainerManager.activeFloatBar(id);
@@ -910,7 +945,7 @@ export class MasterControlForWorker extends MasterController{
                         scenePath: focusScenePath
                     }, Date.now());
                 }
-                this.localPointsBatchData.length = 0;
+                this.clearLocalPointsBatchData();
             }
         }
     }
@@ -956,9 +991,9 @@ export class MasterControlForWorker extends MasterController{
             this.runAnimation();
         }
     }
-    private onLocalEventStart(point: [number, number], viewId:string): void {
-        const {workState} = this.currentLocalWorkData;
-        if(workState === EvevtWorkState.Freeze || workState === EvevtWorkState.Unwritable){
+    private onLocalEventStart(point: [number, number], viewId:string, workState:EvevtWorkState): void {
+        // const {workState} = this.currentLocalWorkData;
+        if(workState !== EvevtWorkState.Start){
             return ;
         }
         if (!viewId) {
@@ -967,9 +1002,8 @@ export class MasterControlForWorker extends MasterController{
         if (this.viewContainerManager.focuedViewId !== viewId) {
             this.viewContainerManager.setFocuedViewId(viewId);
         }
-        // console.log('onLocalEventStart ---1', point, viewId, this.viewContainerManager.focuedView?.cameraOpt)
+        this.clearLocalPointsBatchData();
         const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
-        // console.log('onLocalEventStart ---3', point, _point, viewId)
         this.pushPoint(_point);
         if (this.currentToolsData?.toolsType === EToolsKey.Text) {
             return ;
@@ -997,7 +1031,7 @@ export class MasterControlForWorker extends MasterController{
                 type: EPostMessageType.CreateWork,
                 workId,
                 toolsType: this.currentToolsData?.toolsType,
-                opt: this.currentToolsData?.toolsOpt,
+                opt,
                 viewId,
                 scenePath
             })
@@ -1029,20 +1063,6 @@ export class MasterControlForWorker extends MasterController{
             }
         }
         
-    }
-    blurSelector(viewId: string, scenePath:string, undoTickerId?: number) {
-        if (this.collector?.hasSelector(viewId, scenePath)) {
-            this.taskBatchData.add({
-                workId: Storage_Selector_key,
-                selectIds: [],
-                msgType: EPostMessageType.Select,
-                dataType: EDataType.Service,
-                viewId,
-                scenePath,
-                undoTickerId
-            })
-            this.runAnimation();
-        }
     }
     getBoundingRect(scenePath: string):Promise<IRectType>|undefined{
         const cur = this.boundingRectMap?.get(scenePath);
@@ -1153,7 +1173,7 @@ export class MasterControlForWorker extends MasterController{
             this.undoTickerId = Date.now();
             BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', this.undoTickerId, viewId);
             const opt = {...imageInfo} as ImageOptions;
-            if(this.zIndexNodeMethod && this.isUseZIndex ){
+            if(this.zIndexNodeMethod){
                 this.zIndexNodeMethod.addMaxLayer();
                 opt.zIndex = this.zIndexNodeMethod.maxZIndex;
             }
@@ -1257,5 +1277,29 @@ export class MasterControlForWorker extends MasterController{
             }
         }
         return result;
+    }
+    setShapeSelectorByWorkId(workId:string,viewId:string, undoTickerId?: number){
+        this.taskBatchData.add({
+            workId: Storage_Selector_key,
+            selectIds: [workId],
+            msgType: EPostMessageType.Select,
+            dataType: EDataType.Service,
+            viewId,
+            willSyncService: true,
+            undoTickerId
+        })
+        this.runAnimation();
+    }
+    blurSelector(viewId: string, scenePath:string, undoTickerId?: number) {
+        this.taskBatchData.add({
+            workId: Storage_Selector_key,
+            selectIds: [],
+            msgType: EPostMessageType.Select,
+            dataType: EDataType.Service,
+            viewId,
+            scenePath,
+            undoTickerId
+        })
+        this.runAnimation();
     }
 }

@@ -15,9 +15,9 @@ import { createMultiWhiteWebSdk } from './multi';
 import type { Player, Room } from 'white-web-sdk';
 import App from './App';
 import IndexPage from '.';
-import { createReplayMultiWhiteWebSdk } from './replayMulti.ts';
-import { createReplaySingleWhiteWebSdk } from './replaySingle.ts';
-import { Replay } from './replay.tsx';
+import { createReplayMultiWhiteWebSdk } from './replayMulti';
+import { createReplaySingleWhiteWebSdk } from './replaySingle';
+import { Replay } from './replay';
 
 const elm = document.getElementById('whiteboard') as HTMLDivElement;
 const appIdentifier = '123456789/987654321';

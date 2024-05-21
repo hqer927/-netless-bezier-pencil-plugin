@@ -5,7 +5,7 @@ import { IWorkerMessage, IMainMessage, IRectType, BaseNodeMapItem, IworkId } fro
 import { computRect, getRectFromPoints, isIntersect } from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import lineclip from "lineclip";
-import type { Size } from "white-web-sdk";
+import type { Size } from "../types";
 import { Point2d } from "../utils/primitives/Point2d";
 import cloneDeep from "lodash/cloneDeep";
 import type { ServiceWorkForFullWorker } from "../worker/fullWorkerService";

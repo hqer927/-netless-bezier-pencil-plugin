@@ -1,4 +1,4 @@
-import { toJS } from "white-web-sdk";
+import { toJS } from "../plugin/external";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
 export class BaseCollector {
     constructor(plugin) {

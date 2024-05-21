@@ -108,8 +108,13 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                 continue;
             }
         }
+        if (workState === EvevtWorkState.Start){
+            this.mainEngine.unWritable();
+        } else if (workState === EvevtWorkState.Done) {
+            this.mainEngine.abled();
+        }
         if (localMsgs.length) {
-            console.log('TranslateNode', localMsgs)
+            // console.log('TranslateNode', localMsgs)
             this.collectForLocalWorker(localMsgs);
         }
     }

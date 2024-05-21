@@ -101,10 +101,15 @@ export declare enum ECanvasContextType {
     Canvas2d = "2d"
 }
 export declare enum ECanvasShowType {
+    /** 本地前置画布 */
     Float = 1,
+    /** 背景画布 */
     Bg = 2,
+    /** 选择框中的画布 */
     Selector = 3,
-    None = 4
+    /** 服务端前置画布 */
+    ServiceFloat = 4,
+    None = 5
 }
 export declare enum EventMessageType {
     /** cursor事件 */

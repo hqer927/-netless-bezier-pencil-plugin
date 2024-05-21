@@ -3,9 +3,9 @@ import { BaseCollectorReducerAction, DiffOne } from "../collector";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../plugin/types";
+import type { ImageInformation } from "../plugin/types";
 import { MethodBuilderMain } from "./msgEvent";
 import { EPostMessageType, EvevtWorkState } from "./enum";
-import { ImageInformation } from "white-web-sdk";
 export declare abstract class MasterController {
     /** 异步同步时间间隔 */
     maxLastSyncTime: number;
@@ -33,6 +33,8 @@ export declare abstract class MasterController {
     protected setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType): void;
     /** 获取当前激活的工作任务id */
     protected getWorkId(): IworkId | undefined;
+    /** 获取当前work的工作状态 */
+    getWorkState(): EvevtWorkState;
     /** 用于接收服务端同步的数据 */
     abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
     /** 消费批处理池数据 */
@@ -41,6 +43,8 @@ export declare abstract class MasterController {
     abstract runAnimation(): void;
     /** 禁止使用 */
     abstract unabled(): void;
+    /** 禁止写入 */
+    abstract unWritable(): void;
     /** 可以使用 */
     abstract abled(): void;
     /** 销毁 */
@@ -124,6 +128,7 @@ export declare class MasterControlForWorker extends MasterController {
     pullServiceData(viewId: string, scenePath: string): void;
     runAnimation(): void;
     consume(): void;
+    unWritable(): void;
     unabled(): void;
     abled(): void;
     post(msg: Set<IWorkerMessage>): void;
@@ -135,12 +140,12 @@ export declare class MasterControlForWorker extends MasterController {
     private internalMsgEmitterListener;
     originalEventLintener(workState: EvevtWorkState, point: [number, number], viewId: string): void;
     private setZIndex;
+    clearLocalPointsBatchData(): void;
     private onLocalEventEnd;
     private onLocalEventDoing;
     private onLocalEventStart;
     private pushPoint;
     sendCursorEvent(p: [number | undefined, number | undefined], viewId: string): void;
-    blurSelector(viewId: string, scenePath: string, undoTickerId?: number): void;
     getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
     getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
     queryTaskBatchData(query: IqueryTask): IWorkerMessage[];
@@ -148,4 +153,6 @@ export declare class MasterControlForWorker extends MasterController {
     lockImage(uuid: string, locked: boolean): void;
     completeImageUpload(uuid: string, src: string): void;
     getImagesInformation(scenePath: string): ImageInformation[];
+    setShapeSelectorByWorkId(workId: string, viewId: string, undoTickerId?: number): void;
+    blurSelector(viewId: string, scenePath: string, undoTickerId?: number): void;
 }

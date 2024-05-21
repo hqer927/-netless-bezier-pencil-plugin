@@ -73,6 +73,9 @@ export default function App() {
     // console.log('setBeginAt', Date.now())
     setBeginAt(Date.now());
     window.room.callbacks.on('onRoomStateChanged', roomStateChangeListener);
+    return ()=>{
+      window.room.callbacks.off('onRoomStateChanged', roomStateChangeListener);
+    }
   },[])
   useEffect(()=>{
       if (window.room) {
@@ -102,34 +105,34 @@ export default function App() {
             break;
           case EToolsKey.Arrow:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.arrow});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.arrow, arrowCompleteToSelector: true});
             break;
           case EToolsKey.Straight:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.straight});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.straight, straightCompleteToSelector: true});
             break; 
           case EToolsKey.Ellipse:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.ellipse});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.ellipse, ellipseCompleteToSelector: true});
             break;
           case EToolsKey.Rectangle:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.rectangle});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.rectangle, rectangleCompleteToSelector: true});
             break;
           case EToolsKey.Star:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Pentagram});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Pentagram, shapeCompleteToSelector: true});
             break;
           case EToolsKey.Triangle:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Triangle});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Triangle, shapeCompleteToSelector: true});
             break;
           case EToolsKey.Rhombus:
             // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus, shapeCompleteToSelector: true});
             break;
           case EToolsKey.SpeechBalloon:
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon});
+            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon, shapeCompleteToSelector: true});
             break;
           case EToolsKey.Hand:
             // window.room.disableDeviceInputs = false;

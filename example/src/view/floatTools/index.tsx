@@ -70,7 +70,7 @@ export const FloatTools = () => {
                     },
                 ],  
             },
-            mutualPlugin: window.pluginRoom
+            // mutualPlugin: window.pluginRoom
         });
     };
     const insertPptViewer = async (): Promise<void> => {
@@ -85,7 +85,7 @@ export const FloatTools = () => {
                 taskId: "82d16c40b15745f0b5fad096ac721773", // [2]
                 url: "https://convertcdn.netless.link/dynamicConvert", // [3]
             },
-            mutualPlugin: window.pluginRoom
+            // mutualPlugin: window.pluginRoom
         });
     };
     return (
@@ -115,7 +115,7 @@ export const FloatTools = () => {
                     type={'default'} 
                     icon={<DeleteOutlined/>} 
                     onClick={()=>{
-                        window.pluginRoom.cleanCurrentScene();
+                        window.room.cleanCurrentScene();
                     }}
                 />
                 <ImageButtons/>
@@ -136,7 +136,7 @@ export const FloatTools = () => {
                         const height =  window.manager && window.manager.mainView.size.height || window.room.state.cameraState.height;
                         // const camera = window.manager && window.manager.mainView.camera || window.room.state.cameraState;
                         const scenePath = window.manager && window.manager.mainView.focusScenePath || window.room.state.scenePath;
-                        const rect = await window.pluginRoom.getBoundingRectAsync(scenePath);
+                        const rect = await window.room.getBoundingRectAsync(scenePath);
                         // console.log('rect', rect)
                         const w = Math.max(rect?.width, width);
                         const h = Math.max(rect?.height, height);
@@ -148,7 +148,7 @@ export const FloatTools = () => {
                             centerY: rect.originY + rect.height / 2,
                         }
                         // console.log('rect-1', centerCamera, w, h)
-                        context && await window.pluginRoom.screenshotToCanvasAsync(context, scenePath, w, h, centerCamera, devicePixelRatio);
+                        context && await window.room.screenshotToCanvasAsync(context, scenePath, w, h, centerCamera, devicePixelRatio);
                         canvas.toBlob(blobCallback(window.room.uid, canvas), "image/png")
                     }}
                 />

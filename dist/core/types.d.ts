@@ -192,6 +192,7 @@ export interface IMainMessageRenderData {
     /** 是否需要销毁imageBitmap */
     isUnClose?: boolean;
     isFullWork?: boolean;
+    workerType?: EDataType.Local | EDataType.Service;
     offset?: {
         x: number;
         y: number;
@@ -269,4 +270,24 @@ export type BaseNodeMapItem = {
     toolsType: EToolsKey;
     canRotate: boolean;
     scaleType: EScaleType;
+};
+export type Size = {
+    /**
+     * 宽
+     */
+    width: number;
+    /**
+     * 高
+     */
+    height: number;
+};
+export type Rectangle = Size & {
+    /**
+     * 矩形的左上角 x 坐标
+     */
+    originX: number;
+    /**
+     * 矩形的左上角 y 坐标
+     */
+    originY: number;
 };

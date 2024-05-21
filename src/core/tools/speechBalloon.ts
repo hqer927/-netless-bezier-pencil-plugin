@@ -7,7 +7,7 @@ import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
 import { VNodeManager } from "../worker/vNodeManager";
-import { SpeechBalloonPlacement } from "../../plugin/types";
+import type { SpeechBalloonPlacement } from "../../plugin/types";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { Bezier } from "../utils/bezier";
 import { ShapeNodes } from "./utils";
@@ -114,7 +114,8 @@ export class SpeechBalloonShape extends BaseShapeTool{
             dataType: EDataType.Local,
             workId,
             ops,
-            isSync: true
+            isSync: true,
+            opt: this.workOptions
         }
     }
 

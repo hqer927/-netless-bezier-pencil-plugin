@@ -1,4 +1,4 @@
-import { ECanvasContextType, TeachingAidsPlugin, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
+import { ECanvasContextType, TeachingSingleAidsPlugin, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
 import { CursorTool } from '@netless/cursor-tool';
 import { WhiteWebSdk, DeviceType, DefaultHotKeys} from "white-web-sdk";
 
@@ -13,7 +13,7 @@ export async function createWhiteWebSdk(params:{
         appIdentifier,
         useMobXState: true,
         deviceType: DeviceType.Surface,
-        invisiblePlugins: [TeachingAidsPlugin],
+        invisiblePlugins: [TeachingSingleAidsPlugin],
         wrappedComponents: [TeachingAidsSigleWrapper]
     })
     const uid = 'uid-' + Math.floor(Math.random() * 10000);
@@ -46,7 +46,7 @@ export async function createWhiteWebSdk(params:{
         },
         disableNewPencil: false,
     })
-    const plugin = await TeachingAidsPlugin.getInstance(room, 
+    const plugin = await TeachingSingleAidsPlugin.getInstance(room, 
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {
                 syncOpt: {
@@ -63,6 +63,13 @@ export async function createWhiteWebSdk(params:{
     
     room.bindHtmlElement(elm);
     room.disableSerialization = false;
+    plugin.injectMethodToObject(room,'undo');
+    plugin.injectMethodToObject(room,'redo');
+    plugin.injectMethodToObject(room,'callbacks');
+    plugin.injectMethodToObject(room,'cleanCurrentScene');
+    plugin.injectMethodToObject(room,'screenshotToCanvasAsync');
+    plugin.injectMethodToObject(room,'getBoundingRectAsync');
+    plugin.injectMethodToObject(room,'insertImage');
     window.pluginRoom = plugin;
     return {room, whiteWebSdk}
 } 

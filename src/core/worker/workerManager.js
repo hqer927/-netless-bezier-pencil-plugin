@@ -9,6 +9,7 @@ import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
 import { LocalWorkForSubWorker } from "./subWorkerLocal";
 import { Storage_ViewId_ALL } from "../../collector/const";
+import { Cursor_Hover_Id } from "../const";
 export var EWorkThreadType;
 (function (EWorkThreadType) {
     EWorkThreadType["Full"] = "full";
@@ -122,6 +123,12 @@ export class WorkerManager {
 export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
     constructor(viewId, opt, _post) {
         super(viewId, opt);
+        Object.defineProperty(this, "serviceDrawLayer", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "drawLayer", {
             enumerable: true,
             configurable: true,
@@ -159,6 +166,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             value: void 0
         });
         this._post = _post;
+        this.serviceDrawLayer = this.createLayer('serviceDrawLayer', this.scene, { ...opt.layerOpt, bufferSize: 1000 });
         this.drawLayer = this.createLayer('drawLayer', this.scene, { ...opt.layerOpt, bufferSize: 1000 });
         const subWorkOpt = {
             thread: this,
@@ -169,7 +177,10 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             post: this.post.bind(this)
         };
         this.localWork = new LocalWorkForFullWorker(subWorkOpt);
-        this.serviceWork = new ServiceWorkForFullWorker(subWorkOpt);
+        this.serviceWork = new ServiceWorkForFullWorker({
+            ...subWorkOpt,
+            serviceDrawLayer: this.serviceDrawLayer
+        });
         this.methodBuilder = new MethodBuilderWorker([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode,
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode,
@@ -194,7 +205,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     delete renderData.isDrawAll;
                 }
                 if (renderData.drawCanvas) {
-                    const renderLayer = renderData.isFullWork ? this.fullLayer : this.drawLayer;
+                    const renderLayer = this.getLayer(renderData.isFullWork, renderData.workerType);
                     // console.log('mainEngine---03---005', (renderLayer?.parent as Layer).children.map(c=>c.name));
                     (renderLayer?.parent).render();
                 }
@@ -202,13 +213,8 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     if (renderData.clearCanvas === renderData.drawCanvas && renderData.drawCanvas === ECanvasShowType.Bg) {
                         renderData.rect = this.checkRightRectBoundingBox(renderData.rect);
                     }
-                    const oldRect = renderData.rect;
-                    if (this.isSafari) {
-                        renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
-                    }
-                    // if (renderData.drawCanvas === ECanvasShowType.Selector) {
-                    //     console.log('onmessage - post - 3', cloneDeep(oldRect), this.viewId, this.scene.width, this.scene.height, cloneDeep(renderData.rect))
-                    // }
+                    const oldRect = renderData.drawCanvas === ECanvasShowType.Selector && renderData.rect;
+                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
                     if (!renderData.rect) {
                         continue;
                     }
@@ -217,10 +223,13 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                         if (sp) {
                             sp.rect = renderData.rect;
                         }
-                        renderData.offset = {
-                            x: renderData.rect.x - oldRect.x,
-                            y: renderData.rect.y - oldRect.y,
-                        };
+                        if (oldRect) {
+                            renderData.offset = {
+                                x: renderData.rect.x - oldRect.x,
+                                y: renderData.rect.y - oldRect.y,
+                            };
+                            // console.log('post---000', oldRect, renderData.rect, renderData.offset)
+                        }
                         // const translate = renderData.translate || [0,0];
                         // if (renderData.offset.x && translate[0]) {
                         //     renderData.offset.x = renderData.offset.x + translate[0];
@@ -231,7 +240,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                         // console.log('onmessage - post - 4', cloneDeep(renderData))
                     }
                     if (renderData.drawCanvas) {
-                        const imageBitmap = await this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork);
+                        const imageBitmap = await this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork, renderData.workerType);
                         renderData.imageBitmap = imageBitmap;
                         if (!transfers) {
                             transfers = [];
@@ -248,13 +257,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             msg.sp = rsp.map(p => ({ ...p, viewId: this.viewId }));
         }
         if (msg.drawCount || msg.workerTasksqueueCount || msg.sp?.length || newRender?.length) {
-            // console.log('post', this.fullLayer.children.map(c=>c.name), 
-            //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.name),
-            //     (this.fullLayer.parent as Layer)?.children?.map(c=>c.id),
-            //     this.drawLayer?.children.map(c=>c.name),
-            //     // (this.drawLayer?.parent as Layer)?.children?.map(c=>c.name), 
-            //     (this.drawLayer?.parent as Layer)?.children?.map(c=>c.id), 
-            // )     
+            console.log('post', this.fullLayer.children.map(c => ({ name: c.name, zIndex: c.getAttribute('zIndex') })));
             this._post(msg, transfers);
             if (transfers?.length) {
                 for (const transfer of transfers) {
@@ -323,6 +326,14 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
     clearAll() {
         this.vNodes.clear();
         super.clearAll();
+        if (this.serviceDrawLayer) {
+            this.serviceDrawLayer.parent.children.forEach(c => {
+                if (c.name !== 'viewport') {
+                    c.remove();
+                }
+            });
+            this.serviceDrawLayer.removeAllChildren();
+        }
         this.post({
             render: [{
                     isClearAll: true,
@@ -334,11 +345,26 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     clearCanvas: ECanvasShowType.Float,
                     isFullWork: false,
                     viewId: this.viewId
+                }, {
+                    isClearAll: true,
+                    clearCanvas: ECanvasShowType.ServiceFloat,
+                    isFullWork: false,
+                    viewId: this.viewId
                 }],
             sp: [{
                     type: EPostMessageType.Clear
                 }]
         });
+    }
+    updateLayer(layerOpt) {
+        const { width, height } = layerOpt;
+        super.updateLayer(layerOpt);
+        if (this.serviceDrawLayer) {
+            this.serviceDrawLayer.parent.setAttribute('width', width);
+            this.serviceDrawLayer.parent.setAttribute('height', height);
+            this.serviceDrawLayer.setAttribute('size', [width, height]);
+            this.serviceDrawLayer.setAttribute('pos', [width * 0.5, height * 0.5]);
+        }
     }
     setCameraOpt(cameraOpt) {
         this.cameraOpt = cameraOpt;
@@ -354,10 +380,19 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             this.drawLayer.setAttribute('scale', [scale, scale]);
             this.drawLayer.setAttribute('translate', [-centerX, -centerY]);
         }
+        if (this.serviceDrawLayer) {
+            this.serviceDrawLayer.setAttribute('scale', [scale, scale]);
+            this.serviceDrawLayer.setAttribute('translate', [-centerX, -centerY]);
+        }
     }
-    getOffscreen(isFullWork) {
-        const layer = (isFullWork ? this.fullLayer.parent : this.drawLayer.parent);
-        return layer.canvas;
+    getLayer(isFullWork, workerType) {
+        const layer = isFullWork ? this.fullLayer :
+            workerType && workerType === EDataType.Service ? this.serviceDrawLayer : this.drawLayer;
+        return layer;
+    }
+    getOffscreen(isFullWork, workerType) {
+        const layerParent = this.getLayer(isFullWork, workerType).parent;
+        return layerParent.canvas;
     }
     async consumeFull(type, data) {
         const noLocalEffectData = await this.localWork.colloctEffectSelectWork(data);
@@ -401,7 +436,9 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     this.localWork.workShapeState.set(k, { willClear: true });
                 }
             });
-            this.localWork.runEffectWork(() => {
+            if (this.vNodes.curNodeMap.size) {
+                this.vNodes.updateNodesRect();
+                this.localWork.reRenderSelector();
                 if (this.serviceWork.selectorWorkShapes.size) {
                     for (const [key, value] of this.serviceWork.selectorWorkShapes.entries()) {
                         this.serviceWork.runSelectWork({
@@ -413,9 +450,16 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                         });
                     }
                 }
+                let rect;
+                const cursorHover = this.localWork.getWorkShape(Cursor_Hover_Id);
+                if (cursorHover && cursorHover.selectIds?.length) {
+                    // console.log('cursorHover', cursorHover?.selectIds)
+                    rect = cursorHover.oldSelectRect;
+                    cursorHover.cursorBlur();
+                    // console.log('cursorHover---rect', rect)
+                }
                 // 输出render结果
                 if (this.vNodes.hasRenderNodes()) {
-                    let rect;
                     render.push({
                         isClearAll: true,
                         clearCanvas: ECanvasShowType.Bg,
@@ -434,7 +478,7 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     }
                     if (rect) {
                         render.push({
-                            rect: getSafetyRect(rect, 100),
+                            rect: getSafetyRect(rect, 20),
                             drawCanvas: ECanvasShowType.Bg,
                             isClear: false,
                             isFullWork: true,
@@ -443,17 +487,20 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     }
                 }
                 if (render.length) {
+                    // console.log('cursorHover---post', render)
                     this.post({ render });
                 }
-            });
+            }
+            // this.localWork.runEffectWork(()=>{
+            // });
         }
     }
-    getRectImageBitmap(rect, isFullWork) {
+    getRectImageBitmap(rect, isFullWork, workerType) {
         const x = rect.x * this.dpr;
         const y = rect.y * this.dpr;
         const w = rect.w * this.dpr;
         const h = rect.h * this.dpr;
-        return createImageBitmap(this.getOffscreen(isFullWork), x, y, w, h);
+        return createImageBitmap(this.getOffscreen(isFullWork, workerType), x, y, w, h);
     }
     safariFixRect(rect) {
         if (rect.w + rect.x <= 0 || rect.h + rect.y <= 0) {
@@ -563,9 +610,9 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase {
                     this.fullLayer.parent.render();
                 }
                 if (renderData.rect) {
-                    if (this.isSafari) {
-                        renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
-                    }
+                    // if(this.isSafari){
+                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
+                    // }
                     if (!renderData.rect) {
                         continue;
                     }

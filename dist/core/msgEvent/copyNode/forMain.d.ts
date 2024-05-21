@@ -1,8 +1,8 @@
 import { EmitEventType } from "../../../plugin/types";
+import type { Point } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { ICameraOpt, IworkId } from "../../types";
 import { BaseCollectorReducerAction } from "../../../collector/types";
-import type { Point } from "white-web-sdk";
 export type CopyNodeEmtData = {
     workIds: IworkId[];
     viewId: string;

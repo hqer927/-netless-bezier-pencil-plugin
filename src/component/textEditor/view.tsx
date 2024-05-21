@@ -314,7 +314,7 @@ export const TextEditor = (props:TextEditorProps) =>{
     function handlePaste(e:any) {
         e.preventDefault();
         if (ref.current) {
-            let paste = (e.clipboardData || window.clipboardData).getData("text");
+            let paste = (e.clipboardData || (window as any).clipboardData).getData("text");
             paste = paste.toUpperCase();
             const selection = window?.getSelection();
             if (!selection?.rangeCount) return;

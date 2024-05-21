@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Room } from "white-web-sdk";
-import { toJS } from "white-web-sdk";
+import type { Room, TeachingAidsPluginLike } from "../plugin/types";
+import { toJS } from "../plugin/external";
 import { IworkId } from "../core";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
-import { TeachingAidsPluginLike } from "../plugin/types";
 
 export abstract class BaseCollector<T> {
     public plugin: TeachingAidsPluginLike;

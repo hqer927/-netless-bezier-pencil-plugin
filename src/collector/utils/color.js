@@ -104,3 +104,6 @@ export function colorRGBA2Array(color) {
     const a = Number(rgb[3].split(')')[0]);
     return [r, g, b, a];
 }
+export function isTransparent(color) {
+    return color === 'transparent';
+}

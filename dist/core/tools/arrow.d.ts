@@ -35,6 +35,7 @@ export declare class ArrowShape extends BaseShapeTool {
     consumeService(props: {
         op: number[];
         isFullWork: boolean;
+        isTemp?: boolean;
     }): IRectType | undefined;
     clearTmpPoints(): void;
     static updateNodeOpt(param: {

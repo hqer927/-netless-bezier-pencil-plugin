@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EmitEventType, MemberState } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
+import type { MemberState } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IUpdateNodeOpt, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";

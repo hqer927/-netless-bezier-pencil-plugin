@@ -10,6 +10,7 @@ export declare class MainViewSingleDisplayerManager extends MainViewDisplayerMan
     vDom?: BaseViewDisplayer;
     viewId: string;
     eventTragetElement?: HTMLDivElement;
+    canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasBgRef: React.RefObject<HTMLCanvasElement>;
     floatBarRef: React.RefObject<HTMLDivElement>;

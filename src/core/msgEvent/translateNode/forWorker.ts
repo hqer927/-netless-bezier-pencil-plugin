@@ -65,7 +65,7 @@ export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
             }
             for (const [workId, info] of newServiceStore.entries()) {
                 if (textUpdateForWoker && info.toolsType === EToolsKey.Text) {
-                    console.log('TranslateNode', info)
+                    // console.log('TranslateNode', info)
                     sp.push({
                         ...info,
                         workId,

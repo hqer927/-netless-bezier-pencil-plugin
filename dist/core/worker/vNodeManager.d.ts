@@ -16,6 +16,7 @@ export declare class VNodeManager {
     setInfo(name: string, info: Partial<BaseNodeMapItem>): void;
     delete(name: string): void;
     clear(): void;
+    hasRectIntersectRange(rect: IRectType, filterLock?: boolean): boolean;
     getRectIntersectRange(rect: IRectType, filterLock?: boolean): {
         rectRange: IRectType | undefined;
         nodeRange: Map<string, BaseNodeMapItem>;

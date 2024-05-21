@@ -5,7 +5,6 @@ import { AimOutlined, PlusOutlined, MinusOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import RedoUndo from "@netless/redo-undo";
 import type { Room, RoomState } from 'white-web-sdk';
-import { DisplayerForPlugin } from '@hqer/bezier-pencil-plugin/dist/plugin/types';
 import { WindowManager } from '@netless/window-manager';
 
 export const ZoomController = () => {
@@ -34,12 +33,11 @@ export const ZoomController = () => {
     },[])
     const setGlobalCamera = (camera:{centerX?:number,centerY?:number,scale:number}) => {
         if (camera) {
-            const windowManager = (window.pluginRoom as DisplayerForPlugin).windowManager;
-            if(windowManager && (camera.centerX !== windowManager.mainView.camera.centerX || 
-                camera.centerY !== windowManager.mainView.camera.centerY || 
-                camera.scale !== windowManager.mainView.camera.scale)
+            if(window.manager && (camera.centerX !== window.manager.mainView.camera.centerX || 
+                camera.centerY !== window.manager.mainView.camera.centerY || 
+                camera.scale !== window.manager.mainView.camera.scale)
             ){
-                windowManager.moveCamera(camera);
+                window.manager.moveCamera(camera);
             } else if (
                 camera.centerX !== window.room.state.cameraState.centerX || 
                 camera.centerY !== window.room.state.cameraState.centerY || 
@@ -79,7 +77,7 @@ export const ZoomController = () => {
     }
     return (
         <div className={styles['ZoomController']}>
-            <RedoUndo room={window.pluginRoom as Room} />
+            <RedoUndo room={window.room as Room} />
             <Button.Group>
                 <Button icon={<AimOutlined />} onClick={moveTo100}/>
                 <Button icon={<PlusOutlined />} onClick={addNum}/>

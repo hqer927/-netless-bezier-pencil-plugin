@@ -4,7 +4,7 @@ import { MemberState, TeachingAidsPluginLike, TeachingAidsPluginOptions } from "
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManager } from "../component/textEditor";
-import type { Camera, Displayer, DisplayerCallbacks, Player, Rectangle, Room, RoomMember } from "white-web-sdk";
+import type { Camera, Displayer, DisplayerCallbacks, Player, Rectangle, Room, RoomMember } from "./types";
 import { CursorManager } from "../cursors";
 import { ViewContainerManager } from "./baseViewContainerManager";
 import { MasterControlForWorker } from "../core/mainEngine";
@@ -24,6 +24,8 @@ export declare abstract class BaseTeachingAidsManager {
     room?: Room;
     play?: Player;
     collector?: Collector;
+    hasSwitchToSelectorEffect?: boolean;
+    effectResolve?: (value: boolean) => void;
     readonly hotkeyManager: HotkeyManager;
     readonly pluginOptions?: TeachingAidsPluginOptions;
     readonly roomMember: RoomMemberManager;
@@ -68,4 +70,8 @@ export declare abstract class BaseTeachingAidsManager {
     screenshotToCanvas(context: CanvasRenderingContext2D, scenePath: string, width?: number | undefined, height?: number | undefined, camera?: Camera | undefined): Promise<void>;
     /** 异步获取指定路径下的缩略图 */
     scenePreview(scenePath: string, img: HTMLImageElement): Promise<void>;
+    /** 切换到选择工具 */
+    switchToSelector(): void;
+    /** 开始执行副作用 */
+    runEffectWork(callback?: () => void): Promise<void>;
 }

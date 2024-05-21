@@ -1,4 +1,4 @@
-import { RoomMember } from "white-web-sdk";
+import { RoomMember } from "../plugin/types";
 
 export type MemberDiff = {
     online: string[];

@@ -2,7 +2,7 @@
 import { WhiteWebSdk, DeviceType, RenderEngine} from "white-web-sdk";
 import polly from "polly-js";
 import { CursorTool } from '@netless/cursor-tool';
-import { TeachingAidsPlugin, ECanvasContextType, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
+import { TeachingSingleAidsPlugin, ECanvasContextType, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
 
 export enum Identity {
     Creator = "creator",
@@ -48,7 +48,7 @@ export async function createReplaySingleWhiteWebSdk(params:{
             room: uuid,
             roomToken,
             cursorAdapter,
-            invisiblePlugins: [TeachingAidsPlugin],
+            invisiblePlugins: [TeachingSingleAidsPlugin],
             wrappedComponents: [TeachingAidsSigleWrapper]
         }, {
             onPhaseChanged: (phase) => {
@@ -57,7 +57,7 @@ export async function createReplaySingleWhiteWebSdk(params:{
         },
     );
     cursorAdapter.setPlayer(player);
-    await TeachingAidsPlugin.getInstance(player,
+    await TeachingSingleAidsPlugin.getInstance(player,
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {
                 syncOpt: {

@@ -1,12 +1,10 @@
-import * as React from "react";
-import {
-    ApplianceNames,
-    RoomMember,
-} from "white-web-sdk";
-import pencilCursor from "@netless/cursor-tool/src/image/pencil-cursor.png";
-import shapeCursor from "@netless/cursor-tool/src/image/shape-cursor.svg";
-import textCursor from "@netless/cursor-tool/src/image/text-cursor.svg";
-import "@netless/cursor-tool/src/index.less";
+import React,  { useEffect, useMemo, useState } from "react";
+import { InternalMsgEmitterType, type RoomMember, type TeachingAidsViewManagerLike } from "../../plugin/types";
+import { ApplianceNames } from "../../plugin/external";
+import pencilCursor from "./assets/pencil-cursor.png";
+import shapeCursor from "./assets/shape-cursor.svg";
+import textCursor from "./assets/text-cursor.svg";
+import "./index.less";
 type CursorComponentProps = {
     roomMember: RoomMember;
 };
@@ -189,9 +187,10 @@ class CursorComponent extends React.Component<CursorComponentProps> {
         }
     }
 }
-export const CursorManager = (props:{
+
+export const CursorManagerComponent = (props:{
     className: string,
-    info?: {x?:number,y?:number, roomMember?:RoomMember}
+    info:{x?:number,y?:number, roomMember?:RoomMember},
 }) => {
     const { className, info } = props;
     const { roomMember, ...position } = info || {};
@@ -205,4 +204,36 @@ export const CursorManager = (props:{
             }
         </div>
     )
+}
+
+export const CursorManager = (props:{
+    className: string;
+    manager: TeachingAidsViewManagerLike;
+}) => {
+    const { className, manager} = props;
+    const [cursorInfo, setCursorInfo] = useState<{x?:number,y?:number, roomMember?:RoomMember}[]>();
+    useEffect(()=>{
+        // console.log('CursorManager---on', manager.viewId)
+        manager.internalMsgEmitter.on([InternalMsgEmitterType.Cursor, manager.viewId], cursorInfoListener);
+        return ()=> {
+            // console.log('CursorManager---off', manager.viewId)
+            manager.internalMsgEmitter.off([InternalMsgEmitterType.Cursor,manager.viewId],cursorInfoListener);
+        }
+    },[manager])
+    function cursorInfoListener(cursorInfos:{x?:number,y?:number, roomMember?:RoomMember}[]) {
+        // console.log('cursorInfoMap---on---1', manager.viewId, cursorInfos)
+        setCursorInfo(cursorInfos); 
+    }
+    const UI = useMemo(()=>{
+        if (cursorInfo?.length) {
+            return cursorInfo.map(info=>{
+                if (info.roomMember) {
+                    return <CursorManagerComponent key={info.roomMember?.memberId} className={className} info={info}/>
+                }
+                return null;
+            })
+        }
+        return null
+    },[cursorInfo])
+    return UI;
 }

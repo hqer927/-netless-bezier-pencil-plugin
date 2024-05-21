@@ -16,7 +16,9 @@ export declare class ServiceWorkForFullWorker implements ServiceWork {
     private runEffectId?;
     private noAnimationRect;
     post: (msg: IBatchMainMessage, transfer?: Transferable[]) => Promise<void>;
-    constructor(opt: ISubWorkerInitOption);
+    constructor(opt: ISubWorkerInitOption & {
+        serviceDrawLayer: Group;
+    });
     destroy(): void;
     consumeDraw(data: IWorkerMessage): void;
     consumeFull(data: IWorkerMessage): void;

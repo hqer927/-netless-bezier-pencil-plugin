@@ -254,6 +254,7 @@ export class SelectorShape extends BaseShapeTool {
         this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, result);
         this.oldSelectRect = rect;
         const points = this.getChildrenPoints();
+        // console.log('consume', this)
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
@@ -530,7 +531,7 @@ export class SelectorShape extends BaseShapeTool {
                                     (willSerializeData && (itemOpt.angle || itemOpt.translate)) ||
                                     (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start) ||
                                     (itemOpt.pointMap && itemOpt.pointMap.has(name)) ||
-                                    (toolsType === EToolsKey.Text && (itemOpt.fontSize || (itemOpt.textInfos && itemOpt.textInfos.get(name)))) ||
+                                    (toolsType === EToolsKey.Text && (itemOpt.fontSize || itemOpt.translate || (itemOpt.textInfos && itemOpt.textInfos.get(name)))) ||
                                     (toolsType === EToolsKey.Image && (itemOpt.angle || itemOpt.translate || itemOpt.boxScale)) || 
                                     (toolsType === itemOpt.toolsType && itemOpt.willRefresh)
                             )){
@@ -674,7 +675,6 @@ export class SelectorShape extends BaseShapeTool {
                 subNodeMap.set(name, nodeMap);
             }
         },this);
-        // console.log('reRenderSelector', this.selectIds, subNodeMap)
         this.getSelecteorInfo(subNodeMap);
         this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, {
             intersectRect,
@@ -737,6 +737,7 @@ export class SelectorShape extends BaseShapeTool {
         }
     }
     cursorBlur(){
+        this.selectIds = [];
         const key = this.workId?.toString();
         (this.fullLayer?.parent as Layer).children.forEach(c=>{
             if (c.name === key) {

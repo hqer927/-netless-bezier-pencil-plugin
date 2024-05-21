@@ -1,5 +1,5 @@
+import type { TeachingAidsPluginLike } from "../plugin/types";
 import { IworkId } from "../core";
-import { TeachingAidsPluginLike } from "../plugin/types";
 export declare abstract class BaseCollector<T> {
     plugin: TeachingAidsPluginLike;
     uid: string;

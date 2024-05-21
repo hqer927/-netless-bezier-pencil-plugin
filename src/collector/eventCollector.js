@@ -1,10 +1,10 @@
 import { EventMessageType } from "../core/enum";
-import { autorun } from "white-web-sdk";
 import { BaseCollector } from "./base";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
 import isEqual from "lodash/isEqual";
 import cloneDeep from "lodash/cloneDeep";
+import { autorun } from "../plugin/external";
 /**
  * 服务端事件/状态同步收集器
  */

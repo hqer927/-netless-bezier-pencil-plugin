@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import  { ApplianceNames } from "white-web-sdk";
-import type { HotKeys, Point } from "white-web-sdk";
-import { BaseSubWorkModuleProps, EmitEventType, InternalMsgEmitterType, MemberState } from "../plugin/types";
+
+import type { HotKeys, Point, MemberState, BaseSubWorkModuleProps } from "../plugin/types";
+import { EmitEventType, InternalMsgEmitterType } from "../plugin/types";
+import { ApplianceNames } from "../plugin/external";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import type EventEmitter2 from "eventemitter2";
 import { EToolsKey, ICameraOpt } from "../core";

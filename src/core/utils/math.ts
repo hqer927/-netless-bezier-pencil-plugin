@@ -2,7 +2,7 @@ import { Group } from "spritejs";
 import { IRectType } from "../types";
 import { Point2d } from "./primitives/Point2d";
 import { Vec2d } from "./primitives/Vec2d";
-import type { Rectangle } from "white-web-sdk";
+import type { Rectangle } from "../types";
 import { BaseShapeTool, ShapeNodes } from "../tools";
 
 

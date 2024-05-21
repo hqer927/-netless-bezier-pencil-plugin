@@ -42,6 +42,7 @@ export declare class PencilShape extends BaseShapeTool {
         isFullWork?: boolean;
         replaceId?: string;
         isClearAll?: boolean;
+        isTemp?: boolean;
     }): IRectType | undefined;
     private transformDataAll;
     private draw;

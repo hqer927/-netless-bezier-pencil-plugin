@@ -144,7 +144,8 @@ export class StraightShape extends BaseShapeTool {
             dataType: EDataType.Local,
             workId,
             ops,
-            isSync: true
+            isSync: true,
+            opt: this.workOptions
         };
     }
     draw(props) {

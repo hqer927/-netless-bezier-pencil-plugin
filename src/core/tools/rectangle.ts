@@ -143,6 +143,7 @@ export class RectangleShape extends BaseShapeTool{
             dataType: EDataType.Local,
             workId,
             ops,
+            opt: this.workOptions,
             isSync: true
         }
     }

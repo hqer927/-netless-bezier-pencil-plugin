@@ -1,4 +1,5 @@
 import { EmitEventType } from "../../../plugin/types";
+import type { Point } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { ICameraOpt, IUpdateNodeOpt, IWorkerMessage, IworkId } from "../../types";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../../enum";
@@ -8,7 +9,6 @@ import { transformToNormalData, transformToSerializableData } from "../../../col
 import { Storage_Selector_key } from "../../../collector";
 import { ETextEditorType, TextOptions } from "../../../component/textEditor";
 import { ImageOptions } from "../../tools";
-import type { Point } from "white-web-sdk";
 
 export type CopyNodeEmtData = {
     workIds: IworkId[]

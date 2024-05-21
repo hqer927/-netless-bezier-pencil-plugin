@@ -1,6 +1,7 @@
-import { WindowManager } from "@netless/window-manager";
+import type { AnimationMode, WindowManager } from "@netless/window-manager";
 import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
 import { ViewContainerMultiManager } from "./containerManager";
+export type { AnimationMode, WindowManager };
 export declare class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     windowManager?: WindowManager;
     viewContainerManager: ViewContainerMultiManager;

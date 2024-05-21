@@ -4,8 +4,7 @@ import { BaseCollectorReducerAction, Storage_Selector_key } from "../collector";
 import cloneDeep from "lodash/cloneDeep";
 import debounce from "lodash/debounce";
 import isEqual from "lodash/isEqual";
-
-import type { Room } from "white-web-sdk";
+import type { Room } from "../plugin/types";
 import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
 import { MasterController } from "../core/mainEngine";
 

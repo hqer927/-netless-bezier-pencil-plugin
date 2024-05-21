@@ -1,5 +1,4 @@
-import type { HotKeys } from "white-web-sdk";
-import { BaseSubWorkModuleProps } from "../plugin/types";
+import type { HotKeys, BaseSubWorkModuleProps } from "../plugin/types";
 import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import type EventEmitter2 from "eventemitter2";
 import { Collector } from "../collector";

@@ -58,6 +58,7 @@ export declare abstract class BaseShapeTool {
         isFullWork: boolean;
         replaceId?: string;
         isClearAll?: boolean;
+        isTemp?: boolean;
     }): IRectType | undefined;
     /** 清除临时数据 */
     abstract clearTmpPoints(): void;

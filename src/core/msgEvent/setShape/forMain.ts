@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EmitEventType, SpeechBalloonPlacement } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
+import type { SpeechBalloonPlacement } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IWorkerMessage, IqueryTask, IworkId } from "../../types";
 import { EDataType, EPostMessageType, EToolsKey } from "../../enum";

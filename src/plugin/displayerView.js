@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styles from './index.module.less';
 import React from "react";
+// import type { RoomMember } from "./types";
 import { EmitEventType } from "./types";
 import { EScaleType } from "../core";
 import { TextEditorContainer } from "../component/textEditor/view";
@@ -59,7 +60,7 @@ export class BaseViewDisplayer extends React.Component {
             position: undefined,
             angle: 0,
             operationType: EmitEventType.None,
-            cursorInfo: undefined,
+            // cursorInfo: undefined,
             scale: [1, 1],
             editors: this.editors,
             activeTextId: this.props.maranger.control.textEditorManager?.activeId
@@ -104,9 +105,9 @@ export class BaseViewDisplayer extends React.Component {
             editors: this.editors
         });
     }
-    setActiveCursor(cursorInfo) {
-        this.setState({ cursorInfo });
-    }
+    // setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }) {
+    //     // this.setState({cursorInfo});
+    // }
     setFloatZIndex(zIndex) {
         this.setState({ zIndex });
     }
@@ -127,6 +128,7 @@ export class BaseViewDisplayer extends React.Component {
                     this.props.maranger.cursorMouseMove(e);
                 } },
                 React.createElement("div", { className: styles['CanvasBox'] },
+                    React.createElement("canvas", { className: styles['FloatCanvas'], ref: this.props.refs.canvasServiceFloatRef }),
                     React.createElement("canvas", { className: styles['FloatCanvas'], ref: this.props.refs.canvasFloatRef }),
                     React.createElement("canvas", { ref: this.props.refs.canvasBgRef })),
                 React.createElement(DisplayerContext.Provider, { value: {
@@ -158,6 +160,6 @@ export class BaseViewDisplayer extends React.Component {
                         (this.state.operationType === EmitEventType.None || this.state.operationType === EmitEventType.SetPoint) &&
                         React.createElement(ResizableTwoBox, { className: styles['ResizeTowBox'] }) || null,
                     this.state.showFloatBar && showFloatBtns && React.createElement(FloatBarBtn, { className: styles['FloatBarBtn'] }) || null),
-                this.state.cursorInfo && this.state.cursorInfo.roomMember && (React.createElement(CursorManager, { key: this.state.cursorInfo.roomMember.memberId, className: styles['CursorBox'], info: this.state.cursorInfo }) || null))));
+                React.createElement(CursorManager, { className: styles['CursorBox'], manager: this.props.maranger }))));
     }
 }

@@ -1,9 +1,9 @@
-import { WindowManager } from "@netless/window-manager";
+import type { AnimationMode, WindowManager } from "@netless/window-manager";
 import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
 import { BaseSubWorkModuleProps } from "../types";
 import { ViewContainerMultiManager } from "./containerManager";
 import { MemberDiff } from "../../members";
-//import { cloneDeep } from "lodash";
+export type {AnimationMode, WindowManager};
 
 export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     windowManager?: WindowManager;
@@ -94,7 +94,7 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     }
     setWindowManager(windowManager:WindowManager){
         this.windowManager = windowManager;
-        if (this.windowManager?.mainView) {
+        if (this.windowManager?.mainView?.divElement) {
             this.viewContainerManager.onMainViewMounted(this.windowManager.mainView)
         }
         if(this.windowManager.appManager?.viewManager?.views?.size){

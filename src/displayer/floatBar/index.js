@@ -12,7 +12,7 @@ import { HighlightBox, HighlightTwoBox, HighlightFourBox, LockedBox } from "../h
 import { Storage_Selector_key } from "../../collector";
 import { TextViewInSelector } from "../../component/textEditor/view";
 import isEqual from "lodash/isEqual";
-export const FloatBar = React.forwardRef((props, ref) => {
+const FloatBarComponent = React.forwardRef((props, ref) => {
     const { floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType, maranger } = useContext(DisplayerContext);
     const { className, editors, activeTextId } = props;
     const textRef = useRef(null);
@@ -128,6 +128,13 @@ export const FloatBar = React.forwardRef((props, ref) => {
             HighLightTwoUI,
             HighLightFourUI,
             TextViewInSelectorUI)));
+});
+export const FloatBar = React.memo(FloatBarComponent, (props, nextProps) => {
+    if (!isEqual(props, nextProps)) {
+        console.log('FloatBar-----isEqual', false);
+        return false;
+    }
+    return true;
 });
 export const FloatBarBtn = (props) => {
     const { floatBarData, position, operationType } = useContext(DisplayerContext);

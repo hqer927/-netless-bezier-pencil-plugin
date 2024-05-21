@@ -1,4 +1,5 @@
-import { EmitEventType, SpeechBalloonPlacement } from "../../../plugin/types";
+import { EmitEventType } from "../../../plugin/types";
+import type { SpeechBalloonPlacement } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IworkId } from "../../types";
 import { EToolsKey } from "../../enum";

@@ -107,10 +107,15 @@ export var ECanvasContextType;
 })(ECanvasContextType || (ECanvasContextType = {}));
 export var ECanvasShowType;
 (function (ECanvasShowType) {
+    /** 本地前置画布 */
     ECanvasShowType[ECanvasShowType["Float"] = 1] = "Float";
+    /** 背景画布 */
     ECanvasShowType[ECanvasShowType["Bg"] = 2] = "Bg";
+    /** 选择框中的画布 */
     ECanvasShowType[ECanvasShowType["Selector"] = 3] = "Selector";
-    ECanvasShowType[ECanvasShowType["None"] = 4] = "None";
+    /** 服务端前置画布 */
+    ECanvasShowType[ECanvasShowType["ServiceFloat"] = 4] = "ServiceFloat";
+    ECanvasShowType[ECanvasShowType["None"] = 5] = "None";
 })(ECanvasShowType || (ECanvasShowType = {}));
 export var EventMessageType;
 (function (EventMessageType) {

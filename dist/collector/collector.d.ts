@@ -1,6 +1,6 @@
 import { BaseCollectorReducerAction, Diff, ISerializableStorageData, ISerializableStorageViewData } from "./types";
 import { BaseCollector } from "./base";
-import { TeachingAidsPluginLike } from "../plugin/types";
+import type { TeachingAidsPluginLike } from "../plugin/types";
 /**
  * 服务端事件/状态同步收集器
  */

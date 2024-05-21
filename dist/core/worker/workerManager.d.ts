@@ -1,6 +1,6 @@
 import { Group } from "spritejs";
 import { EDataType } from "../enum";
-import { IBatchMainMessage, ICameraOpt, IWorkerMessage } from "../types";
+import { IBatchMainMessage, ICameraOpt, ILayerOptionType, IWorkerMessage } from "../types";
 import { IWorkerInitOption, WorkThreadEngineBase } from "./base";
 import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
@@ -20,6 +20,7 @@ export declare class WorkerManager<T extends WorkThreadEngineBase> {
 }
 /** full worker */
 export declare class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
+    serviceDrawLayer: Group;
     drawLayer: Group;
     snapshotFullLayer: undefined;
     private methodBuilder;
@@ -32,8 +33,10 @@ export declare class WorkThreadEngineForFullWorker extends WorkThreadEngineBase 
     removeNode(data: IWorkerMessage): Promise<void>;
     checkTextActive(data: IWorkerMessage): void;
     clearAll(): void;
+    protected updateLayer(layerOpt: ILayerOptionType): void;
     setCameraOpt(cameraOpt: ICameraOpt): void;
-    getOffscreen(isFullWork: boolean): OffscreenCanvas;
+    getLayer(isFullWork?: boolean, workerType?: EDataType.Local | EDataType.Service): Group;
+    getOffscreen(isFullWork: boolean, workerType?: EDataType.Local | EDataType.Service): OffscreenCanvas;
     consumeFull(type: EDataType, data: IWorkerMessage): Promise<void>;
     consumeDraw(type: EDataType, data: IWorkerMessage): void;
     consumeDrawAll(type: EDataType, data: IWorkerMessage): void;

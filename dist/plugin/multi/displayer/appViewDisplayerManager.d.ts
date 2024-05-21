@@ -9,6 +9,7 @@ export declare class AppViewDisplayerManagerImpl extends AppViewDisplayerManager
     height: number;
     vDom?: BaseViewDisplayer;
     eventTragetElement?: HTMLDivElement;
+    canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasBgRef: React.RefObject<HTMLCanvasElement>;
     floatBarRef: React.RefObject<HTMLDivElement>;

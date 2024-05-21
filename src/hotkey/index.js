@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ApplianceNames } from "white-web-sdk";
 import { EmitEventType, InternalMsgEmitterType } from "../plugin/types";
+import { ApplianceNames } from "../plugin/external";
 import { EToolsKey } from "../core";
 import { MethodBuilderMain } from "../core/msgEvent";
 import { Storage_Selector_key } from "../collector/const";

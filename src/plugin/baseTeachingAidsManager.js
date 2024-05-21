@@ -3,7 +3,7 @@ import { EStrokeType, ShapeType } from "./types";
 import { Collector } from "../collector";
 import { RoomMemberManager } from "../members";
 import { TextEditorManagerImpl } from "../component/textEditor";
-import { ApplianceNames, isPlayer, isRoom, toJS } from "white-web-sdk";
+import { ApplianceNames, isPlayer, isRoom, toJS } from "./external";
 import { CursorManagerImpl } from "../cursors";
 import { MasterControlForWorker } from "../core/mainEngine";
 import { EToolsKey } from "../core/enum";
@@ -32,6 +32,18 @@ export class BaseTeachingAidsManager {
             value: void 0
         });
         Object.defineProperty(this, "collector", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "hasSwitchToSelectorEffect", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "effectResolve", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -80,12 +92,23 @@ export class BaseTeachingAidsManager {
             writable: true,
             value: (scenePath, viewId) => {
                 // console.log('onSceneChange', scenePath, viewId)
-                const curFocusScenePath = this.viewContainerManager.getView(viewId)?.focusScenePath;
-                curFocusScenePath && this.worker.blurSelector(viewId, curFocusScenePath);
+                const curViewInfo = this.viewContainerManager.getView(viewId);
+                if (curViewInfo?.focusScenePath) {
+                    if (this.collector?.hasSelector(viewId, curViewInfo.focusScenePath)) {
+                        this.worker.blurSelector(viewId, curViewInfo.focusScenePath);
+                    }
+                }
+                this.textEditorManager.checkEmptyTextBlur();
+                const curDisplayer = curViewInfo?.displayer;
+                if (curDisplayer) {
+                    curDisplayer.setActive(false);
+                    curDisplayer.stopEventHandler();
+                }
                 const focusScenePath = scenePath;
                 if (focusScenePath) {
                     this.viewContainerManager.setViewScenePath(viewId, focusScenePath);
                 }
+                curDisplayer?.setActive(true);
             }
         });
         /** 监听房间成员变化 */
@@ -110,6 +133,9 @@ export class BaseTeachingAidsManager {
                 const toolsInfo = this.getToolsOpt(toolsKey, memberState);
                 this.worker.setCurrentToolsData(toolsInfo);
                 this.effectViewContainer(toolsKey);
+                if (this.effectResolve) {
+                    this.effectResolve(true);
+                }
             }, 100, { 'leading': false })
         });
         Object.defineProperty(this, "internalSceneChange", {
@@ -117,7 +143,6 @@ export class BaseTeachingAidsManager {
             configurable: true,
             writable: true,
             value: (viewId, scenePath) => {
-                this.textEditorManager.checkEmptyTextBlur();
                 this.worker?.clearViewScenePath(viewId, true).then(() => {
                     this.worker?.pullServiceData(viewId, scenePath);
                 });
@@ -188,8 +213,12 @@ export class BaseTeachingAidsManager {
     /** 获取当前工具key */
     getToolsKey(memberState) {
         const currentApplianceName = memberState.currentApplianceName;
+        this.hasSwitchToSelectorEffect = false;
         switch (currentApplianceName) {
             case ApplianceNames.text:
+                if (memberState.textCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 return EToolsKey.Text;
             case ApplianceNames.pencil:
                 if (memberState.useNewPencil) {
@@ -205,14 +234,29 @@ export class BaseTeachingAidsManager {
             case ApplianceNames.selector:
                 return EToolsKey.Selector;
             case ApplianceNames.arrow:
+                if (memberState.arrowCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 return EToolsKey.Arrow;
             case ApplianceNames.straight:
+                if (memberState.straightCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 return EToolsKey.Straight;
             case ApplianceNames.ellipse:
+                if (memberState.ellipseCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 return EToolsKey.Ellipse;
             case ApplianceNames.rectangle:
+                if (memberState.rectangleCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 return EToolsKey.Rectangle;
             case ApplianceNames.shape:
+                if (memberState.shapeCompleteToSelector) {
+                    this.hasSwitchToSelectorEffect = true;
+                }
                 if (memberState.shapeType === ShapeType.Pentagram ||
                     memberState.shapeType === ShapeType.Star) {
                     return EToolsKey.Star;
@@ -243,7 +287,7 @@ export class BaseTeachingAidsManager {
         switch (toolsKey) {
             case EToolsKey.Text:
                 opt.fontFamily = window.getComputedStyle(document.documentElement).getPropertyValue('font-family');
-                opt.fontSize = memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
+                opt.fontSize = memberState?.textSizeOverride || memberState?.textSize || Number(window.getComputedStyle(document.body).fontSize);
                 opt.textAlign = memberState?.textAlign || 'left';
                 opt.verticalAlign = memberState?.verticalAlign || 'middle';
                 opt.fontColor = memberState?.textColor && rgbToRgba(memberState.textColor[0], memberState.textColor[1], memberState.textColor[2], memberState.textOpacity || 1) || opt.strokeColor || 'rgba(0,0,0,1)';
@@ -412,6 +456,21 @@ export class BaseTeachingAidsManager {
                 };
             }
             imageBitmap.close();
+        }
+    }
+    /** 切换到选择工具 */
+    switchToSelector() {
+        this.room?.setMemberState({ currentApplianceName: ApplianceNames.selector });
+    }
+    /** 开始执行副作用 */
+    async runEffectWork(callback) {
+        if (this.hasSwitchToSelectorEffect) {
+            const bool = await new Promise((resolve) => {
+                this.switchToSelector();
+                this.effectResolve = resolve;
+            });
+            this.effectResolve = undefined;
+            bool && callback && callback();
         }
     }
 }

@@ -15,7 +15,7 @@ import { TextViewInSelector } from "../../component/textEditor/view";
 import { TextEditorInfo } from "../../component/textEditor";
 import isEqual from "lodash/isEqual";
 
-export const FloatBar = React.forwardRef((props:{
+const FloatBarComponent = React.forwardRef((props:{
     className: string,
     editors?: Map<string, TextEditorInfo>,
     activeTextId?: string,
@@ -172,6 +172,22 @@ export const FloatBar = React.forwardRef((props:{
             </div>
         </Draggable>
     )
+});
+
+export const FloatBar = React.memo(FloatBarComponent,(props:{
+    className: string,
+    editors?: Map<string, TextEditorInfo>,
+    activeTextId?: string,
+}, nextProps:{
+    className: string,
+    editors?: Map<string, TextEditorInfo>,
+    activeTextId?: string,
+})=>{
+    if (!isEqual(props,nextProps)) {
+        console.log('FloatBar-----isEqual', false)
+        return false
+    }
+    return true;
 })
 
 export const FloatBarBtn = (props:{

@@ -1,13 +1,15 @@
 import path from "path";
 import { defineConfig } from "vite";
 import pkg from './package.json'
+// import bundleWorker from 'rollup-plugin-bundle-worker';
 
 export default defineConfig(({ mode }) => {
   const isProd = mode === "production";
   const external = Object.keys({
     ...pkg.peerDependencies,
-    ...pkg.dependencies
-  }).filter(k=>k!=='spritejs');
+    ...pkg.dependencies,
+    ...pkg.devDependencies,
+  });
   // console.log('external', external)
   return {
     css: {
@@ -27,9 +29,28 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: false,
       rollupOptions: {
-        external,
+        external
       },
       minify: isProd,
     },
+    worker: {
+      rollupOptions: {
+        external: ['spritejs'],
+        input: {
+          fullWorker: path.resolve(__dirname, "src/core/worker/fullWorker.ts"),
+          subWorker: path.resolve(__dirname, "src/core/worker/subWorker.ts"),
+        },
+        output: {
+          entryFileNames: '[name]-[hash:6].js',
+          format: 'iify',
+          extend: false,
+          banner: 'self.importScripts("https://unpkg.com/spritejs@3/dist/spritejs.js");',
+          globals: {
+            spritejs: 'spritejs',
+          }
+        }
+      },
+      minify: isProd,
+    }
   };
 });

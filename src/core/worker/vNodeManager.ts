@@ -79,6 +79,20 @@ export class VNodeManager {
         this.curNodeMap.clear();
         this.targetNodeMap.length = 0;true
     }
+    hasRectIntersectRange(rect:IRectType, filterLock:boolean = true):boolean {
+        for (const v of this.curNodeMap.values()) {
+            if (isIntersect(rect, v.rect)) {
+                if(filterLock && v.toolsType === EToolsKey.Image && (v.opt as ImageOptions).locked){
+                    continue;
+                }
+                if(filterLock && v.toolsType === EToolsKey.Text && ((v.opt as TextOptions).workState === EvevtWorkState.Doing || (v.opt as TextOptions).workState === EvevtWorkState.Start)) {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     getRectIntersectRange(rect:IRectType, filterLock:boolean = true):{
         rectRange: IRectType | undefined,
         nodeRange: Map<string, BaseNodeMapItem>

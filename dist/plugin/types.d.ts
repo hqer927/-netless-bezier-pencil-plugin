@@ -1,15 +1,15 @@
 import { ISerializableEventData, ISerializableStorageViewData } from "../collector/types";
-import type { Callbacks, Camera, Color, Displayer, ImageInformation, Rectangle, RenderEngine, MemberState as _MemberState } from "white-web-sdk";
+import type { Cursor, View, CameraState, DisplayerCallbacks, HotKeys, Player, Room, Point, RoomMember, RoomState, Size, Callbacks, Camera, Color, CursorAdapter, Displayer, ImageInformation, Rectangle, RenderEngine, MemberState as _MemberState } from "white-web-sdk";
 import { ECanvasContextType } from "../core/enum";
 import type EventEmitter2 from "eventemitter2";
 import type { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
 import type { TeachingAidsMultiManager } from "./multi/teachingAidsMultiManager";
 import type { BaseTeachingAidsManager } from "./baseTeachingAidsManager";
 import type { AppViewDisplayerManager, MainViewDisplayerManager } from "./baseViewContainerManager";
-import type { TeachingAidsPlugin } from "./teachingAidsPlugin";
-import type { CursorTool } from "@netless/cursor-tool";
-import type { WindowManager } from "@netless/window-manager";
-export type TeachingAidsPluginLike = TeachingAidsPlugin;
+import type { TeachingSingleAidsPlugin } from "./teachingSingleAidsPlugin";
+import type { TeachingMulitAidsPlugin } from "./teachingMultiAidsPlugin";
+export type { Room, ImageInformation, Point, Size, Rectangle, RoomMember, RoomState, Player, HotKeys, Camera, Displayer, DisplayerCallbacks, CameraState, View, Cursor, CursorAdapter, RenderEngine };
+export type TeachingAidsPluginLike = TeachingMulitAidsPlugin | TeachingSingleAidsPlugin;
 export type TeachingAidsManagerLike = TeachingAidsMultiManager | TeachingAidsSingleManager | BaseTeachingAidsManager;
 export type TeachingAidsViewManagerLike = AppViewDisplayerManager | MainViewDisplayerManager;
 export interface BaseSubWorkModuleProps {
@@ -19,11 +19,11 @@ export interface BaseSubWorkModuleProps {
 export type TeachingAidsAdaptor = {
     logger?: Logger;
     options?: TeachingAidsPluginOptions;
-    cursorAdapter?: CursorTool;
+    cursorAdapter?: CursorAdapter;
 };
+export type canBindMethodType = keyof Omit<DisplayerForPlugin, 'displayer' | 'windowManager' | 'injectMethodToObject' | 'callbacksOn' | 'callbacksOnce' | 'callbacksOff'>;
 export interface DisplayerForPlugin {
     readonly displayer: Displayer;
-    readonly windowManager?: WindowManager;
     /**
      * 获取某个场景里包含所有元素的矩形
      */
@@ -60,13 +60,19 @@ export interface DisplayerForPlugin {
      * @param scenePath 需要导出图片信息的场景路径，必须是 ``ScenePathType`` 为 ``page`` 的路径。
      */
     getImagesInformation(scenePath: string): ImageInformation[];
+    /** 撤销 */
+    undo(): number;
+    /** 恢复 */
+    redo(): number;
+    /** 清空当前场景 */
+    cleanCurrentScene(retainPpt?: boolean): void;
+    /** 把指定的方法注入到指定对象上 */
+    injectMethodToObject(object: unknown, methodName: canBindMethodType): void;
+    /** 事件监听器 */
+    callbacks: Callbacks<any>;
     callbacksOn: Callbacks<any>["on"];
     callbacksOnce: Callbacks<any>["once"];
     callbacksOff: Callbacks<any>["off"];
-    undo(): number;
-    redo(): number;
-    cleanCurrentScene(retainPpt?: boolean): void;
-    callbacks: Callbacks<any>;
 }
 export type Logger = {
     readonly info: (...messages: any[]) => void;
@@ -79,7 +85,6 @@ export type TeachingAidsPluginOptions = {
     /** 画布配置项 */
     canvasOpt?: CanvasOpt;
 };
-/** attributes 会被实时同步 */
 export interface TeachingAidsPluginAttributes {
     [key: string]: ISerializableStorageViewData | ISerializableEventData;
 }

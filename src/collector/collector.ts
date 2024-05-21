@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import { EPostMessageType, EToolsKey } from "../core/enum";
-import { autorun } from "white-web-sdk";
 import { BaseCollectorReducerAction, Diff, ISerializableStorageData, ISerializableStoragescenePathData, ISerializableStorageViewData } from "./types";
 import { BaseCollector } from "./base";
 import { plainObjectKeys } from "./utils";
@@ -9,7 +8,8 @@ import isEqual from "lodash/isEqual";
 import cloneDeep from "lodash/cloneDeep";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
-import { TeachingAidsPluginLike } from "../plugin/types";
+import type { TeachingAidsPluginLike } from "../plugin/types";
+import { autorun } from "../plugin/external";
 /**
  * 服务端事件/状态同步收集器
  */ 

@@ -3,7 +3,7 @@ import { EmitEventType } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import cloneDeep from "lodash/cloneDeep";
 import { EDataType, EPostMessageType, EToolsKey } from "../../enum";
-import { colorRGBA2Array } from "../../../collector/utils/color";
+import { colorRGBA2Array, isTransparent } from "../../../collector/utils/color";
 export class SetColorNodeMethod extends BaseMsgMethod {
     constructor() {
         super(...arguments);
@@ -86,10 +86,16 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     memberState.strokeOpacity = a;
                 }
                 if (fillColor) {
-                    updateNodeOpt.fillColor = fillColor;
-                    const [r, g, b, a] = colorRGBA2Array(fillColor);
-                    memberState.fillColor = [r, g, b];
-                    memberState.fillOpacity = a;
+                    updateNodeOpt.fillColor = isTransparent(fillColor) ? 'transparent' : fillColor;
+                    if (isTransparent(fillColor)) {
+                        memberState.fillColor = undefined;
+                        memberState.fillOpacity = undefined;
+                    }
+                    else {
+                        const [r, g, b, a] = colorRGBA2Array(fillColor);
+                        memberState.fillColor = [r, g, b];
+                        memberState.fillOpacity = a;
+                    }
                 }
                 const taskData = {
                     workId: localWorkId,

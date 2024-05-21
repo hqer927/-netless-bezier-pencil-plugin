@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styles from './index.module.less';
 import React, { ReactNode } from "react";
-import type { RoomMember } from "white-web-sdk";
+// import type { RoomMember } from "./types";
 import { EmitEventType, TeachingAidsViewManagerLike } from "./types";
 import { TextEditorInfo } from "../component/textEditor";
 import { EScaleType } from "../core";
@@ -17,6 +17,7 @@ export interface BaseDisplayerProps {
     viewId: string;
     maranger: TeachingAidsViewManagerLike;
     refs: {
+        canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
         canvasFloatRef: React.RefObject<HTMLCanvasElement>;
         canvasBgRef: React.RefObject<HTMLCanvasElement>;
         floatBarRef: React.RefObject<HTMLDivElement>;
@@ -31,7 +32,7 @@ export interface BaseDisplayerState {
     position?: {x:number, y:number},
     operationType: EmitEventType;
     angle: number;
-    cursorInfo?: {x?:number, y?:number, roomMember?: RoomMember},
+    // cursorInfo?: {x?:number, y?:number, roomMember?: RoomMember},
     scale:[number,number];
     editors?: Map<string,TextEditorInfo>;
     activeTextId?:string;
@@ -69,7 +70,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
             position: undefined,
             angle:0,
             operationType: EmitEventType.None,
-            cursorInfo: undefined,
+            // cursorInfo: undefined,
             scale:[1,1],
             editors: this.editors,
             activeTextId: this.props.maranger.control.textEditorManager?.activeId
@@ -113,9 +114,9 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
             editors:this.editors
         })
     }
-    setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }) {
-        this.setState({cursorInfo});
-    }
+    // setActiveCursor(cursorInfo?: { x?: number; y?: number, roomMember?: RoomMember }) {
+    //     // this.setState({cursorInfo});
+    // }
     setFloatZIndex(zIndex: number) {
         this.setState({zIndex})
     }
@@ -150,6 +151,7 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                     }}
                 >
                     <div className={styles['CanvasBox']}>
+                        <canvas className={styles['FloatCanvas']} ref={this.props.refs.canvasServiceFloatRef}/>
                         <canvas className={styles['FloatCanvas']} ref={this.props.refs.canvasFloatRef}/>
                         <canvas ref={this.props.refs.canvasBgRef}/>
                     </div>
@@ -205,9 +207,8 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                             this.state.showFloatBar && showFloatBtns && <FloatBarBtn className={styles['FloatBarBtn']} /> || null
                         }
                     </DisplayerContext.Provider>
-                    {
-                        this.state.cursorInfo && this.state.cursorInfo.roomMember && (<CursorManager key={this.state.cursorInfo.roomMember.memberId} className={styles['CursorBox']} info={this.state.cursorInfo}/> || null)
-                    }
+                    <CursorManager className={styles['CursorBox']} manager={this.props.maranger}/>
+
                 </div>
             </React.Fragment>
         );

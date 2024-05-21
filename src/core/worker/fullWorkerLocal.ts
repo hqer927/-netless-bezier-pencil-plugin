@@ -250,7 +250,7 @@ export class LocalWorkForFullWorker extends LocalWork {
             let activeId:string|undefined;
             for (const value of this.vNodes.curNodeMap.values()) {
                 const {rect, name, toolsType, opt} =value;
-                console.log('checkTextActive', name, opt)
+                // console.log('checkTextActive', name, opt)
                 const x = op[0] * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0];
                 const y = op[1] * this.fullLayer.worldScaling[1] + this.fullLayer.worldPosition[1];
                 if(toolsType === EToolsKey.Text && isIntersectForPoint([x,y],rect) && (opt as TextOptions).workState === EvevtWorkState.Done) {
@@ -265,7 +265,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                     dataType,
                     isSync: true
                 });
-                console.log('GetTextActive---0001')
+                // console.log('GetTextActive---0001')
                 await this._post({
                     sp:[{
                         type:EPostMessageType.GetTextActive,
@@ -407,9 +407,9 @@ export class LocalWorkForFullWorker extends LocalWork {
             });
         }
     }
-    runEffectWork(callBack?:()=>void){
-        this.batchEffectWork(callBack);
-    }
+    // runEffectWork(callBack?:()=>void){
+    //     this.batchEffectWork(callBack);
+    // }
     reRenderSelector(willSyncService:boolean = false){
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId) as SelectorShape;
         if (!workShapeNode) return ;
@@ -451,13 +451,16 @@ export class LocalWorkForFullWorker extends LocalWork {
             return;
         }
         if (!workShapeNode) {
-            this.setFullWork(data);
+            const curWorkShapes = this.setFullWork(data);
+            if (!curWorkShapes && data.workId && this.tmpWorkShapeNode?.toolsType === EToolsKey.Selector) {
+                this.setTmpWorkId(data.workId);
+            }
             this.updateFullSelectWork(data);
             return;
         }
         if (workShapeNode && selectIds?.length) {
             const {bgRect, selectRect} = workShapeNode.updateSelectIds(selectIds);
-            console.log('updateFullSelectWork', selectIds, bgRect, selectRect, (this.drawLayer?.parent as Layer).children.map(c=>c.name))
+            // console.log('updateFullSelectWork', selectIds, bgRect, selectRect, (this.drawLayer?.parent as Layer).children.map(c=>c.name))
             const _postData:IBatchMainMessage = {
                 render:[],
                 sp:[]
@@ -482,19 +485,24 @@ export class LocalWorkForFullWorker extends LocalWork {
             })
             _postData.sp?.push({
                 ...data,
-                selectorColor: data.opt?.strokeColor,
-                strokeColor: data.opt?.strokeColor,
-                fillColor: data.opt?.fillColor,
-                textOpt: data.opt?.textOpt,
+                selectorColor: data.opt?.strokeColor || workShapeNode.selectorColor,
+                strokeColor: data.opt?.strokeColor || workShapeNode.strokeColor,
+                fillColor: data.opt?.fillColor || workShapeNode.fillColor,
+                textOpt: data.opt?.textOpt || workShapeNode.textOpt,
                 canTextEdit: workShapeNode.canTextEdit,
                 canRotate: workShapeNode.canRotate,
                 scaleType: workShapeNode.scaleType,
                 type: EPostMessageType.Select,
                 selectRect: selectRect,
-                willSyncService: false,
-                points: workShapeNode.getChildrenPoints()
+                points: workShapeNode.getChildrenPoints(),
+                willSyncService: data?.willSyncService || false,
+                opt: data?.willSyncService && workShapeNode.getWorkOptions() || undefined,
+                canLock: workShapeNode.canLock,
+                isLocked: workShapeNode.isLocked,
+                toolsTypes: workShapeNode.toolsTypes,
+                shapeOpt: workShapeNode.shapeOpt
             })
-            console.log('updateFullSelectWork---01', _postData, this.vNodes.curNodeMap, this.drawLayer?.children.map(c=>c.name), this.fullLayer?.children.map(c=>c.name))
+            // console.log('updateFullSelectWork---01', _postData, this.vNodes.curNodeMap, this.drawLayer?.children.map(c=>c.name), this.fullLayer?.children.map(c=>c.name))
             this._post(_postData);
         }
     }
@@ -504,13 +512,13 @@ export class LocalWorkForFullWorker extends LocalWork {
         this.batchEraserWorks.clear();
         this.batchEraserRemoveNodes.clear();
     }
-    private batchEffectWork = throttle((callBack?:()=>void)=>{
-        if (this.vNodes.curNodeMap.size) {
-            this.vNodes.updateNodesRect();
-            this.reRenderSelector();
-        }
-        callBack && callBack();
-    }, 100, {'leading':false})
+    // private batchEffectWork = throttle((callBack?:()=>void)=>{
+    //     if (this.vNodes.curNodeMap.size) {
+    //         this.vNodes.updateNodesRect();
+    //         this.reRenderSelector();
+    //     }
+    //     callBack && callBack();
+    // }, 100, {'leading':false})
     private drawPencilCombine(workId:IworkId) {
         const result = (this.workShapes.get(workId) as PencilShape)?.combineConsume();
         if (result) {
@@ -526,6 +534,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                 isFullWork: false,
                 viewId:this.viewId
             })
+            // console.log('cursor---animation---1', combineDrawResult.render);
             this._post(combineDrawResult)
         }
     }
@@ -609,11 +618,9 @@ export class LocalWorkForFullWorker extends LocalWork {
     }
     private batchEraserCombine = throttle(() => {
         const render = this.updateBatchEraserCombineNode(this.batchEraserWorks, this.batchEraserRemoveNodes);
-        // console.log('throttle', this.batchEraserWorks.keys(), this.batchEraserRemoveNodes.keys(), this.curNodeMap.keys());
         this.batchEraserWorks.clear();
         this.batchEraserRemoveNodes.clear();
         if (render.length) {
-            // console.log('_post', this.fullLayer.children.map(c=>c.name))
             this._post({
                 render
             })
@@ -626,12 +633,16 @@ export class LocalWorkForFullWorker extends LocalWork {
         });
     }
     private drawPencilFull(res:IMainMessage, opt:BaseShapeOptions, workShapeState?: ShapeStateInfo) {
+        let isClear = workShapeState?.willClear || opt?.isOpacity || false;
+        if(!isClear && res.rect){
+            isClear = this.vNodes.hasRectIntersectRange(res.rect);
+        }
         const _postData:IBatchMainMessage = {
             drawCount: Infinity,
             render: [{
                 rect: res.rect,
                 drawCanvas: ECanvasShowType.Bg,
-                isClear: workShapeState?.willClear || opt?.isOpacity,
+                isClear,
                 clearCanvas: ECanvasShowType.Bg,
                 isFullWork: true,
                 viewId:this.viewId
@@ -655,8 +666,8 @@ export class LocalWorkForFullWorker extends LocalWork {
                 fullLayerRect = computRect(fullLayerRect, {
                     x: r.x - EraserShape.SafeBorderPadding,
                     y: r.y - EraserShape.SafeBorderPadding,
-                    w: r.width + EraserShape.SafeBorderPadding,
-                    h: r.height + EraserShape.SafeBorderPadding,
+                    w: r.width + EraserShape.SafeBorderPadding * 2,
+                    h: r.height + EraserShape.SafeBorderPadding * 2,
                 });
                 node.remove();
             });

@@ -1,12 +1,13 @@
 import { EventMessageType } from "../core/enum";
-import { autorun } from "white-web-sdk";
 import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types";
 import { BaseCollector } from "./base";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
 import isEqual from "lodash/isEqual";
-import { TeachingAidsPluginLike } from "../plugin/types";
 import cloneDeep from "lodash/cloneDeep";
+import type { TeachingAidsPluginLike } from "../plugin/types";
+import { autorun } from "../plugin/external";
+
 /**
  * 服务端事件/状态同步收集器
  */ 

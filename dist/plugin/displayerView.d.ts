@@ -1,5 +1,4 @@
 import React, { ReactNode } from "react";
-import type { RoomMember } from "white-web-sdk";
 import { EmitEventType, TeachingAidsViewManagerLike } from "./types";
 import { TextEditorInfo } from "../component/textEditor";
 import { ShowFloatBarMsgValue } from "../displayer/types";
@@ -7,6 +6,7 @@ export interface BaseDisplayerProps {
     viewId: string;
     maranger: TeachingAidsViewManagerLike;
     refs: {
+        canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
         canvasFloatRef: React.RefObject<HTMLCanvasElement>;
         canvasBgRef: React.RefObject<HTMLCanvasElement>;
         floatBarRef: React.RefObject<HTMLDivElement>;
@@ -24,11 +24,6 @@ export interface BaseDisplayerState {
     };
     operationType: EmitEventType;
     angle: number;
-    cursorInfo?: {
-        x?: number;
-        y?: number;
-        roomMember?: RoomMember;
-    };
     scale: [number, number];
     editors?: Map<string, TextEditorInfo>;
     activeTextId?: string;
@@ -51,11 +46,6 @@ export declare class BaseViewDisplayer extends React.Component<BaseDisplayerProp
     componentWillUnmount(): void;
     showFloatBar(show: boolean, value?: Partial<ShowFloatBarMsgValue>): void;
     setActiveTextEditor(activeTextId?: string): void;
-    setActiveCursor(cursorInfo?: {
-        x?: number;
-        y?: number;
-        roomMember?: RoomMember;
-    }): void;
     setFloatZIndex(zIndex: number): void;
     setFloatBarData(data: Partial<ShowFloatBarMsgValue>): void;
     private setPosition;

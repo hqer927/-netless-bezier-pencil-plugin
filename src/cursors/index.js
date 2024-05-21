@@ -2,6 +2,7 @@ import { EventMessageType, EvevtWorkState } from "../core";
 import { EventCollector } from "../collector/eventCollector";
 import { Storage_Splitter } from "../collector";
 import isNumber from "lodash/isNumber";
+import { InternalMsgEmitterType } from "../plugin/types";
 // import { MasterController } from "../core/mainEngine";
 export var CursorColloctSource;
 (function (CursorColloctSource) {
@@ -12,6 +13,12 @@ export class CursorManager {
 }
 export class CursorManagerImpl {
     constructor(props) {
+        Object.defineProperty(this, "expirationTime", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 5000
+        });
         Object.defineProperty(this, "internalMsgEmitter", {
             enumerable: true,
             configurable: true,
@@ -61,6 +68,12 @@ export class CursorManagerImpl {
             value: new Map()
         });
         Object.defineProperty(this, "animationDrawWorkers", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "cursorInfoMap", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -202,9 +215,9 @@ export class CursorManagerImpl {
     }
     animationCursor() {
         this.animationId = undefined;
-        const cursorInfos = new Map();
+        const taskNow = Date.now();
         this.animationPointWorkers.forEach((workShape, key) => {
-            const { uid } = this.getUidAndviewId(key);
+            const { uid, viewId } = this.getUidAndviewId(key);
             const freeze = workShape.freeze;
             if (freeze) {
                 return;
@@ -217,18 +230,27 @@ export class CursorManagerImpl {
                 }
                 const x = workShape.animationWorkData[curIndex];
                 const y = workShape.animationWorkData[curIndex + 1];
-                cursorInfos.set(key, {
-                    x,
-                    y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
-                });
+                const cursorInfoMap = this.cursorInfoMap.get(viewId) || new Map();
+                if (isNumber(x) && isNumber(y)) {
+                    cursorInfoMap.set(roomMember.memberId, { x, y, roomMember, timestamp: taskNow });
+                }
+                else if (cursorInfoMap.has(roomMember.memberId)) {
+                    cursorInfoMap.delete(roomMember.memberId);
+                }
+                if (cursorInfoMap.size) {
+                    this.cursorInfoMap.set(viewId, cursorInfoMap);
+                }
+                else if (this.cursorInfoMap.has(viewId)) {
+                    this.cursorInfoMap.delete(viewId);
+                    this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor, viewId], []);
+                }
                 if (workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
                     this.animationPointWorkers.delete(key);
                 }
             }
         });
         this.animationDrawWorkers.forEach((workShape, key) => {
-            const { uid } = this.getUidAndviewId(key);
+            const { uid, viewId } = this.getUidAndviewId(key);
             const curIndex = workShape.animationIndex;
             const roomMember = this.roomMember.getRoomMember(uid);
             if (roomMember) {
@@ -237,21 +259,54 @@ export class CursorManagerImpl {
                 }
                 const x = workShape.animationWorkData[curIndex];
                 const y = workShape.animationWorkData[curIndex + 1];
-                cursorInfos.set(key, {
-                    x,
-                    y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
-                });
+                const cursorInfoMap = this.cursorInfoMap.get(viewId) || new Map();
+                if (isNumber(x) && isNumber(y)) {
+                    cursorInfoMap.set(roomMember.memberId, { x, y, roomMember, timestamp: taskNow });
+                }
+                else if (cursorInfoMap.has(roomMember.memberId)) {
+                    cursorInfoMap.delete(roomMember.memberId);
+                }
+                if (cursorInfoMap.size) {
+                    this.cursorInfoMap.set(viewId, cursorInfoMap);
+                }
+                else if (this.cursorInfoMap.has(viewId)) {
+                    this.cursorInfoMap.delete(viewId);
+                    this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor, viewId], []);
+                }
                 if (workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
                     this.animationDrawWorkers.delete(key);
                 }
             }
         });
-        for (const [key, info] of cursorInfos.entries()) {
-            const { viewId } = this.getUidAndviewId(key);
-            this.control.viewContainerManager.setActiveCursor(viewId, info);
+        for (const [viewId, infos] of this.cursorInfoMap) {
+            if (infos) {
+                const arr = [];
+                const expires = [];
+                for (const [id, info] of infos.entries()) {
+                    const { timestamp, ...item } = info;
+                    if (timestamp + this.expirationTime < taskNow) {
+                        expires.push(id);
+                    }
+                    else {
+                        arr.push(item);
+                    }
+                }
+                if (expires.length) {
+                    for (const id of expires) {
+                        infos.delete(id);
+                    }
+                }
+                if (infos.size) {
+                    this.cursorInfoMap.set(viewId, infos);
+                }
+                else {
+                    this.cursorInfoMap.delete(viewId);
+                }
+                // console.log('cursorInfoMap', viewId, arr)
+                this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor, viewId], arr);
+            }
         }
-        if (this.animationPointWorkers.size || this.animationDrawWorkers.size) {
+        if (this.animationPointWorkers.size || this.animationDrawWorkers.size || this.cursorInfoMap.size) {
             this.runAnimation();
         }
     }
@@ -333,7 +388,7 @@ export class CursorManagerImpl {
                     this.removeTimerId = undefined;
                     this.activeDrawWorkShape(uid, [undefined, undefined], EvevtWorkState.Done, viewId);
                     this.runAnimation();
-                }, 10000);
+                }, this.expirationTime);
             }
             if (isNumber(op[0]) && isNumber(op[1])) {
                 const _op = this.control.viewContainerManager.transformToOriginPoint(op, viewId);

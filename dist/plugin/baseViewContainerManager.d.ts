@@ -3,7 +3,7 @@
 import type EventEmitter2 from "eventemitter2";
 import { ICameraOpt, ILayerOptionType, IMainMessageRenderData, IOffscreenCanvasOptionType } from "../core/types";
 import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "./types";
-import type { CameraState, RoomMember, View } from "white-web-sdk";
+import type { CameraState, View } from "./types";
 import { ShowFloatBarMsgValue } from "../displayer/types";
 import { UndoRedoMethod } from "../undo";
 import { BaseViewDisplayer } from "./displayerView";
@@ -34,6 +34,7 @@ export declare abstract class ViewContainerManager {
     undo(): number;
     redo(): number;
     protected validator(target: ViewInfo, key: string, value: any): void;
+    abstract mountView(viewIde: string): void;
     destroyAppView(viewId: string, justLocal?: boolean): void;
     createMianView(originMainView: ViewInfo): void;
     createAppView(originAppView: ViewInfo): void;
@@ -47,26 +48,19 @@ export declare abstract class ViewContainerManager {
     setViewFocusScenePath(viewId: string, scenePath: string): void;
     /** 销毁 */
     destroy(): void;
-    abstract mountView(viewIde: string): void;
-    abstract setFocuedViewCameraOpt(cameraState: CameraState): void;
+    setFocuedViewCameraOpt(cameraState: CameraState): void;
     /** view中心点坐标转换成页面原始坐标 */
-    abstract transformToOriginPoint(point: [number, number], viewId: string): [number, number];
+    transformToOriginPoint(p: [number, number], viewId: string): [number, number];
     /** 页面坐标转换成view中心点坐标 */
-    abstract transformToScenePoint(point: [number, number], viewId: string): [number, number];
+    transformToScenePoint(p: [number, number], viewId: string): [number, number];
     /** 绘制view */
-    abstract render(renderData: Array<IMainMessageRenderData>): void;
+    render(renderData: IMainMessageRenderData[]): void;
     /** 是否绘制浮动选框 */
     showFloatBar(viewId: string, isShow: boolean, opt?: Partial<ShowFloatBarMsgValue>): void;
     /** 激活浮动选框 */
     activeFloatBar(viewId: string): void;
     /** 销毁浮动选框 */
     unActiveFloatBar(viewId: string): void;
-    /** 激活刷新指针 */
-    setActiveCursor(viewId: string, cursorInfo: {
-        x?: number;
-        y?: number;
-        roomMember?: RoomMember;
-    }): void;
     /** 激活刷新文字编辑器 */
     setActiveTextEditor(viewId: string, activeTextId?: string): void;
 }
@@ -81,6 +75,7 @@ export declare abstract class AppViewDisplayerManager {
     readonly commiter: UndoRedoMethod;
     abstract vDom?: BaseViewDisplayer;
     abstract eventTragetElement?: HTMLDivElement;
+    abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
@@ -91,6 +86,7 @@ export declare abstract class AppViewDisplayerManager {
     };
     private cachePoint?;
     private cacheCursorPoint?;
+    private active;
     constructor(viewId: string, control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
@@ -100,6 +96,8 @@ export declare abstract class AppViewDisplayerManager {
     setViewId(viewId: string): void;
     destroy(): void;
     getPoint(e: any): [number, number] | undefined;
+    setActive(bol: boolean): void;
+    stopEventHandler(): void;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;
@@ -112,7 +110,7 @@ export declare abstract class AppViewDisplayerManager {
     protected mousemove: (e: MouseEvent) => void;
     protected mouseup: (e: MouseEvent) => void;
     protected touchstart: (e: TouchEvent) => void;
-    protected touchmove: import("lodash").DebouncedFunc<(e: TouchEvent) => void>;
+    protected touchmove: (e: TouchEvent) => void;
     protected touchend: (e: TouchEvent) => void;
     cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;
@@ -132,6 +130,7 @@ export declare abstract class MainViewDisplayerManager {
     abstract height: number;
     abstract vDom?: BaseViewDisplayer;
     abstract eventTragetElement?: HTMLDivElement;
+    abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
@@ -142,6 +141,7 @@ export declare abstract class MainViewDisplayerManager {
     };
     private cachePoint?;
     private cacheCursorPoint?;
+    private active;
     constructor(control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
@@ -150,6 +150,8 @@ export declare abstract class MainViewDisplayerManager {
     reflashContainerOffset(): void;
     destroy(): void;
     getPoint(e: any): [number, number] | undefined;
+    setActive(bol: boolean): void;
+    stopEventHandler(): void;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;
@@ -162,7 +164,7 @@ export declare abstract class MainViewDisplayerManager {
     protected mousemove: (e: MouseEvent) => void;
     protected mouseup: (e: MouseEvent) => void;
     protected touchstart: (e: TouchEvent) => void;
-    protected touchmove: import("lodash").DebouncedFunc<(e: TouchEvent) => void>;
+    protected touchmove: (e: TouchEvent) => void;
     protected touchend: (e: TouchEvent) => void;
     cursorMouseMove: import("lodash").DebouncedFunc<(e: MouseEvent) => void>;
     protected cursorMouseLeave: import("lodash").DebouncedFunc<() => void>;

@@ -3,7 +3,7 @@ import { EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { VNodeManager } from "../worker/vNodeManager";
-import { SpeechBalloonPlacement } from "../../plugin/types";
+import type { SpeechBalloonPlacement } from "../../plugin/types";
 import { ShapeNodes } from "./utils";
 export interface SpeechBalloonOptions extends BaseShapeOptions {
     thickness: number;

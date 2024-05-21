@@ -2,7 +2,7 @@ import { Group, Node, Scene } from "spritejs";
 import { ISubWorkerInitOption, ServiceWork } from "./base";
 import { VNodeManager } from "./vNodeManager";
 import { IBatchMainMessage, IMainMessageRenderData, IRectType, IServiceWorkItem, IWorkerMessage } from "../types";
-import { ECanvasShowType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
+import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { computRect, getSafetyRect } from "../utils";
 import { ArrowShape, BaseShapeOptions, ImageShape, LaserPenOptions, SelectorShape, ShapeNodes, getShapeInstance } from "../tools";
 import { Storage_Splitter } from "../../collector/const";
@@ -20,11 +20,11 @@ export class ServiceWorkForFullWorker implements ServiceWork {
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
     post: (msg: IBatchMainMessage, transfer?: Transferable[]) => Promise<void>;
-    constructor(opt:ISubWorkerInitOption){
+    constructor(opt:ISubWorkerInitOption & {serviceDrawLayer:Group}){
         this.viewId = opt.viewId;
         this.vNodes = opt.vNodes;
         this.fullLayer = opt.fullLayer;
-        this.drawLayer = opt.drawLayer as Group;
+        this.drawLayer = opt.serviceDrawLayer as Group;
         this.post = opt.post;
     }
     destroy(): void {
@@ -133,8 +133,9 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         rect: getSafetyRect(rect),
                         isClear:true,
                         isFullWork,
-                        clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
-                        drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.Float,
+                        clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.ServiceFloat,
+                        drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.ServiceFloat,
+                        workerType: isFullWork ? undefined : EDataType.Service,
                         viewId: this.viewId
                     }
                 ]
@@ -313,7 +314,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                             floatClearRenders.push({
                                 rect: tmpRect,
                                 isClear: true,
-                                clearCanvas: ECanvasShowType.Float,
+                                clearCanvas: ECanvasShowType.ServiceFloat,
                                 viewId:this.viewId
                             })
                         }
@@ -358,7 +359,8 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         } else {
                             floatRenders.push({
                                 rect,
-                                drawCanvas: ECanvasShowType.Float,
+                                drawCanvas: ECanvasShowType.ServiceFloat,
+                                workerType: isFullWork ? undefined : EDataType.Service,
                                 isFullWork,
                                 viewId:this.viewId
                             })
@@ -412,7 +414,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                 });
                                 floatRenders.push({
                                     rect,
-                                    drawCanvas: ECanvasShowType.Float,
+                                    drawCanvas: ECanvasShowType.ServiceFloat,
                                     viewId:this.viewId
                                 });
                                 workShape.animationIndex = nextAnimationIndex;
@@ -440,9 +442,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                                 workShape.isDel = true;
                                 floatClearRenders.push({
                                     rect,
-                                    clearCanvas: ECanvasShowType.Float,
+                                    clearCanvas: ECanvasShowType.ServiceFloat,
                                     viewId:this.viewId
-                                })
+                                });
+                                // floatRenders.push({
+                                //     rect,
+                                //     clearCanvas: ECanvasShowType.ServiceFloat,
+                                //     viewId:this.viewId
+                                // })
                                 if (workShape.node?.getWorkOptions().isOpacity) {
                                     bgClearRenders.push({
                                         rect,
@@ -524,12 +531,12 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         }
                         floatClearRenders.push({
                             rect: workShape.totalRect,
-                            clearCanvas: ECanvasShowType.Float,
+                            clearCanvas: ECanvasShowType.ServiceFloat,
                             viewId: this.viewId
                         });
                         floatRenders.push({
                             rect: workShape.totalRect,
-                            drawCanvas: ECanvasShowType.Float,
+                            drawCanvas: ECanvasShowType.ServiceFloat,
                             viewId: this.viewId
                         });
                         // console.log('animationDraw', floatClearRenders, floatRenders)
@@ -543,12 +550,12 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         workShape.totalRect = computRect(workShape.totalRect, rect);
                         floatClearRenders.push({
                             rect: workShape.totalRect,
-                            clearCanvas: ECanvasShowType.Float,
+                            clearCanvas: ECanvasShowType.ServiceFloat,
                             viewId:this.viewId
                         });
                         floatRenders.push({
                             rect: workShape.totalRect,
-                            drawCanvas: ECanvasShowType.Float,
+                            drawCanvas: ECanvasShowType.ServiceFloat,
                             viewId:this.viewId
                         });
                         // console.log('animationDraw--2')
@@ -585,13 +592,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
         if (floatClearRenders.length) {
             const clearFloat = floatClearRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.clearCanvas === ECanvasShowType.Float) {
+                if (cur.rect && cur.clearCanvas === ECanvasShowType.ServiceFloat) {
                     pre.rect = computRect(pre.rect, cur.rect);
                 }
                 return pre
             },{
                 isClear:true,
-                clearCanvas: ECanvasShowType.Float,
+                clearCanvas: ECanvasShowType.ServiceFloat,
+                workerType: EDataType.Service,
                 viewId:this.viewId
             } as IMainMessageRenderData)
             if (clearFloat.rect) {
@@ -617,13 +625,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
         if (floatRenders.length) {
             const floats = floatRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.drawCanvas === ECanvasShowType.Float) {
+                if (cur.rect && cur.drawCanvas === ECanvasShowType.ServiceFloat) {
                     pre.rect = computRect(pre.rect, cur.rect);
                 }
                 return pre
             },{
                 isFullWork: false,
-                drawCanvas: ECanvasShowType.Float,
+                drawCanvas: ECanvasShowType.ServiceFloat,
+                workerType: EDataType.Service,
                 viewId:this.viewId
             } as IMainMessageRenderData)
             if (floats.rect) {
@@ -645,6 +654,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             })
         }
         if (_postData.render?.length) {
+            // console.log('cursor---animation', _postData.render);
             this.post(_postData);
         }
     }

@@ -2,7 +2,7 @@
 import { WhiteWebSdk, DeviceType, RenderEngine} from "white-web-sdk";
 import polly from "polly-js";
 import { WindowManager } from "@netless/window-manager";
-import { TeachingAidsPlugin, ECanvasContextType } from '@hqer/bezier-pencil-plugin';
+import { TeachingMulitAidsPlugin } from '@hqer/bezier-pencil-plugin';
 import SlideApp, { addHooks } from "@netless/app-slide";
 
 export enum Identity {
@@ -47,7 +47,7 @@ export async function createReplayMultiWhiteWebSdk(params:{
             region,
             room: uuid,
             roomToken,
-            invisiblePlugins: [WindowManager, TeachingAidsPlugin],
+            invisiblePlugins: [WindowManager, TeachingMulitAidsPlugin],
             useMultiViews: true,
         }, {
             onPhaseChanged: (phase) => {
@@ -64,18 +64,7 @@ export async function createReplayMultiWhiteWebSdk(params:{
     const managerPromise = WindowManager.mount({ room:player , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true});
     player.play();
     const manager = await managerPromise;
-    const plugin = await TeachingAidsPlugin.getInstance(manager,
-        {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
-            options: {
-                syncOpt: {
-                    interval: 300,
-                },
-                canvasOpt: {
-                    contextType: ECanvasContextType.Canvas2d
-                },
-            }
-        }
-    );
+    const plugin = await TeachingMulitAidsPlugin.getInstance(manager);
     player.pause();
     // await player.seekToProgressTime(1);
     player.play();

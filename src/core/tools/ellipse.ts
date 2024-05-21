@@ -108,7 +108,8 @@ export class EllipseShape extends BaseShapeTool{
             dataType: EDataType.Local,
             workId,
             ops,
-            isSync: true
+            isSync: true,
+            opt: this.workOptions
         }
     }
 
@@ -218,8 +219,8 @@ export class EllipseShape extends BaseShapeTool{
         }
         return true;
     }
-    consumeService(props: { op: number[]; isFullWork: boolean}): IRectType | undefined {
-        const {op, isFullWork} = props;
+    consumeService(props: { op: number[]; isFullWork: boolean, isTemp?:boolean}): IRectType | undefined {
+        const {op, isFullWork, isTemp} = props;
         const workId = this.workId?.toString();
         if (!workId) {
             return;
@@ -231,7 +232,7 @@ export class EllipseShape extends BaseShapeTool{
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const rect: IRectType | undefined = this.draw({workId, layer, isDrawing: false});
         this.oldRect = rect;
-        this.vNodes.setInfo(workId, {
+        isFullWork && !isTemp && this.vNodes.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

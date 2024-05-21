@@ -1,6 +1,6 @@
 /// <reference types="lodash" />
 import { BaseTeachingAidsManager, BaseTeachingAidsManagerProps } from "../baseTeachingAidsManager";
-import type { CameraState } from "white-web-sdk";
+import type { CameraState } from "../types";
 import { ViewContainerSingleManager } from "./containerManager";
 export declare class TeachingAidsSingleManager extends BaseTeachingAidsManager {
     viewContainerManager: ViewContainerSingleManager;

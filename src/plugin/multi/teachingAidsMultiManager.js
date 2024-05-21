@@ -1,6 +1,5 @@
 import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
 import { ViewContainerMultiManager } from "./containerManager";
-//import { cloneDeep } from "lodash";
 export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     constructor(params) {
         super(params);
@@ -100,7 +99,7 @@ export class TeachingAidsMultiManager extends BaseTeachingAidsManager {
     }
     setWindowManager(windowManager) {
         this.windowManager = windowManager;
-        if (this.windowManager?.mainView) {
+        if (this.windowManager?.mainView?.divElement) {
             this.viewContainerManager.onMainViewMounted(this.windowManager.mainView);
         }
         if (this.windowManager.appManager?.viewManager?.views?.size) {

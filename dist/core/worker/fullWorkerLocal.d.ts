@@ -31,11 +31,9 @@ export declare class LocalWorkForFullWorker extends LocalWork {
         }) => void;
     }): Promise<IMainMessage | undefined>;
     blurSelector(data?: IWorkerMessage): Promise<void>;
-    runEffectWork(callBack?: () => void): void;
     reRenderSelector(willSyncService?: boolean): Promise<void> | undefined;
     updateFullSelectWork(data: IWorkerMessage): void;
     destroy(): void;
-    private batchEffectWork;
     private drawPencilCombine;
     private drawSelector;
     private drawEraser;

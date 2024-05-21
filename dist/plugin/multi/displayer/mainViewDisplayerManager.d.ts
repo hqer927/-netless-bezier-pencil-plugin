@@ -9,6 +9,7 @@ export declare class MainViewMultiDisplayerManager extends MainViewDisplayerMana
     dpr: number;
     vDom?: BaseViewDisplayer;
     eventTragetElement?: HTMLDivElement;
+    canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     canvasBgRef: React.RefObject<HTMLCanvasElement>;
     floatBarRef: React.RefObject<HTMLDivElement>;

@@ -1,7 +1,7 @@
 /// <reference types="lodash" />
 import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction } from "../collector";
-import type { Room } from "white-web-sdk";
+import type { Room } from "../plugin/types";
 import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
 import { MasterController } from "../core/mainEngine";
 export declare enum EUndoType {

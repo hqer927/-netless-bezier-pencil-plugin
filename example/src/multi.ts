@@ -1,8 +1,37 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import '@netless/window-manager/dist/style.css';
-import { WhiteWebSdk, DeviceType, DefaultHotKeys} from "white-web-sdk";
+import { WhiteWebSdk, DeviceType, DefaultHotKeys, HotKeyEvent, KeyboardKind} from "white-web-sdk";
 import { WindowManager } from "@netless/window-manager";
-import { TeachingAidsPlugin, ECanvasContextType } from '@hqer/bezier-pencil-plugin';
+import { TeachingMulitAidsPlugin, ECanvasContextType } from '@hqer/bezier-pencil-plugin';
+const ctrlShiftHotKeyCheckerWith = (k:string) =>{
+    return (event: HotKeyEvent, kind: KeyboardKind) => {
+        const { key, altKey, ctrlKey, shiftKey, nativeEvent } = event;
+        switch (kind) {
+            case KeyboardKind.Mac: {
+                return (
+                    key === k &&
+                    !ctrlKey &&
+                    !altKey &&
+                    shiftKey &&
+                    !!nativeEvent?.metaKey
+                );
+            }
+            case KeyboardKind.Windows: {
+                return (
+                    key === k &&
+                    ctrlKey &&
+                    !altKey &&
+                    shiftKey &&
+                    event.kind === "KeyDown"
+                );
+            }
+            default: {
+                return false;
+            }
+        }
+    };
+
+}
 
 export async function createMultiWhiteWebSdk(params:{
     elm:HTMLDivElement;
@@ -21,7 +50,6 @@ export async function createMultiWhiteWebSdk(params:{
     })
     const uid = sessionStorage.getItem('uid') || 'uid-' + Math.floor(Math.random() * 10000);
     sessionStorage.setItem('uid', uid);
-    // const cursorAdapter = new CursorTool();
     const room = await whiteWebSdk.joinRoom({
         uuid,
         roomToken,
@@ -29,7 +57,6 @@ export async function createMultiWhiteWebSdk(params:{
         region: "cn-hz",
         isWritable: true,
         floatBar: true,
-        // cursorAdapter,
         userPayload: {
             userId: uid.split('uid-')[1],
             userUUID: uid,
@@ -37,6 +64,7 @@ export async function createMultiWhiteWebSdk(params:{
         },
         hotKeys: {
             ...DefaultHotKeys,
+            redo: ctrlShiftHotKeyCheckerWith("z"),
             changeToSelector: "s",
             changeToLaserPointer: "z",
             changeToPencil: "p",
@@ -48,7 +76,7 @@ export async function createMultiWhiteWebSdk(params:{
             changeToArrow: "a",
             changeToHand: "h",
         },
-        invisiblePlugins: [WindowManager, TeachingAidsPlugin],
+        invisiblePlugins: [WindowManager, TeachingMulitAidsPlugin],
         disableNewPencil: false,
         useMultiViews: true, 
     })
@@ -60,11 +88,11 @@ export async function createMultiWhiteWebSdk(params:{
     manager = await WindowManager.mount({ room , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true});
     if (manager) {
         await manager.switchMainViewToWriter();
-        const plugin = await TeachingAidsPlugin.getInstance(manager,
+        const plugin = await TeachingMulitAidsPlugin.getInstance(manager,
             {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
                 options: {
                     syncOpt: {
-                        interval: 300,
+                        interval: 150,
                     },
                     canvasOpt: {
                         contextType: ECanvasContextType.Canvas2d
@@ -73,14 +101,27 @@ export async function createMultiWhiteWebSdk(params:{
             }
         );
         room.disableSerialization = false;
-        // plugin.callbacks.on("onCanUndoStepsUpdate", (step: number): void => {
+        plugin.injectMethodToObject(room,'undo');
+        plugin.injectMethodToObject(room,'redo');
+        plugin.injectMethodToObject(room,'callbacks');
+        plugin.injectMethodToObject(room,'cleanCurrentScene');
+        plugin.injectMethodToObject(room,'screenshotToCanvasAsync');
+        plugin.injectMethodToObject(room,'getBoundingRectAsync');
+        plugin.injectMethodToObject(room,'insertImage');
+        // plugin.bindMethodToObject(manager,'undo');
+        // plugin.bindMethodToObject(manager,'redo');
+        // plugin.bindMethodToObject(manager,'callbacks');
+        // plugin.bindMethodToObject(manager,'cleanCurrentScene');
+        // plugin.bindMethodToObject(manager,'screenshotToCanvasAsync');
+        // plugin.bindMethodToObject(manager,'getBoundingRectAsync');
+        // room.callbacks.on("onCanUndoStepsUpdate", (step: number): void => {
         //     console.log('onCanUndoStepsUpdate1', step)
         // });
-        // plugin.callbacks.on("onCanRedoStepsUpdate", (step: number): void => {
+        // room.callbacks.on("onCanRedoStepsUpdate", (step: number): void => {
         //     console.log('onCanRedoStepsUpdate1', step)
         // });
         window.pluginRoom = plugin;
     }
     window.manager = manager;
-    return {room, whiteWebSdk}
+    return {room, whiteWebSdk, manager}
 }

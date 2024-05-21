@@ -1,9 +1,8 @@
-import { RoomMember } from "white-web-sdk";
 import { EventMessageType, EvevtWorkState, IMainMessage } from "../core";
 import { EventCollector } from "../collector/eventCollector";
 import { BaseEventCollectorReducerAction, Storage_Splitter } from "../collector";
 import isNumber from "lodash/isNumber";
-import { BaseSubWorkModuleProps } from "../plugin/types";
+import { BaseSubWorkModuleProps, InternalMsgEmitterType, RoomMember } from "../plugin/types";
 import { RoomMemberManager } from "../members";
 import type { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
 import EventEmitter2 from "eventemitter2";
@@ -22,6 +21,7 @@ export type IServiceWorkItem = {
     workState?:EvevtWorkState;
 }
 export type CursorInfo = {x?:number, y?:number, roomMember?: RoomMember}
+export type CursorInfoMapItem = CursorInfo & {timestamp:number}
 
 export abstract class CursorManager {
     /** 内部消息管理器 */
@@ -46,6 +46,7 @@ export abstract class CursorManager {
     abstract onFocusViewChange():void;
 }
 export class CursorManagerImpl implements CursorManager {
+    readonly expirationTime = 5000;
     readonly internalMsgEmitter: EventEmitter2;
     readonly control: BaseTeachingAidsManager;
     eventCollector?: EventCollector;
@@ -58,6 +59,7 @@ export class CursorManagerImpl implements CursorManager {
     }
     private animationPointWorkers: Map<string, IServiceWorkItem> = new Map();
     private animationDrawWorkers: Map<string, IServiceWorkItem> = new Map();
+    private cursorInfoMap:Map<string, Map<string, CursorInfoMapItem> | undefined> = new Map();
     constructor(props:BaseSubWorkModuleProps){
         const {control, internalMsgEmitter } = props;
         this.internalMsgEmitter = internalMsgEmitter;
@@ -192,9 +194,9 @@ export class CursorManagerImpl implements CursorManager {
     }
     private animationCursor() {
         this.animationId = undefined;
-        const cursorInfos:Map<string, CursorInfo>= new Map();
+        const taskNow = Date.now();
         this.animationPointWorkers.forEach((workShape, key) => {
-            const {uid} = this.getUidAndviewId(key);
+            const {uid, viewId} = this.getUidAndviewId(key);
             const freeze = workShape.freeze;
             if (freeze) {
                 return;
@@ -207,18 +209,25 @@ export class CursorManagerImpl implements CursorManager {
                 }
                 const x = workShape.animationWorkData[curIndex] as number;
                 const y = workShape.animationWorkData[curIndex+1] as number;
-                cursorInfos.set(key,{
-                    x,
-                    y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
-                })
+                const cursorInfoMap = this.cursorInfoMap.get(viewId) || new Map();
+                if (isNumber(x) && isNumber(y)) {
+                    cursorInfoMap.set(roomMember.memberId, {x,y,roomMember, timestamp: taskNow});
+                } else if (cursorInfoMap.has(roomMember.memberId)) {
+                    cursorInfoMap.delete(roomMember.memberId);
+                }
+                if (cursorInfoMap.size) {
+                    this.cursorInfoMap.set(viewId,cursorInfoMap);
+                } else if (this.cursorInfoMap.has(viewId)) {
+                    this.cursorInfoMap.delete(viewId);
+                    this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor,viewId], []);
+                }
                 if(workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
                     this.animationPointWorkers.delete(key);
                 }
             }
         })
         this.animationDrawWorkers.forEach((workShape, key)=>{
-            const {uid} = this.getUidAndviewId(key);
+            const {uid, viewId} = this.getUidAndviewId(key);
             const curIndex = workShape.animationIndex;
             const roomMember = this.roomMember.getRoomMember(uid);
             if (roomMember) {
@@ -227,21 +236,51 @@ export class CursorManagerImpl implements CursorManager {
                 }
                 const x = workShape.animationWorkData[curIndex] as number;
                 const y = workShape.animationWorkData[curIndex+1] as number;
-                cursorInfos.set(key, {
-                    x,
-                    y,
-                    roomMember: isNumber(x) && isNumber(y) && roomMember || undefined
-                })
+                const cursorInfoMap = this.cursorInfoMap.get(viewId) || new Map();
+                if (isNumber(x) && isNumber(y)) {
+                    cursorInfoMap.set(roomMember.memberId, {x,y,roomMember, timestamp: taskNow});
+                } else if (cursorInfoMap.has(roomMember.memberId)) {
+                    cursorInfoMap.delete(roomMember.memberId);
+                }
+                if (cursorInfoMap.size) {
+                    this.cursorInfoMap.set(viewId, cursorInfoMap);
+                } else if (this.cursorInfoMap.has(viewId)) {
+                    this.cursorInfoMap.delete(viewId);
+                    this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor,viewId], []);
+                }
                 if(workShape.animationWorkData.length - 1 <= workShape.animationIndex) {
                     this.animationDrawWorkers.delete(key);
                 }
             }
         })
-        for (const [key,info] of cursorInfos.entries()) {
-            const {viewId}= this.getUidAndviewId(key);
-            this.control.viewContainerManager.setActiveCursor(viewId, info)
+        for (const [viewId,infos] of this.cursorInfoMap) {
+            if (infos) {
+                const arr:CursorInfo[] = [];
+                const expires:string[] = [];
+                for (const [id,info] of infos.entries()) {
+                    const {timestamp,...item} = info;
+                    if (timestamp + this.expirationTime < taskNow) {
+                        expires.push(id);
+                    } else {
+                        arr.push(item);
+                    }
+
+                }
+                if (expires.length) {
+                    for (const id of expires) {
+                        infos.delete(id);
+                    }
+                }
+                if (infos.size) {
+                    this.cursorInfoMap.set(viewId, infos);
+                } else {
+                    this.cursorInfoMap.delete(viewId);
+                }
+                // console.log('cursorInfoMap', viewId, arr)
+                this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor,viewId], arr);
+            }
         }
-        if (this.animationPointWorkers.size || this.animationDrawWorkers.size) {
+        if (this.animationPointWorkers.size || this.animationDrawWorkers.size || this.cursorInfoMap.size) {
             this.runAnimation();
         }
     }
@@ -321,7 +360,7 @@ export class CursorManagerImpl implements CursorManager {
                     this.removeTimerId = undefined;
                     this.activeDrawWorkShape(uid, [undefined,undefined], EvevtWorkState.Done, viewId);
                     this.runAnimation();
-                }, 10000) as unknown as number;
+                }, this.expirationTime) as unknown as number;
             }          
             if (isNumber(op[0]) && isNumber(op[1])) {
                 const _op = this.control.viewContainerManager.transformToOriginPoint(op as [number,number], viewId);

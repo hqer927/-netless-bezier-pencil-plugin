@@ -112,6 +112,20 @@ export class VNodeManager {
         this.targetNodeMap.length = 0;
         true;
     }
+    hasRectIntersectRange(rect, filterLock = true) {
+        for (const v of this.curNodeMap.values()) {
+            if (isIntersect(rect, v.rect)) {
+                if (filterLock && v.toolsType === EToolsKey.Image && v.opt.locked) {
+                    continue;
+                }
+                if (filterLock && v.toolsType === EToolsKey.Text && (v.opt.workState === EvevtWorkState.Doing || v.opt.workState === EvevtWorkState.Start)) {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     getRectIntersectRange(rect, filterLock = true) {
         let rectRange;
         const nodeRange = new Map();

@@ -14,6 +14,7 @@ export class MainViewSingleDisplayerManager extends MainViewDisplayerManager {
     vDom?: BaseViewDisplayer;
     viewId:string = 'mainView';
     eventTragetElement?: HTMLDivElement;
+    canvasServiceFloatRef = React.createRef<HTMLCanvasElement>();
     canvasFloatRef = React.createRef<HTMLCanvasElement>();
     canvasBgRef = React.createRef<HTMLCanvasElement>();
     floatBarRef = React.createRef<HTMLDivElement>();
@@ -26,18 +27,26 @@ export class MainViewSingleDisplayerManager extends MainViewDisplayerManager {
         if (this.eventTragetElement) {
             const width = this.eventTragetElement.offsetWidth;
             const height = this.eventTragetElement.offsetHeight;
-            if (width && height && this.canvasBgRef.current && this.canvasFloatRef.current) {
+            if (width && height && this.canvasBgRef.current) {
                 this.dpr = getRatioWithContext(this.canvasBgRef.current.getContext('2d') as CanvasRenderingContext2D);
                 this.width = width;
                 this.height = height;
                 this.canvasBgRef.current.style.width = `${width}px`;
                 this.canvasBgRef.current.style.height = `${height}px`;
-                this.canvasFloatRef.current.style.width = `${width}px`;
-                this.canvasFloatRef.current.style.height = `${height}px`;
-                this.canvasFloatRef.current.width = width * this.dpr;
-                this.canvasFloatRef.current.height = height * this.dpr;
                 this.canvasBgRef.current.width = width * this.dpr;
                 this.canvasBgRef.current.height = height * this.dpr;
+                if (this.canvasFloatRef.current) {
+                    this.canvasFloatRef.current.style.width = `${width}px`;
+                    this.canvasFloatRef.current.style.height = `${height}px`;
+                    this.canvasFloatRef.current.width = width * this.dpr;
+                    this.canvasFloatRef.current.height = height * this.dpr;
+                }
+                if (this.canvasServiceFloatRef.current) {
+                    this.canvasServiceFloatRef.current.style.width = `${width}px`;
+                    this.canvasServiceFloatRef.current.style.height = `${height}px`;
+                    this.canvasServiceFloatRef.current.width = width * this.dpr;
+                    this.canvasServiceFloatRef.current.height = height * this.dpr;
+                }
             }
         }
     }
@@ -47,6 +56,7 @@ export class MainViewSingleDisplayerManager extends MainViewDisplayerManager {
             this.eventTragetElement = (mainView.parentElement as HTMLDivElement).children[0] as HTMLDivElement;
             mainView.innerHTML = '';
             ReactDOM.render(<BaseViewDisplayer viewId={this.viewId} maranger={this} refs={{
+                canvasServiceFloatRef: this.canvasServiceFloatRef,
                 canvasFloatRef: this.canvasFloatRef,
                 canvasBgRef: this.canvasBgRef,
                 floatBarRef: this.floatBarRef,
