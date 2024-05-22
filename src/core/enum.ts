@@ -42,12 +42,14 @@ export enum EDataType{
     /** 来源于worker */
     Worker
 }
-export enum EvevtWorkState{
+export enum EvevtWorkState {
     Pending,
     Start,
     Doing,
     Done,
+    /** 冻结,不能本地输入事件,camera、clear等任务还是可以执行 */
     Freeze,
+    /** 只读状态 */
     Unwritable
 }
 /**

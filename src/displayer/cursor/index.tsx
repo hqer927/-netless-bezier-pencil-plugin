@@ -226,12 +226,13 @@ export const CursorManager = (props:{
     }
     const UI = useMemo(()=>{
         if (cursorInfo?.length) {
-            return cursorInfo.map(info=>{
+            const cursors = cursorInfo.map(info=>{
                 if (info.roomMember) {
                     return <CursorManagerComponent key={info.roomMember?.memberId} className={className} info={info}/>
                 }
                 return null;
             })
+            return <>{cursors}</>
         }
         return null
     },[cursorInfo])

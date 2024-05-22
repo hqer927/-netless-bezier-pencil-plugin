@@ -95,10 +95,10 @@ export declare enum DisplayStateEnum {
     unmounted = 3
 }
 export declare enum EStrokeType {
-    Normal = 0,
-    Stroke = 1,
-    Dotted = 2,
-    LongDotted = 3
+    Normal = "Normal",
+    Stroke = "Stroke",
+    Dotted = "Dotted",
+    LongDotted = "LongDotted"
 }
 export declare enum ShapeType {
     /**

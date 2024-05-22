@@ -50,7 +50,9 @@ export var EvevtWorkState;
     EvevtWorkState[EvevtWorkState["Start"] = 1] = "Start";
     EvevtWorkState[EvevtWorkState["Doing"] = 2] = "Doing";
     EvevtWorkState[EvevtWorkState["Done"] = 3] = "Done";
+    /** 冻结,不能本地输入事件,camera、clear等任务还是可以执行 */
     EvevtWorkState[EvevtWorkState["Freeze"] = 4] = "Freeze";
+    /** 只读状态 */
     EvevtWorkState[EvevtWorkState["Unwritable"] = 5] = "Unwritable";
 })(EvevtWorkState || (EvevtWorkState = {}));
 /**

@@ -12,4 +12,4 @@ export declare const CursorManagerComponent: (props: {
 export declare const CursorManager: (props: {
     className: string;
     manager: TeachingAidsViewManagerLike;
-}) => (React.JSX.Element | null)[] | null;
+}) => React.JSX.Element | null;

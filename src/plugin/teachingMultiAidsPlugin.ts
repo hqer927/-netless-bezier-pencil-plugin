@@ -2,7 +2,7 @@
 import { InvisiblePlugin, isRoom, isPlayer } from "./external";
 import type { Camera, ImageInformation, RenderEngine, Room, RoomState, Displayer, 
     TeachingAidsPluginAttributes, TeachingAidsPluginOptions, DisplayerForPlugin, Logger, MemberState, 
-    TeachingAidsAdaptor, canBindMethodType } from "./types";
+    TeachingAidsAdaptor, canBindMethodType, RoomMember } from "./types";
 import { computRectangle } from "../core/utils";
 import { ECanvasContextType } from "../core/enum";
 import type { WindowManager } from "./multi/teachingAidsMultiManager";
@@ -238,9 +238,8 @@ export class TeachingMulitAidsPlugin extends InvisiblePlugin<TeachingAidsPluginA
     init(displayer: Displayer){
         if (isRoom(displayer)) {
             const state = (displayer as Room).state;
-            if (state?.memberState) {
-                TeachingMulitAidsPlugin.currentManager?.onMemberChange(state.memberState as MemberState);
-            }
+            TeachingMulitAidsPlugin.currentManager?.onMemberChange(state.memberState as MemberState);
+            TeachingMulitAidsPlugin.currentManager?.onRoomMembersChange(state.roomMembers as RoomMember[]);
         }
         this.displayer.callbacks.on(this.callbackName, this.roomStateChangeListener);
         this.displayer.callbacks.on("onEnableWriteNowChanged", this.updateRoomWritable);
@@ -249,11 +248,6 @@ export class TeachingMulitAidsPlugin extends InvisiblePlugin<TeachingAidsPluginA
         TeachingMulitAidsPlugin.currentManager?.onWritableChange((this.displayer as Room).isWritable);
     }
     private roomStateChangeListener = async (state: RoomState) => {
-        // if (TeachingMulitAidsPlugin.currentManager instanceof TeachingAidsMultiManager) {
-        //     if (state.sceneState) {
-        //         TeachingMulitAidsPlugin.currentManager.onSceneChange(state.sceneState.scenePath, 'mainView');
-        //     }
-        // }
         if (isRoom(this.displayer) && !(this.displayer as Room).isWritable) {
             return;
         }

@@ -7,10 +7,10 @@ export var DisplayStateEnum;
 })(DisplayStateEnum || (DisplayStateEnum = {}));
 export var EStrokeType;
 (function (EStrokeType) {
-    EStrokeType[EStrokeType["Normal"] = 0] = "Normal";
-    EStrokeType[EStrokeType["Stroke"] = 1] = "Stroke";
-    EStrokeType[EStrokeType["Dotted"] = 2] = "Dotted";
-    EStrokeType[EStrokeType["LongDotted"] = 3] = "LongDotted";
+    EStrokeType["Normal"] = "Normal";
+    EStrokeType["Stroke"] = "Stroke";
+    EStrokeType["Dotted"] = "Dotted";
+    EStrokeType["LongDotted"] = "LongDotted";
 })(EStrokeType || (EStrokeType = {}));
 export var ShapeType;
 (function (ShapeType) {

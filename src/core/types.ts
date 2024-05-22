@@ -255,9 +255,11 @@ export interface IActiveToolsDataType {
 }
 
 export interface IActiveWorkDataType {
-    workId?: IworkId;
     workState: EvevtWorkState;
     toolsOpt?: ShapeOptions;
+    viewId?: string;
+    workId?: IworkId;
+    undoTickerId?: number;
 }
 export type IServiceWorkItem = {
     toolsType: EToolsKey;

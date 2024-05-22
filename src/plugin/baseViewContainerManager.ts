@@ -426,9 +426,9 @@ export abstract class AppViewDisplayerManager {
     setActive(bol:boolean){
         this.active = bol;
     }
-    stopEventHandler() {
+    async stopEventHandler() {
         if(this.cachePoint){
-            this.control.worker.originalEventLintener(EvevtWorkState.Done, this.cachePoint, this.viewId);
+            await this.control.worker.originalEventLintener(EvevtWorkState.Done, this.cachePoint, this.viewId);
             this.cachePoint = undefined;
         }
     }
@@ -453,6 +453,7 @@ export abstract class AppViewDisplayerManager {
     protected mousedown = (e:MouseEvent) =>{
         if(!this.active) return;
         if (e.button === 0 && this.viewId) {
+            this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
             point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
@@ -480,6 +481,7 @@ export abstract class AppViewDisplayerManager {
             return;
         }
         if (this.viewId) {
+            this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
             point && this.control.worker.originalEventLintener(EvevtWorkState.Start, point,this.viewId)
@@ -488,8 +490,9 @@ export abstract class AppViewDisplayerManager {
     protected touchmove = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
-            this.control.worker.clearLocalPointsBatchData();
             this.control.worker.unWritable();
+            // console.log('clearLocalPointsBatchData---1')
+            this.control.worker.clearLocalPointsBatchData();
             return;
         }
         if (this.viewId) {
@@ -500,7 +503,8 @@ export abstract class AppViewDisplayerManager {
     }
     protected touchend = (e:TouchEvent) =>{
         if(!this.active) return;
-        if(!isOnlyOneTouch(e) || this.control.worker.getWorkState() === EvevtWorkState.Unwritable){
+        if(!isOnlyOneTouch(e) || !this.control.worker.isAbled()){
+            // console.log('clearLocalPointsBatchData---0')
             this.control.worker.clearLocalPointsBatchData();
             return;
         }
@@ -618,7 +622,6 @@ export abstract class MainViewDisplayerManager {
     }
     updateSize(){
         this.setCanvassStyle();
-        // this.reflashContainerOffset();
     }
     reflashContainerOffset(){
         if(this.eventTragetElement){
@@ -642,9 +645,9 @@ export abstract class MainViewDisplayerManager {
     setActive(bol:boolean){
         this.active = bol;
     }
-    stopEventHandler() {
+    async stopEventHandler() {
         if(this.cachePoint){
-            this.control.worker.originalEventLintener(EvevtWorkState.Done, this.cachePoint, this.viewId);
+            await this.control.worker.originalEventLintener(EvevtWorkState.Done, this.cachePoint, this.viewId);
             this.cachePoint = undefined;
         }
     }
@@ -702,6 +705,7 @@ export abstract class MainViewDisplayerManager {
     protected touchmove = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
+            // console.log('clearLocalPointsBatchData---2')
             this.control.worker.clearLocalPointsBatchData();
             this.control.worker.unWritable();
             return;
@@ -712,7 +716,8 @@ export abstract class MainViewDisplayerManager {
     }
     protected touchend = (e:TouchEvent) =>{
         if(!this.active) return;
-        if(!isOnlyOneTouch(e) || this.control.worker.getWorkState() === EvevtWorkState.Unwritable){
+        if(!isOnlyOneTouch(e) || !this.control.worker.isAbled()){
+            // console.log('clearLocalPointsBatchData---3')
             this.control.worker.clearLocalPointsBatchData();
             return;
         }

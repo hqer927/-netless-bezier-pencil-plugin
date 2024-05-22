@@ -5,7 +5,7 @@ import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpda
 import { BaseSubWorkModuleProps } from "../plugin/types";
 import type { ImageInformation } from "../plugin/types";
 import { MethodBuilderMain } from "./msgEvent";
-import { EPostMessageType, EvevtWorkState } from "./enum";
+import { EToolsKey, EvevtWorkState } from "./enum";
 export declare abstract class MasterController {
     /** 异步同步时间间隔 */
     maxLastSyncTime: number;
@@ -41,12 +41,12 @@ export declare abstract class MasterController {
     abstract consume(): void;
     /** 运行异步动画逻辑 */
     abstract runAnimation(): void;
-    /** 禁止使用 */
-    abstract unabled(): void;
     /** 禁止写入 */
     abstract unWritable(): void;
     /** 可以使用 */
     abstract abled(): void;
+    /** 当前状态是否可以写入 */
+    abstract isAbled(): boolean;
     /** 销毁 */
     abstract destroy(): void;
     /** 服务端拉取数据初始化 */
@@ -81,7 +81,6 @@ export declare class MasterControlForWorker extends MasterController {
     protected currentLocalWorkData: IActiveWorkDataType;
     control: BaseTeachingAidsManager;
     internalMsgEmitter: EventEmitter2;
-    protected localPointsBatchData: number[];
     taskBatchData: Set<IWorkerMessage>;
     protected dpr: number;
     protected fullWorker: Worker;
@@ -94,6 +93,8 @@ export declare class MasterControlForWorker extends MasterController {
     private maxDrawCount;
     private cacheDrawCount;
     private reRenders;
+    private localWorkViewId?;
+    protected localPointsBatchData: number[];
     /** end */
     /** 是否任务队列化参数 */
     private tasksqueue;
@@ -105,7 +106,8 @@ export declare class MasterControlForWorker extends MasterController {
     private snapshotMap;
     private boundingRectMap;
     private clearAllResolve?;
-    private localEventTimerId?;
+    private delayWorkStateToDone?;
+    private delayWorkStateToDoneResolve?;
     private undoTickerId?;
     private animationId;
     constructor(props: BaseSubWorkModuleProps);
@@ -120,8 +122,16 @@ export declare class MasterControlForWorker extends MasterController {
     on(): void;
     private collectorSyncData;
     private collectorAsyncData;
+    private onLocalEventEnd;
+    private onLocalEventDoing;
+    private onLocalEventStart;
+    private pushPoint;
+    originalEventLintener(workState: EvevtWorkState, point: [number, number], viewId: string): Promise<void>;
+    getLocalWorkViewId(): string | undefined;
+    setLocalWorkViewId(viewId: string): void;
     setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
-    setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType, msgType?: EPostMessageType): void;
+    setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType): void;
+    prepareOnceWork(currentLocalWorkData: Required<Pick<IActiveWorkDataType, 'toolsOpt' | 'viewId' | 'workId'>>, toolsType: EToolsKey): void;
     createViewWorker(viewId: string, options: ViewWorkerOptions): void;
     destroyViewWorker(viewId: string, isLocal?: boolean): void;
     onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
@@ -129,8 +139,8 @@ export declare class MasterControlForWorker extends MasterController {
     runAnimation(): void;
     consume(): void;
     unWritable(): void;
-    unabled(): void;
     abled(): void;
+    isAbled(): boolean;
     post(msg: Set<IWorkerMessage>): void;
     destroy(): void;
     updateNode(workId: IworkId, updateNodeOpt: IUpdateNodeOpt, viewId: string, scenePath: string): void;
@@ -138,13 +148,9 @@ export declare class MasterControlForWorker extends MasterController {
     private consumeQueue;
     clearViewScenePath(viewId: string, justLocal?: boolean | undefined): Promise<void>;
     private internalMsgEmitterListener;
-    originalEventLintener(workState: EvevtWorkState, point: [number, number], viewId: string): void;
     private setZIndex;
     clearLocalPointsBatchData(): void;
-    private onLocalEventEnd;
-    private onLocalEventDoing;
-    private onLocalEventStart;
-    private pushPoint;
+    hoverCursor(point: [number, number], viewId: string): void;
     sendCursorEvent(p: [number | undefined, number | undefined], viewId: string): void;
     getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
     getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;

@@ -90,7 +90,7 @@ export class BaseTeachingAidsManager {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: (scenePath, viewId) => {
+            value: async (scenePath, viewId) => {
                 // console.log('onSceneChange', scenePath, viewId)
                 const curViewInfo = this.viewContainerManager.getView(viewId);
                 if (curViewInfo?.focusScenePath) {
@@ -102,7 +102,7 @@ export class BaseTeachingAidsManager {
                 const curDisplayer = curViewInfo?.displayer;
                 if (curDisplayer) {
                     curDisplayer.setActive(false);
-                    curDisplayer.stopEventHandler();
+                    await curDisplayer.stopEventHandler();
                 }
                 const focusScenePath = scenePath;
                 if (focusScenePath) {
@@ -143,6 +143,7 @@ export class BaseTeachingAidsManager {
             configurable: true,
             writable: true,
             value: (viewId, scenePath) => {
+                // console.log('clearLocalPointsBatchData---6')
                 this.worker?.clearViewScenePath(viewId, true).then(() => {
                     this.worker?.pullServiceData(viewId, scenePath);
                 });
@@ -191,11 +192,11 @@ export class BaseTeachingAidsManager {
     }
     /** 清空当前获焦路径下的所有内容 */
     cleanCurrentScene() {
-        // this.plugin?.updateAttributes(['PluginState'], undefined);
         const undoTickerId = Date.now();
-        const viewId = this.viewContainerManager.focuedViewId;
+        const viewId = this.worker.getLocalWorkViewId() || this.viewContainerManager.focuedViewId;
         if (viewId) {
             BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            // console.log('clearLocalPointsBatchData---5')
             this.worker.clearViewScenePath(viewId).then(() => {
                 BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerEnd', undoTickerId, viewId);
             });
@@ -204,7 +205,7 @@ export class BaseTeachingAidsManager {
     /** 监听读写状态变更 */
     onWritableChange(isWritable) {
         if (!isWritable) {
-            this.worker?.unabled();
+            this.worker?.unWritable();
         }
         else {
             this.worker?.abled();
@@ -392,7 +393,7 @@ export class BaseTeachingAidsManager {
                 break;
             default:
                 this.room.disableDeviceInputs = false;
-                this.worker?.unabled();
+                this.worker?.unWritable();
                 this.cursor?.unabled();
                 break;
         }

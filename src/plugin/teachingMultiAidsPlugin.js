@@ -19,11 +19,6 @@ export class TeachingMulitAidsPlugin extends InvisiblePlugin {
             configurable: true,
             writable: true,
             value: async (state) => {
-                // if (TeachingMulitAidsPlugin.currentManager instanceof TeachingAidsMultiManager) {
-                //     if (state.sceneState) {
-                //         TeachingMulitAidsPlugin.currentManager.onSceneChange(state.sceneState.scenePath, 'mainView');
-                //     }
-                // }
                 if (isRoom(this.displayer) && !this.displayer.isWritable) {
                     return;
                 }
@@ -232,9 +227,8 @@ export class TeachingMulitAidsPlugin extends InvisiblePlugin {
     init(displayer) {
         if (isRoom(displayer)) {
             const state = displayer.state;
-            if (state?.memberState) {
-                TeachingMulitAidsPlugin.currentManager?.onMemberChange(state.memberState);
-            }
+            TeachingMulitAidsPlugin.currentManager?.onMemberChange(state.memberState);
+            TeachingMulitAidsPlugin.currentManager?.onRoomMembersChange(state.roomMembers);
         }
         this.displayer.callbacks.on(this.callbackName, this.roomStateChangeListener);
         this.displayer.callbacks.on("onEnableWriteNowChanged", this.updateRoomWritable);

@@ -48,7 +48,7 @@ export declare abstract class BaseTeachingAidsManager {
     /** 监听读写状态变更 */
     onWritableChange(isWritable: boolean): void;
     /** 监听路径变化 */
-    onSceneChange: (scenePath: string, viewId: string) => void;
+    onSceneChange: (scenePath: string, viewId: string) => Promise<void>;
     /** 监听房间成员变化 */
     onRoomMembersChange: (roomMembers: readonly RoomMember[]) => void;
     /** 监听房间教具变更 */

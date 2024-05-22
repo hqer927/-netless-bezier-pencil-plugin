@@ -97,7 +97,7 @@ export declare abstract class AppViewDisplayerManager {
     destroy(): void;
     getPoint(e: any): [number, number] | undefined;
     setActive(bol: boolean): void;
-    stopEventHandler(): void;
+    stopEventHandler(): Promise<void>;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;
@@ -151,7 +151,7 @@ export declare abstract class MainViewDisplayerManager {
     destroy(): void;
     getPoint(e: any): [number, number] | undefined;
     setActive(bol: boolean): void;
-    stopEventHandler(): void;
+    stopEventHandler(): Promise<void>;
     private getTranslate;
     protected getContainerOffset(eventTraget: HTMLDivElement, offset: {
         x: number;

@@ -116,7 +116,7 @@ export class LocalWorkForFullWorker extends LocalWork {
             clearTimeout(this.combineTimerId);
             this.combineTimerId = undefined;
         }
-        const { workId, undoTickerId } = data;
+        const { workId, undoTickerId, scenePath } = data;
         if (workId) {
             if (undoTickerId) {
                 setTimeout(() => {
@@ -146,7 +146,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                         hoverShapeNode.cursorBlur();
                     }
                     r.selectIds && serviceWork.runReverseSelectWork(r.selectIds);
-                    this.drawSelector(r, false);
+                    this.drawSelector({ ...r, scenePath }, false);
                     if (!workShapeNode.selectIds?.length) {
                         this.clearWorkShapeNodeCache(workId);
                     }
@@ -156,7 +156,7 @@ export class LocalWorkForFullWorker extends LocalWork {
                     break;
                 case EToolsKey.Eraser:
                     if (r?.rect) {
-                        this.drawEraser(r);
+                        this.drawEraser({ ...r, scenePath });
                     }
                     workShapeNode.clearTmpPoints();
                     break;
@@ -167,13 +167,13 @@ export class LocalWorkForFullWorker extends LocalWork {
                 case EToolsKey.Star:
                 case EToolsKey.Polygon:
                 case EToolsKey.SpeechBalloon:
-                    this.drawPencilFull(r, workShapeNode.getWorkOptions(), workShapeState);
+                    this.drawPencilFull({ ...r, scenePath }, workShapeNode.getWorkOptions(), workShapeState);
                     this.drawCount = 0;
                     this.clearWorkShapeNodeCache(workId);
                     break;
                 case EToolsKey.Pencil:
                     if (r?.rect) {
-                        this.drawPencilFull(r, workShapeNode.getWorkOptions(), workShapeState);
+                        this.drawPencilFull({ ...r, scenePath }, workShapeNode.getWorkOptions(), workShapeState);
                         this.drawCount = 0;
                     }
                     this.clearWorkShapeNodeCache(workId);
@@ -428,9 +428,6 @@ export class LocalWorkForFullWorker extends LocalWork {
             });
         }
     }
-    // runEffectWork(callBack?:()=>void){
-    //     this.batchEffectWork(callBack);
-    // }
     reRenderSelector(willSyncService = false) {
         const workShapeNode = this.workShapes.get(SelectorShape.selectorId);
         if (!workShapeNode)

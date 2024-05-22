@@ -257,7 +257,13 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
             msg.sp = rsp.map(p => ({ ...p, viewId: this.viewId }));
         }
         if (msg.drawCount || msg.workerTasksqueueCount || msg.sp?.length || newRender?.length) {
-            console.log('post', this.fullLayer.children.map(c => ({ name: c.name, zIndex: c.getAttribute('zIndex') })));
+            // console.log('post', this.fullLayer.children.map(c=>({name:c.name,zIndex:c.getAttribute('zIndex')})), 
+            // //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.name),
+            // //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.id),
+            // //     // this.drawLayer?.children.map(c=>c.name).length,
+            // //     // (this.drawLayer?.parent as Layer)?.children?.map(c=>c.name).length, 
+            // //     // (this.drawLayer?.parent as Layer)?.children?.map(c=>c.id), 
+            // )     
             this._post(msg, transfers);
             if (transfers?.length) {
                 for (const transfer of transfers) {
@@ -491,8 +497,6 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase {
                     this.post({ render });
                 }
             }
-            // this.localWork.runEffectWork(()=>{
-            // });
         }
     }
     getRectImageBitmap(rect, isFullWork, workerType) {

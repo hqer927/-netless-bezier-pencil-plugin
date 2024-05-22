@@ -47,7 +47,9 @@ export declare enum EvevtWorkState {
     Start = 1,
     Doing = 2,
     Done = 3,
+    /** 冻结,不能本地输入事件,camera、clear等任务还是可以执行 */
     Freeze = 4,
+    /** 只读状态 */
     Unwritable = 5
 }
 /**

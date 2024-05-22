@@ -4,7 +4,7 @@ import { MainViewDisplayerManager, ViewContainerManager, ViewInfo } from "../bas
 import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
 import { AppViewDisplayerManagerImpl } from "./displayer/appViewDisplayerManager";
 import type {HotKeys, View} from "../types";
-import { BaseSubWorkModuleProps, TeleBoxState } from "../types";
+import { BaseSubWorkModuleProps } from "../types";
 import { TeachingAidsMultiManager } from "./teachingAidsMultiManager";
 import { ViewWorkerOptions } from "../../core/types";
 import type {AnimationMode, WindowManager} from './teachingAidsMultiManager';
@@ -65,26 +65,29 @@ export class ViewContainerMultiManager extends ViewContainerManager {
     }
     listenerWindowManager(windowManager: WindowManager) {
         // console.log('listenerWindowManager')
-        windowManager.emitter.on("boxStateChange", (state:TeleBoxState) => {
-            if (state !== "minimized") {
-                setTimeout(()=>{
-                    this.appViews.forEach(view=>{
-                        // console.log("ContainerManager - boxStateChange1:", view.displayer.containerOffset );
-                        view.displayer.reflashContainerOffset();
-                        // console.log("ContainerManager - boxStateChange2:", view.displayer.containerOffset );
-                    })
-                }, 100)
-            }
-        });
+        // windowManager.emitter.on("boxStateChange", (state:TeleBoxState) => {
+        //     if (state !== "minimized") {
+        //         setTimeout(()=>{
+        //             this.appViews.forEach(view=>{
+        //                 // console.log("ContainerManager - boxStateChange1:", view.displayer.containerOffset );
+        //                 view.displayer.reflashContainerOffset();
+        //                 // console.log("ContainerManager - boxStateChange2:", view.displayer.containerOffset );
+        //             })
+        //         }, 100)
+        //     }
+        // });
         windowManager.emitter.on("focusedChange", focus => {
             const focuedViewId = focus || MainViewDisplayerManager.viewId;
             if (this.focuedViewId !== focuedViewId) {
                 const view = this.getView(focuedViewId);
                 if (view) {
-                    view.displayer.reflashContainerOffset();
-                    this.setFocuedViewId(focuedViewId)
-                    // this.focuedView = view;
-                    // this.focuedViewId = focuedViewId;
+                    // view.displayer.reflashContainerOffset();
+                    const curWorkViewId = this.control.worker.getLocalWorkViewId();
+                    if (curWorkViewId && curWorkViewId !== focuedViewId) {
+                        this.setFocuedViewId(curWorkViewId)
+                    } else {
+                        this.setFocuedViewId(focuedViewId)
+                    }
                 } else {
                     this.tmpFocusedViewId = focuedViewId;
                 }
@@ -106,27 +109,27 @@ export class ViewContainerMultiManager extends ViewContainerManager {
         //         console.log('ContainerManager - onAppSetup', appId)
         //     }    
         // })
-        windowManager.emitter.on('onBoxMove', (payload:any) => {
-            // console.log('ContainerManager - onBoxMove', payload);
-            const view = this.getView(payload.appId);
-            if (view) {
-                view.displayer.reflashContainerOffset();
-            }
-        })
-        windowManager.emitter.on('onBoxResize', (payload:any) => {
-            // console.log('ContainerManager - onBoxResize', payload);
-            const view = this.getView(payload.appId);
-            if (view) {
-                view.displayer.reflashContainerOffset();
-            }
-        })
-        windowManager.emitter.on('onBoxFocus', (payload:any) => {
-            // console.log('ContainerManager - onBoxFocus', payload);
-            const view = this.getView(payload.appId);
-            if (view) {
-                view.displayer.reflashContainerOffset();
-            }
-        })
+        // windowManager.emitter.on('onBoxMove', (payload:any) => {
+        //     console.log('ContainerManager - onBoxMove', payload);
+        //     const view = this.getView(payload.appId);
+        //     if (view) {
+        //         view.displayer.reflashContainerOffset();
+        //     }
+        // })
+        // windowManager.emitter.on('onBoxResize', (payload:any) => {
+        //     console.log('ContainerManager - onBoxResize', payload);
+        //     const view = this.getView(payload.appId);
+        //     if (view) {
+        //         view.displayer.reflashContainerOffset();
+        //     }
+        // })
+        // windowManager.emitter.on('onBoxFocus', (payload:any) => {
+        //     // console.log('ContainerManager - onBoxFocus', payload);
+        //     const view = this.getView(payload.appId);
+        //     if (view) {
+        //         view.displayer.reflashContainerOffset();
+        //     }
+        // })
         windowManager.emitter.on('onBoxClose', (payload:any) => {
             // console.log('ContainerManager - onBoxClose', payload);
             const view = this.appViews.get(payload.appId);
@@ -135,24 +138,15 @@ export class ViewContainerMultiManager extends ViewContainerManager {
                 this.control.worker.destroyViewWorker(payload.appId);
             }
         })
-        windowManager.emitter.on('onBoxStateChange', (payload:any) => {
-            // console.log('ContainerManager - onBoxStateChange', payload);
-            const view = this.getView(payload.appId);
-            if (view) {
-                view.displayer.reflashContainerOffset();
-            }
-        })
+        // windowManager.emitter.on('onBoxStateChange', (payload:any) => {
+        //     console.log('ContainerManager - onBoxStateChange', payload);
+        //     const view = this.getView(payload.appId);
+        //     if (view) {
+        //         view.displayer.reflashContainerOffset();
+        //     }
+        // })
         windowManager.emitter.on('onAppScenePathChange', (payload:any) => {
             const {appId, view} = payload;
-            console.log('ContainerManager - onAppScenePathChange', appId, view.focusScenePath, view);
-            // const viewInfo = this.getView(appId);
-            // if (viewInfo) {
-            //     const scenePath = view.focusScenePath;
-            //     if (scenePath) {
-            //         viewInfo.focusScenePath = scenePath;
-            //     }
-            //     // console.log('ContainerManager - onScenePathChange', view.focusScenePath)
-            // }
             this.control.onSceneChange(view.focusScenePath, appId);
         })
     }
@@ -320,7 +314,14 @@ export class ViewContainerMultiManager extends ViewContainerManager {
         view.callbacks.on('onCameraUpdated',this.onAppViewCameraUpdated.bind(this, appId));
         view.callbacks.on("onActiveHotkey", this.onActiveHotkeyChange.bind(this));
         if (this.tmpFocusedViewId === appId) {
-            this.setFocuedViewId(appId);
+            // console.log('originalEventLintener---0--3', appId)
+            // this.setFocuedViewId(appId);
+            const curWorkViewId = this.control.worker.getLocalWorkViewId();
+            if (curWorkViewId && curWorkViewId !== appId) {
+                this.setFocuedViewId(curWorkViewId)
+            } else {
+                this.setFocuedViewId(appId)
+            }
             this.tmpFocusedViewId = undefined;
         }
     }

@@ -230,12 +230,13 @@ export const CursorManager = (props) => {
     }
     const UI = useMemo(() => {
         if (cursorInfo?.length) {
-            return cursorInfo.map(info => {
+            const cursors = cursorInfo.map(info => {
                 if (info.roomMember) {
                     return React.createElement(CursorManagerComponent, { key: info.roomMember?.memberId, className: className, info: info });
                 }
                 return null;
             });
+            return React.createElement(React.Fragment, null, cursors);
         }
         return null;
     }, [cursorInfo]);

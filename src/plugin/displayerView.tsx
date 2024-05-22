@@ -208,7 +208,6 @@ export class BaseViewDisplayer extends React.Component<BaseDisplayerProps, BaseD
                         }
                     </DisplayerContext.Provider>
                     <CursorManager className={styles['CursorBox']} manager={this.props.maranger}/>
-
                 </div>
             </React.Fragment>
         );
