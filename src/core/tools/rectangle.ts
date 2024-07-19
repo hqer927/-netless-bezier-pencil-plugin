@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Group, Path, Polyline } from "spritejs";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { TextOptions } from "../../component/textEditor";
@@ -59,28 +59,36 @@ export class RectangleShape extends BaseShapeTool{
             points: vec2ds.map(v=>v.XY).flat(1)
         };
     }
-    consume(props: { data: IWorkerMessage; isFullWork?: boolean | undefined; isClearAll?: boolean | undefined; isSubWorker?: boolean | undefined; }): IMainMessage {
-        const {data, isFullWork, isSubWorker}= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return { type: EPostMessageType.None}
-        }
-        const {op, workState} = data;
+    consume(props: { 
+        data: IWorkerMessage; 
+        isFullWork?: boolean;
+        isClearAll?: boolean;
+        isSubWorker?: boolean; 
+        isMainThread?: boolean;
+    }) {
+        const {data, isFullWork, isSubWorker, isMainThread}= props;
+        const workId = this.workId;
+        const {op} = data;
         const opl = op?.length;
         if(!opl || opl < 2){
-          return { type: EPostMessageType.None}
+          return { type: EPostMessageType.None }
         }
         let bol:boolean;
-        if (workState === EvevtWorkState.Start) {
+        if (this.tmpPoints.length === 0) {
             this.tmpPoints = [new Point2d(op[0],op[1])];
             bol = false
         } else {
             bol = this.updateTempPoints(op);
         }
         if (!bol) {
-            return { type: EPostMessageType.None}
+            return { type: EPostMessageType.None }
         }
         const points = this.transformData();
+        let r: IRectType | undefined;
+        if (isSubWorker || isMainThread) {
+            const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+            r = this.draw({ps: points, workId, layer, isDrawing:true});
+        }
         if (!isSubWorker) {
             const now = Date.now();
             if (now - this.syncTimestamp > this.syncUnitTime) {
@@ -88,33 +96,25 @@ export class RectangleShape extends BaseShapeTool{
                 return {
                     type: EPostMessageType.DrawWork,
                     dataType: EDataType.Local,
-                    workId,
                     op: points.flat(1),
                     isSync: true,
-                    index: 0
+                    index: 0, 
+                    ...this.baseConsumeResult
                 }
             }
-            return { type: EPostMessageType.None};
+            return { type: EPostMessageType.None };
         }
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const r: IRectType | undefined = this.draw({ps: points, workId, layer, isDrawing:true});
         const rect = computRect(r, this.oldRect);
         this.oldRect = r;
-        // console.log('consume', this.fullLayer.children.length, this.drawLayer?.children.length)
         return {
             rect,
             type: EPostMessageType.DrawWork,
             dataType: EDataType.Local,
-            workId,
-            // op: this.tmpPoints.map(c=>[...c.XY,0]).flat(1)
+            ...this.baseConsumeResult
         }
     }
-    consumeAll(props: { data?: IWorkerMessage | undefined}): IMainMessage {
-        const { data }= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return {type: EPostMessageType.None}
-        }
+    consumeAll() {
+        const workId = this.workId;
         if (this.tmpPoints.length < 2) {
             return { 
                 type: EPostMessageType.RemoveNode,
@@ -127,7 +127,7 @@ export class RectangleShape extends BaseShapeTool{
         this.oldRect = rect;
         const op = points.flat(1);
         const ops = transformToSerializableData(op);
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,
@@ -136,18 +136,15 @@ export class RectangleShape extends BaseShapeTool{
             canRotate: this.canRotate,
             centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
         })
-        // console.log('consume-1', this.fullLayer.children.length, this.drawLayer?.children.length)
         return {
             rect,
             type: EPostMessageType.FullWork,
             dataType: EDataType.Local,
-            workId,
             ops,
-            opt: this.workOptions,
-            isSync: true
+            isSync: true,
+            ...this.baseConsumeResult
         }
     }
-
     private draw(props:{
         ps:Array<number[]>,
         workId:string;
@@ -155,9 +152,7 @@ export class RectangleShape extends BaseShapeTool{
         isDrawing: boolean;
         replaceId?:string;
     }){
-        const {workId, layer, isDrawing, ps, replaceId} = props;
-        this.fullLayer.getElementsByName(replaceId || workId).map(o=>o.remove());
-        this.drawLayer?.getElementsByName(replaceId || workId).map(o=>o.remove());
+        const {workId, layer, isDrawing, ps, replaceId} = props;    
         const {strokeColor, fillColor, thickness, zIndex, scale, rotate, translate, textOpt} = this.workOptions;
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
@@ -207,14 +202,9 @@ export class RectangleShape extends BaseShapeTool{
             });
             group.appendChild(anchorCross);
         }
-        layer.append(group);
+        this.replace(layer,replaceId || workId, group);
         if (textOpt) {
-            // const labbels = TextShape.createLabels(textOpt, r)
-            // group.append(...labbels);
-            // (layer.parent as Layer)?.render();
-            // labbels.forEach(c=>{
-            //     console.log('labbels', c.getBoundingClientRect(), c)
-            // })
+            // todo
         }
         if (scale || rotate || translate) {
             const r = group.getBoundingClientRect();
@@ -258,7 +248,7 @@ export class RectangleShape extends BaseShapeTool{
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const rect: IRectType | undefined = this.draw({ps, workId, layer, isDrawing: false, replaceId});
         this.oldRect = rect;
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt:this.workOptions,

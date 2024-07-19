@@ -1,5 +1,5 @@
 import React from "react";
-import { type RoomMember, type TeachingAidsViewManagerLike } from "../../plugin/types";
+import { type RoomMember, type ApplianceViewManagerLike } from "../../plugin/types";
 import "./index.less";
 export declare const CursorManagerComponent: (props: {
     className: string;
@@ -11,5 +11,5 @@ export declare const CursorManagerComponent: (props: {
 }) => React.JSX.Element;
 export declare const CursorManager: (props: {
     className: string;
-    manager: TeachingAidsViewManagerLike;
+    manager: ApplianceViewManagerLike;
 }) => React.JSX.Element | null;

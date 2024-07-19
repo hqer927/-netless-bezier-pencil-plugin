@@ -1,4 +1,4 @@
-import { IWorkerMessage, IMainMessage, IRectType, EToolsKey, IBatchMainMessage, IUpdateSelectorPropsType } from "..";
+import { IWorkerMessage, IMainMessage, EToolsKey, IBatchMainMessage, IUpdateSelectorPropsType } from "..";
 import { BaseShapeOptions, SelectorShape } from "../tools";
 import { ISubWorkerInitOption, LocalWork } from "./base";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
@@ -6,15 +6,22 @@ import { Scene } from "spritejs";
 export declare class LocalWorkForFullWorker extends LocalWork {
     private combineUnitTime;
     private combineTimerId?;
+    private combineDrawResolve?;
+    private combineDrawActiveId?;
+    protected drawWorkActiveId?: string;
     private effectSelectNodeData;
     private batchEraserWorks;
     private batchEraserRemoveNodes;
     constructor(opt: ISubWorkerInitOption);
-    consumeDraw(data: IWorkerMessage, serviceWork: ServiceWorkForFullWorker): IMainMessage | undefined;
-    consumeDrawAll(data: IWorkerMessage, serviceWork: ServiceWorkForFullWorker): IMainMessage | undefined;
+    consumeDraw(data: IWorkerMessage, serviceWork: ServiceWorkForFullWorker): Promise<void>;
+    consumeDrawAll(data: IWorkerMessage, serviceWork: ServiceWorkForFullWorker): Promise<void>;
+    workShapesDone(scenePath: string, serviceWork: ServiceWorkForFullWorker): Promise<void>;
     consumeFull(data: IWorkerMessage, scene?: Scene): Promise<void>;
-    removeWork(data: IWorkerMessage): void;
-    removeNode(key: string): IRectType | undefined;
+    private commandDeleteText;
+    removeSelector(data: IWorkerMessage): Promise<void>;
+    removeWork(data: IWorkerMessage): Promise<void>;
+    private removeNode;
+    private _removeWork;
     checkTextActive(data: IWorkerMessage): Promise<void>;
     colloctEffectSelectWork(data: IWorkerMessage): Promise<IWorkerMessage | undefined>;
     updateSelector(params: IUpdateSelectorPropsType & {
@@ -31,8 +38,10 @@ export declare class LocalWorkForFullWorker extends LocalWork {
         }) => void;
     }): Promise<IMainMessage | undefined>;
     blurSelector(data?: IWorkerMessage): Promise<void>;
-    reRenderSelector(willSyncService?: boolean): Promise<void> | undefined;
-    updateFullSelectWork(data: IWorkerMessage): void;
+    hasSelector(): boolean;
+    getSelector(): SelectorShape;
+    reRenderSelector(willSyncService?: boolean): Promise<void>;
+    updateFullSelectWork(data: IWorkerMessage): Promise<void>;
     destroy(): void;
     private drawPencilCombine;
     private drawSelector;
@@ -42,5 +51,6 @@ export declare class LocalWorkForFullWorker extends LocalWork {
     private drawPencilFull;
     private updateBatchEraserCombineNode;
     private runEffectSelectWork;
-    cursorHover(msg: IWorkerMessage): void;
+    cursorHover(msg: IWorkerMessage): Promise<void>;
+    cursorBlur(): Promise<void>;
 }

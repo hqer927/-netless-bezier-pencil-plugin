@@ -7,6 +7,7 @@ import type { Player, Room } from 'white-web-sdk';
 import { Identity } from '../../replayMulti';
 import { WindowManager } from '@netless/window-manager';
 import { AppContext } from '../../App';
+import React from 'react';
 
 export const TopTools = () => {
     const {beginAt} = useContext(AppContext);
@@ -28,7 +29,7 @@ export const TopTools = () => {
         if (window.manager) {
             (window.manager as WindowManager).destroy();
             window.manager = undefined;
-            window.pluginRoom?.plugin?.destroy();
+            (window.appliancePlugin as any)?.destroy();
             const now = Date.now();
             const duration = now - beginAt;
             url = `${url}&duration=${duration}&beginAt=${beginAt}`
@@ -40,7 +41,7 @@ export const TopTools = () => {
         }
         if(!window.manager){
             (window.room as Room).bindHtmlElement(null);
-            window.pluginRoom?.plugin?.destroy();
+            window.appliancePlugin?.destroy();
         }
         url = `${url}&slice=${slice}`
         window.location.replace(`${document.location.origin}${document.location.pathname}#/replaySingle?${url}`);
@@ -51,13 +52,13 @@ export const TopTools = () => {
     const handleGoBack = async() => {
         if(!window.manager){
             (window.room as Room).bindHtmlElement(null);
-            window.pluginRoom?.plugin?.destroy();
+            window.appliancePlugin?.destroy();
         }
         await window.room.disconnect();
         if (window.manager) {
             (window.manager as WindowManager).destroy();
             window.manager = undefined;
-            window.pluginRoom?.plugin?.destroy();
+            window.appliancePlugin?.destroy();
         } 
         window.location.href= `${document.location.origin}${document.location.pathname}`;
     }
@@ -87,7 +88,7 @@ export const ReplayerTopTools = () => {
         if (window.manager) {
             (window.manager as WindowManager).destroy();
             window.manager = undefined;
-            window.pluginRoom?.plugin?.destroy();
+            window.appliancePlugin?.destroy();
         } 
         window.location.href= `${document.location.origin}${document.location.pathname}`;
     }

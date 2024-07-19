@@ -12,9 +12,9 @@ export type TranslateNodeEmtData = {
     viewId: string;
 };
 export declare class TranslateNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: TranslateNodeEmtData;
     readonly emitEventType: EmitEventType;
     private undoTickerId?;
-    private oldRect;
     private cachePosition;
-    collect(data: TranslateNodeEmtData): void;
+    collect(data: TranslateNodeEmtData, isSync?: boolean): void;
 }

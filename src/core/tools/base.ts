@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Point2d } from "../utils/primitives/Point2d";
-import { EScaleType, EToolsKey } from "../enum";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt, IWorkerMessage } from "../types";
 import { Group} from "spritejs";
-import { VNodeManager } from "../worker/vNodeManager";
-import { computRect, getRectFromPoints, getRectRotated, getRectTranslated, rotatePoints, scalePoints } from "../utils";
+import { VNodeManager } from "../vNodeManager";
+import { checkOp, computRect, getRectFromPoints, getRectRotated, getRectTranslated, rotatePoints, scalePoints } from "../utils";
 import { ShapeNodes, ShapeOptions } from "./utils";
 import isNumber from "lodash/isNumber";
 import cloneDeep from "lodash/cloneDeep";
 import { TextOptions } from "../../component/textEditor/types";
+import { DefaultAppliancePluginOptions } from "../../plugin/const";
 
 export interface BaseShapeOptions {
     isOpacity?: boolean;
@@ -27,49 +28,78 @@ export interface BaseShapeOptions {
     translate?:[number,number];
 }
 export interface BaseShapeToolProps {
-    vNodes: VNodeManager;
+    workId: string;
+    vNodes?: VNodeManager;
     toolsOpt: ShapeOptions;
     fullLayer: Group;
     drawLayer?: Group;
 }
+export type BaseConsumeResultType = {
+    type: EPostMessageType;
+    toolsType?: EToolsKey;
+    opt?: ShapeOptions;
+    workId?: string;
+    dataType?: EDataType;
+} & Partial<IMainMessage>;
+
 export abstract class BaseShapeTool {
     static SafeBorderPadding = 10;
     protected abstract tmpPoints: Array<Point2d | number>;
     readonly abstract toolsType: EToolsKey;
     readonly abstract canRotate: boolean;
     readonly abstract scaleType: EScaleType;
-    syncUnitTime: number = 1000;
-    vNodes:VNodeManager;
+    syncUnitTime: number = DefaultAppliancePluginOptions.syncOpt.interval;
+    vNodes?:VNodeManager;
     protected drawLayer?: Group;
     protected fullLayer: Group;
-    protected workId: number | string | undefined;
+    protected workId: string;
     protected abstract workOptions: ShapeOptions;
     constructor(props:BaseShapeToolProps) {
-        const {vNodes, fullLayer, drawLayer} = props;
+        const {vNodes, fullLayer, drawLayer, workId, toolsOpt} = props;
         this.vNodes = vNodes;
         this.fullLayer = fullLayer;
         this.drawLayer = drawLayer;
+        this.workId = workId;
+        this.syncUnitTime = toolsOpt.syncUnitTime || this.syncUnitTime;
+    }
+    get baseConsumeResult(){
+        return {
+            workId: this.workId,
+            toolsType: this.toolsType,
+            opt: this.workOptions
+        }
     }
     /** 消费本地数据，返回绘制结果 */
-    abstract consume(props:{data: IWorkerMessage, 
-        isFullWork?:boolean, 
-        isClearAll?:boolean,
-        isSubWorker?:boolean,
-    }): IMainMessage;
+    abstract consume(props:{
+        data: IWorkerMessage;
+        isFullWork?:boolean;
+        isSubWorker?:boolean;
+        drawCount?:number;
+        isMainThread?:boolean;
+    }): BaseConsumeResultType;
     /** 消费本地完整数据，返回绘制结果 */
-    abstract consumeAll(props:{data?: IWorkerMessage, hoverId?:string}): IMainMessage;
+    abstract consumeAll(props:{data?: IWorkerMessage}): BaseConsumeResultType;
     /** 消费服务端数据，返回绘制结果 */
     abstract consumeService(props:{
         op: number[];
         isFullWork:boolean;
         replaceId?: string;
-        isClearAll?: boolean;
-        isTemp?:boolean;
     }): IRectType | undefined;
+    protected filterSamePoints(points: Point2d[], tolerance:number = 0.01){
+        return points.reduce((total, cur)=>{
+          const lastPoint = total[total.length - 1];
+          if (cur && !lastPoint) {
+            total.push(cur);
+          } else if (cur && lastPoint && !cur.isNear(lastPoint, tolerance)) {
+            total.push(cur);
+          }
+          return total;
+        },[] as Array<Point2d>
+    )}
     /** 清除临时数据 */
     abstract clearTmpPoints():void;
     /** 设置工作id */
-    setWorkId(id: number | string | undefined) {
+    setWorkId(id: string) {
         this.workId = id;
     }
     getWorkId(){
@@ -84,11 +114,10 @@ export abstract class BaseShapeTool {
         this.workOptions = workOptions;
         this.syncUnitTime = workOptions.syncUnitTime || this.syncUnitTime;
         const key = this.workId?.toString();
-        const info = key && this.vNodes.get(key) || undefined;
+        const info = key && this.vNodes?.get(key) || undefined;
         if(key && info){
             info.opt = workOptions;
-            // console.log('setWorkOptions---0', key, info.opt);
-            this.vNodes.setInfo(key,info);
+            this.vNodes?.setInfo(key,info);
         }
     }
     /** 更新服务端同步配置,返回绘制结果 */
@@ -128,13 +157,45 @@ export abstract class BaseShapeTool {
                     h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
                 })
             }
-            this.vNodes.setInfo(name, {
+            this.vNodes?.setInfo(name, {
                 rect,
                 centerPos: pos
             })
           return rect;
         }
         return ;
+    }
+    replace(layer:Group, replaceId:string, newNode?:ShapeNodes){
+        const olds = layer.getElementsByName(replaceId);
+        const length = olds.length;
+        if (length) {
+            if (length > 1) {
+                for (let i = 1; i < olds.length; i++) {
+                    layer.removeChild(olds[i]);
+                    olds[i].disconnect();
+                }
+            }
+            if (newNode) {
+                layer.replaceChild(newNode, olds[0]);
+            } else {
+                layer.removeChild(olds[0]);
+            }
+            olds[0].disconnect();
+        } else if (newNode) {
+            layer.append(newNode);
+        }
+        const isFullWork = this.fullLayer === layer;
+        if (isFullWork) {
+            this.drawLayer?.getElementsByName(replaceId).forEach(c=>{
+                this.drawLayer?.removeChild(c);
+                c.disconnect();
+            })
+        } else {
+            this.fullLayer.getElementsByName(replaceId).forEach(c=>{
+                this.fullLayer.removeChild(c);
+                c.disconnect();
+            })
+        }
     }
     static updateNodeOpt(param:{
         node: ShapeNodes,
@@ -152,7 +213,7 @@ export abstract class BaseShapeTool {
             node.setAttribute('zIndex',zIndex);
             nodeOpt.opt.zIndex = zIndex;
         }
-        const layer = node.parent;
+        const layer = node.parent as Group;
         if(!layer) return;
         if (box && boxTranslate && boxScale) {
             const {rect} = nodeOpt;
@@ -177,19 +238,24 @@ export abstract class BaseShapeTool {
             })
             const newCenterPos:[number,number] = [nodeOpt.centerPos[0] + _boxTranslate[0],nodeOpt.centerPos[1]+ _boxTranslate[1]];
             scalePoints(op, newCenterPos, pointScale);
-            const newPoints = [];
-            for (let i = 0; i < op.length; i+=3) {
-                newPoints.push(new Point2d(op[i],op[i+1],op[i+2]));
+            // const newPoints = [];
+            // for (let i = 0; i < op.length; i+=3) {
+            //     newPoints.push(new Point2d(op[i],op[i+1],op[i+2]));
+            // }
+            if (checkOp(op)) {
+                nodeOpt.op = op;
             }
-            nodeOpt.op = op;
             nodeOpt.centerPos = newCenterPos;
         } else if (translate) {
-            const _translate:[number,number] = [translate[0] / layer.worldScaling[0], translate[1] / layer.worldScaling[1]];
-            node.setAttribute('translate', _translate);
-            nodeOpt.opt.translate = _translate;
+            node.setAttribute('translate', translate);
+            nodeOpt.opt.translate = translate;
             if (targetNode) {
-                rect = getRectTranslated(nodeOpt.rect, translate);
+                const _translate:[number,number] = [translate[0] * layer.worldScaling[0], translate[1] * layer.worldScaling[1]];
+                rect = getRectTranslated(nodeOpt.rect, _translate);
                 nodeOpt.rect = rect;
+            } else {
+                const rect = BaseShapeTool.getRectFromLayer(layer, node.name);
+                nodeOpt.rect = rect || nodeOpt.rect;
             }
         } 
         else if (isNumber(angle)) {
@@ -198,6 +264,9 @@ export abstract class BaseShapeTool {
             if (targetNode) {
                 rect = getRectRotated(nodeOpt.rect, angle);
                 nodeOpt.rect = rect;
+            } else {
+                const rect = BaseShapeTool.getRectFromLayer(layer, node.name);
+                nodeOpt.rect = rect || nodeOpt.rect;
             }
         }
         if (pointMap) {
@@ -211,7 +280,7 @@ export abstract class BaseShapeTool {
         }
         if (willSerializeData) {
             if (translate) {
-                const _translate:[number,number] = [translate[0] / layer.worldScaling[0], translate[1] / layer.worldScaling[1]];
+                const _translate:[number,number] = [translate[0], translate[1]];
                 const op = nodeOpt.op.map((n,index)=> {
                     const i = index % 3
                     if (i === 0) {

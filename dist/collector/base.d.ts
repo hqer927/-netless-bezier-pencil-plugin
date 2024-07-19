@@ -1,12 +1,14 @@
-import type { TeachingAidsPluginLike } from "../plugin/types";
+import type { AppliancePluginLike } from "../plugin/types";
 import { IworkId } from "../core";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 export declare abstract class BaseCollector<T> {
-    plugin: TeachingAidsPluginLike;
+    plugin: AppliancePluginLike;
     uid: string;
     abstract serviceStorage: T;
     abstract storage: T;
     protected abstract namespace: string;
-    constructor(plugin: TeachingAidsPluginLike);
+    readonly control: BaseApplianceManager;
+    constructor(control: BaseApplianceManager, plugin: AppliancePluginLike);
     getNamespaceData(): T;
     getUidFromKey(key: string): string;
     isLocalId(key: string): boolean;

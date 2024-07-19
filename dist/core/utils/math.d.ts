@@ -37,6 +37,7 @@ export declare function getRectTranslated(rect: IRectType, translate: [number, n
     w: number;
     h: number;
 };
+export declare function getRectRotatedPoints(rect: IRectType, angle: number): Vec2d[];
 export declare function getRectRotated(rect: IRectType, angle: number): {
     x: number;
     y: number;
@@ -49,9 +50,12 @@ export declare function getRectScaleed(rect: IRectType, scale: [number, number])
     w: number;
     h: number;
 };
+export declare function getScalePoints(points: Vec2d[], originPos: Vec2d, scale: [number, number]): Vec2d[];
+export declare function getRotatePoints(points: Vec2d[], originPos: Vec2d, angle: number): Vec2d[];
 export declare function rotatePoints(points: number[], originPos: [number, number], angle: number): void;
 export declare function scalePoints(points: number[], originPos: [number, number], scale: [number, number]): void;
 export declare function getNodeRect(key: string, layer?: Group, safeBorderPadding?: number): IRectType | undefined;
 export declare function isIntersectForPoint(point: [number, number], rect: IRectType): boolean;
 export declare const getLineSegIntersection: (p1: [number, number], p2: [number, number], p3: [number, number], p4: [number, number]) => [number, number] | null;
 export declare function getWHRatio(w: number, h: number): [number, number];
+export declare function checkOp(op: number[]): boolean;

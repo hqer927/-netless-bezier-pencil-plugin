@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EmitEventType } from "../../../plugin/types";
-import type { MemberState } from "../../../plugin/types";
+import type { MemberState, _MemberState } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IUpdateNodeOpt, IworkId } from "../../types";
-import cloneDeep from "lodash/cloneDeep";
 import { EToolsKey } from "../../enum";
-import { ETextEditorType, FontStyleType, FontWeightType, TextOptions } from "../../../component/textEditor";
+import { ETextEditorType, FontStyleType, FontWeightType, TextEditorInfo, TextOptions } from "../../../component/textEditor";
 import { BaseCollectorReducerAction, Storage_Selector_key } from "../../../collector";
 import { getTextEditorType } from "../../../component/textEditor/utils";
-import isBoolean from "lodash/isBoolean";
+import {cloneDeep, isBoolean} from "lodash";
 
 export type SetFontEmtData = {
     workIds: IworkId[];
@@ -20,9 +19,11 @@ export type SetFontEmtData = {
     viewId: string;
 }
 export class SetFontStyleMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.SetFontStyle;
-    private setTextStyle(key: string, curStore:BaseCollectorReducerAction, 
-        updateNodeOpt: IUpdateNodeOpt, viewId:string, undoTickerId?:number){
+    private timerId?:number;
+    private async setTextStyle(key: string, curStore:BaseCollectorReducerAction, 
+        updateNodeOpt: IUpdateNodeOpt, viewId:string){
         const {bold, underline, lineThrough, italic, fontSize}= updateNodeOpt;
         if (curStore.toolsType) {
             const type = getTextEditorType(curStore.toolsType); 
@@ -44,21 +45,22 @@ export class SetFontStyleMethod extends BaseMsgMethod {
                         (curStore.opt as TextOptions).fontSize = fontSize;
                     }
                 }
-                // console.log('setTextStyle', curStore.opt)
-                this.control.textEditorManager.updateTextForMasterController({
+                const textInfo = await this.control.textEditorManager.updateTextControllerWithEffectAsync({
                     workId: key,
                     opt: curStore.opt as TextOptions,
                     viewId,
-                    canSync: true,
-                    canWorker: true
-                },undoTickerId)
+                    canSync: false,
+                    canWorker: false,
+                    // waitWorker: true,
+                })
+                return {key, textInfo}
             }
             if (type === ETextEditorType.Shape) {
                 // TODO
             }
         }
     }
-    collect(data: SetFontEmtData): void {
+    async collect(data: SetFontEmtData) {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
@@ -70,9 +72,10 @@ export class SetFontStyleMethod extends BaseMsgMethod {
         const scenePath = view.focusScenePath;
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
-        // const localMsgs: IWorkerMessage[] = [];
-        // const undoTickerId = Date.now();
         const memberState:Partial<MemberState> = {};
+        const undoTickerId  = Date.now();
+        this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
+        const promises:Promise< {key:string,textInfo: TextEditorInfo} | undefined>[] = []
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -109,7 +112,8 @@ export class SetFontStyleMethod extends BaseMsgMethod {
                     memberState.textSize = fontSize;
                 }
                 if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
-                    this.setTextStyle(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId)
+                    const p = this.setTextStyle(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId)
+                    promises.push(p);
                     continue;
                 }
                 if (curStore && localWorkId === Storage_Selector_key && curStore.selectIds?.length) {
@@ -121,19 +125,35 @@ export class SetFontStyleMethod extends BaseMsgMethod {
                             key = this.serviceColloctor.getLocalId(key);
                         }
                         if (subStore && subStore.toolsType === EToolsKey.Text && curStore.opt) {
-                            this.setTextStyle(key, cloneDeep(subStore), updateNodeOpt, viewId)
+                            const p = this.setTextStyle(key, cloneDeep(subStore), updateNodeOpt, viewId);
+                            promises.push(p);
                             continue;
                         }
                     }
                 }
             }
         }
-        if (Object.keys(memberState).length) {
-            setTimeout(()=>{
-                this.control.room?.setMemberState(memberState);
-            },0)
+        const textInfos = await Promise.all(promises);
+        for (const info of textInfos) {
+            if (info) {
+                const {key , textInfo} = info;
+                if (textInfo) {
+                    textInfo.canSync = true;
+                    textInfo.canWorker = true;
+                    this.control.textEditorManager.updateForViewEdited(key, textInfo);
+                }
+            }
         }
-        // this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+        if (Object.keys(memberState).length) {
+            if (this.timerId) {
+                clearTimeout(this.timerId);
+                this.timerId = undefined;
+            }
+            this.timerId = setTimeout(()=>{
+                this.timerId = undefined;
+                this.control.room?.setMemberState(memberState as _MemberState);
+            }, 0) as unknown as number;
+        }
+    
     }
-
 }

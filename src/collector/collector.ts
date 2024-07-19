@@ -1,15 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import { EPostMessageType, EToolsKey } from "../core/enum";
-import { BaseCollectorReducerAction, Diff, ISerializableStorageData, ISerializableStoragescenePathData, ISerializableStorageViewData } from "./types";
+import { BaseCollectorReducerAction, Diff, DiffData, DiffScenePath, DiffView, ISerializableStorageData, ISerializableStorageScenePathData, ISerializableStorageViewData } from "./types";
 import { BaseCollector } from "./base";
 import { plainObjectKeys } from "./utils";
-import isEqual from "lodash/isEqual";
-import cloneDeep from "lodash/cloneDeep";
+import {isEqual, cloneDeep} from "lodash";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
-import type { TeachingAidsPluginLike } from "../plugin/types";
+import type { AppliancePluginLike } from "../plugin/types";
 import { autorun } from "../plugin/external";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 /**
  * 服务端事件/状态同步收集器
  */ 
@@ -22,8 +22,8 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
     
     private stateDisposer: (() => void) | undefined;
     private asyncClockState:boolean=false;
-    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number ){
-        super(plugin);
+    constructor(control: BaseApplianceManager, plugin: AppliancePluginLike, syncInterval?: number ){
+        super(control, plugin);
         Collector.syncInterval = (syncInterval || Collector.syncInterval) * 0.5;
         this.namespace = Collector.namespace;
         this.serviceStorage = this.getNamespaceData();
@@ -32,9 +32,11 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
     getViewIdBySecenPath(scenePath:string): string | undefined {
         const storage = this.getNamespaceData();
         for (const [viewId,viewData] of Object.entries(storage)) {
-            for (const key of Object.keys(viewData)) {
-                if (key === scenePath) {
-                    return viewId;
+            if (viewData) {
+                for (const key of Object.keys(viewData)) {
+                    if (key === scenePath) {
+                        return viewId;
+                    }
                 }
             }
         }
@@ -42,47 +44,94 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
     getScenePathData(scenePath:string): ISerializableStorageData | undefined {
         const storage = this.getNamespaceData();
         for (const viewData of Object.values(storage)) {
-            for (const key of Object.keys(viewData)) {
-                if (key === scenePath) {
-                    return cloneDeep(viewData[key]);
+            if (viewData) {
+                for (const key of Object.keys(viewData)) {
+                    if (key === scenePath) {
+                        return cloneDeep(viewData[key]);
+                    }
                 }
             }
         }
     }
     getStorageData(viewId:string,scenePath:string): ISerializableStorageData | undefined{
         const storage = this.getNamespaceData();
-        return storage[viewId] && cloneDeep(storage[viewId][scenePath]) || undefined;
+        return storage && storage[viewId] && cloneDeep(storage[viewId][scenePath]) || undefined;
     }
     hasSelector(viewId:string, scenePath:string){
         const sceneData = this.storage && this.storage[viewId] && this.storage[viewId][scenePath] ;
         return !!(sceneData && Object.keys(sceneData).find(key=>this.isOwn(key) && this.getLocalId(key) === Storage_Selector_key));
     }
-    addStorageStateListener(callBack:(diff:Diff<ISerializableStorageData>)=>void){
+    addStorageStateListener(callBack:(diff:Diff)=>void){
         this.stateDisposer = autorun(async () => {
             const newStorage = this.getNamespaceData();
-            const diff = this.diffFun(this.serviceStorage, newStorage);
-            // console.log('addStorageStateListener', cloneDeep(newStorage), cloneDeep(this.serviceStorage), diff)
+            const {diffView,diffScenePath,diffData} = this.diffFunByView(this.serviceStorage, newStorage);
             this.serviceStorage = newStorage;
-            for (const [key,value] of Object.entries(diff)) {
-                if (value && value.newValue === undefined) {
-                    const {viewId, scenePath} = value;
-                    if (viewId && scenePath && this.storage[viewId]) {
-                        delete this.storage[viewId][scenePath][key];
+            const callBackParams:Diff= {};
+            if (Object.keys(diffView).length > 0) {
+                callBackParams['diffView'] = diffView;
+                for (const [viewId, value] of Object.entries(diffView)) {
+                    if (value && value.newValue === undefined && this.storage[viewId]) {
+                        delete this.storage[viewId];
+                        continue;
                     }
-                } else if (value && value.newValue) {
-                    const {viewId, scenePath} = value;
-                    if(!this.storage[viewId]) {
-                        this.storage[viewId] ={};
+                    if (value && value.newValue) {
+                        this.storage[viewId] = cloneDeep(value.newValue);
+                        continue;
                     }
-                    if (!this.storage[viewId][scenePath]) {
-                        this.storage[viewId][scenePath] ={};
-                    }
-                    this.storage[viewId][scenePath][key] = cloneDeep(value.newValue);
                 }
             }
-            if (Object.keys(diff).length > 0) {
-                callBack(diff);
+            if (Object.keys(diffScenePath).length > 0) {
+                callBackParams['diffScenePath'] = diffScenePath;
+                for (const [scenePath,value] of Object.entries(diffScenePath)) {
+                    if (value) {
+                        const {viewId, newValue} = value;
+                        let viewData = this.storage[viewId];
+                        if (viewData) {
+                            if (viewData[scenePath] && newValue === undefined) {
+                                delete viewData[scenePath];
+                                continue;
+                            }
+                        }
+                        if (newValue && viewId) {
+                            if (viewData === undefined) {
+                                this.storage[viewId] = {};
+                                viewData = this.storage[viewId] as ISerializableStorageViewData;
+                            }
+                            viewData[scenePath] = cloneDeep(newValue);
+                            continue;
+                        }
+                    }
+                }
             }
+            if (Object.keys(diffData).length > 0) {
+                callBackParams['diffData'] = diffData;
+                for (const [key,value] of Object.entries(diffData)) {
+                    if (value) {
+                        const {viewId, scenePath, newValue} = value;
+                        if (viewId && scenePath) {
+                            let viewData = this.storage[viewId];
+                            let scenePathData = this.storage[viewId]?.[scenePath];
+                            if (!viewData) {
+                                this.storage[viewId] = {};
+                                viewData = this.storage[viewId] as ISerializableStorageViewData;
+                                viewData[scenePath] = {}; 
+                                scenePathData = viewData[scenePath];
+                            }
+                            if (scenePathData) {
+                                if (scenePathData[key] && newValue === undefined) {
+                                    delete scenePathData[key];
+                                    continue;
+                                }
+                                if (newValue && viewId) {
+                                    scenePathData[key] = cloneDeep(newValue);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Object.keys(callBackParams).length > 0 && callBack(callBackParams);
         })
     }
     removeStorageStateListener():void {
@@ -90,71 +139,77 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
             this.stateDisposer();
         }
     }
-    private diffFun(_old:ISerializableStorageViewData, _new:ISerializableStorageViewData) {
+    private diffFunByView(_old:ISerializableStorageViewData, _new:ISerializableStorageViewData) {
         const oldKeys = plainObjectKeys(_old);
         const newKeys = plainObjectKeys(_new);
-        const diff:Diff<ISerializableStorageData> = {};
+        const diffView: DiffView<ISerializableStorageViewData> = {};
+        const diffScenePath: DiffScenePath<ISerializableStorageScenePathData> = {};
+        const diffData: DiffData<ISerializableStorageData> = {};
+        for (const key of newKeys) {
+            if (!oldKeys.includes(key) || _old[key] === undefined) {
+                diffView[key] = {
+                    newValue: _new[key],
+                    oldValue: undefined,
+                }
+                continue;
+            }
+        }
         for (const key of oldKeys) {
             if (isEqual(_old[key],_new[key])) {
                 continue;
             }
-            const _diff = this.diffFunByscenePath(_old[key] || {}, _new[key] || {}, key);
-            Object.assign(diff, _diff);
+            if (!newKeys.includes(key) || _new[key] === undefined) {
+                diffView[key] = {
+                    newValue: undefined,
+                    oldValue: _old[key],
+                }
+                continue;
+            } 
+            const _diff = this.diffFunByScenePath(_old[key] as ISerializableStorageScenePathData, _new[key] as ISerializableStorageScenePathData, key);
+            Object.assign(diffScenePath, _diff.diffScenePath);
+            Object.assign(diffData, _diff.diffData);
         }
-        for (const key of newKeys) {
-            if (!oldKeys.includes(key)) {
-                const _diff = this.diffFunByscenePath(_old[key] || {}, _new[key] || {}, key);
-                Object.assign(diff, _diff);
-            }
-        }
-        return diff;
+        return {diffData, diffScenePath, diffView};
     }
-    private diffFunByscenePath(_old:ISerializableStoragescenePathData, _new:ISerializableStoragescenePathData, viewId:string) {
+    private diffFunByScenePath(_old:ISerializableStorageScenePathData, _new:ISerializableStorageScenePathData, viewId:string) {
         const oldKeys = plainObjectKeys(_old);
         const newKeys = plainObjectKeys(_new);
-        const diff:Diff<ISerializableStorageData> = {};
+        const diffScenePath: DiffScenePath<ISerializableStorageScenePathData> = {};
+        const diffData: DiffData<ISerializableStorageData> = {};
+        for (const key of newKeys) {
+            if (!oldKeys.includes(key) || _old[key] === undefined) {
+                diffScenePath[key] = {
+                    newValue: _new[key],
+                    oldValue: undefined,
+                    viewId
+                }
+                continue;
+            }
+        }
         for (const key of oldKeys) {
             if (isEqual(_old[key],_new[key])) {
                 continue;
             }
-            const _diff = this.diffFunByKeys(_old[key] || {}, _new[key] || {}, key, viewId);
-            Object.assign(diff, _diff);
+            if (!newKeys.includes(key) || _new[key] === undefined) {
+                diffScenePath[key] = {
+                    newValue: undefined,
+                    oldValue: _old[key],
+                    viewId,
+                }
+                continue;
+            }
+            const _diff = this.diffFunByKeys(_old[key] as ISerializableStorageData, _new[key] as ISerializableStorageData, key, viewId);
+            Object.assign(diffData, _diff);
         }
-        for (const key of newKeys) {
-            if (!oldKeys.includes(key)) {
-                const _diff = this.diffFunByKeys(_old[key] || {}, _new[key] || {}, key, viewId);
-                Object.assign(diff, _diff);
-            }  
-        }
-        return diff;
+        return {diffScenePath, diffData};
     }
     private diffFunByKeys(_old:ISerializableStorageData, _new:ISerializableStorageData, scenePath:string, viewId:string) {
         const oldKeys = plainObjectKeys(_old);
         const newKeys = plainObjectKeys(_new);
-        const diff:Diff<ISerializableStorageData> = {};
-        for (const key of oldKeys) {
-            if (newKeys.includes(key)) {
-                if (isEqual(_old[key],_new[key])) {
-                    continue;
-                }
-                diff[key] = {
-                    oldValue: _old[key],
-                    newValue: _new[key],
-                    viewId,
-                    scenePath
-                }
-                continue;
-            }
-            diff[key] = {
-                oldValue: _old[key],
-                newValue: undefined,
-                viewId,
-                scenePath
-            }
-        }
+        const diffData:DiffData<ISerializableStorageData> = {};
         for (const key of newKeys) {
-            if (!oldKeys.includes(key)) {
-                diff[key] = {
+            if (!oldKeys.includes(key) || _old[key] === undefined) {
+                diffData[key] = {
                     oldValue: undefined,
                     newValue: _new[key],
                     viewId,
@@ -162,7 +217,29 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
                 }
             }  
         }
-        return diff;
+        for (const key of oldKeys) {
+            if (isEqual(_old[key],_new[key])) {
+                continue;
+            }
+            if (!newKeys.includes(key) || _new[key] === undefined) {
+                diffData[key] = {
+                    newValue: undefined,
+                    oldValue: _old[key],
+                    viewId,
+                    scenePath,
+                }
+                continue;
+            }
+            if (newKeys.includes(key)) {
+                diffData[key] = {
+                    oldValue: _old[key],
+                    newValue: _new[key],
+                    viewId,
+                    scenePath
+                }
+            }
+        }
+        return diffData;
     }
     transformKey(workId:number|string){
         return this.uid + Storage_Splitter + workId
@@ -171,7 +248,6 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
         return key.split(Storage_Splitter)[0] === this.uid;
     }
     dispatch(action: BaseCollectorReducerAction): void {
-        // console.log('dispatch', action)
         const {type, workId, ops, index, opt, toolsType, removeIds, updateNodeOpt, op, selectIds, isSync, scenePath, viewId} = action
         if (!viewId){
             return;
@@ -202,11 +278,21 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
                 if (scenePath && workId && typeof index === 'number' && op?.length) {
                     const key = this.isLocalId(workId.toString()) ? this.transformKey(workId) : workId;
                     const old = this.storage[viewId] && this.storage[viewId][scenePath] && this.storage[viewId][scenePath][key] || undefined;
+                    if (old?.ops || old?.type === EPostMessageType.FullWork) {
+                        return;
+                    }
                     const _op = index ? (old?.op || []).slice(0, index).concat(op) : (op || old?.op);
-                    if (old && _op) {
+                    const _toolsType = toolsType || old?.toolsType;
+                    const _opt = opt || old?.opt;
+                    const _updateNodeOpt = updateNodeOpt || old?.updateNodeOpt;
+                    if (workId && _toolsType && _opt && _op) {
                         this.updateValue(key.toString(),{
                            ...old,
                             type: EPostMessageType.DrawWork,
+                            workId,
+                            updateNodeOpt: _updateNodeOpt,
+                            toolsType: _toolsType,
+                            opt: _opt,
                             op: _op,
                             index
                         }, { isSync, viewId, scenePath });                         
@@ -311,7 +397,6 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
                     if (ids.length > 0) {
                         value.selectIds = ids;
                     }
-                    // console.log('checkOtherSelector', k, key,  ids, this.serviceStorage[k]?.selectIds)
                     this.updateValue(k, ids.length && value || undefined, options); 
                 }
             }
@@ -358,7 +443,6 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
             if (!this.storage[viewId][scenePath]) {
                 this.storage[viewId][scenePath] = {};
             }
-            // console.log('updateValue', cloneDeep(value), this.serviceStorage[viewId] && this.serviceStorage[viewId][scenePath] && this.serviceStorage[viewId][scenePath][key] && cloneDeep(this.serviceStorage[viewId][scenePath][key]))
             this.storage[viewId][scenePath][key] = value;
         }
         this.runSyncService(options);
@@ -386,7 +470,7 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
     private syncSerivice(isAfterUpdate:boolean = false) {
         const oldViewIds = plainObjectKeys(this.serviceStorage);
         const newViewIds = plainObjectKeys(this.storage);
-        const willSyncViewMap:Map<string, ISerializableStoragescenePathData | undefined> = new Map();
+        const willSyncViewMap:Map<string, ISerializableStorageScenePathData | undefined> = new Map();
         for (const viewId of oldViewIds) {
             if (!newViewIds.includes(viewId)) {
                 willSyncViewMap.set(viewId, undefined);
@@ -426,7 +510,6 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
         }
         for (const scenePath of newScenePaths) {
             if (!oldScenePaths.includes(scenePath)) {
-                // console.log('syncViewData---1', this.storage[viewId][scenePath])
                 willSyncMap.set(scenePath, this.storage[viewId][scenePath]);
             }
         }
@@ -465,7 +548,7 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
             }
         }
     }
-    private syncUpdataView(viewId:string, value: ISerializableStoragescenePathData | undefined, isAfterUpdate:boolean = false){
+    private syncUpdataView(viewId:string, value: ISerializableStorageScenePathData | undefined, isAfterUpdate:boolean = false){
         const length = Object.keys(this.serviceStorage).length;
         if (!length) {
             this.syncStorageView(this.storage, isAfterUpdate);
@@ -503,7 +586,7 @@ export class Collector extends BaseCollector<ISerializableStorageViewData> {
             this.plugin?.updateAttributes([this.namespace, viewId, scenePath],value);
         }
     }
-    private syncStorageScenePath(viewId:string, state: ISerializableStoragescenePathData | undefined, isAfterUpdate:boolean = false){
+    private syncStorageScenePath(viewId:string, state: ISerializableStorageScenePathData | undefined, isAfterUpdate:boolean = false){
         if (!isAfterUpdate) {
             if (state) {
                 this.serviceStorage[viewId] = state;

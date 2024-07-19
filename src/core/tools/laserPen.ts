@@ -2,13 +2,12 @@
 import { Path, Node, Group} from "spritejs";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType } from "../types";
-// import { Vec2d } from "../utils/primitives/Vec2d";
+import { IWorkerMessage, IRectType } from "../types";
 import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
-// import { computRect, getRectFromPoints } from "../utils";
 import { EStrokeType } from "../../plugin/types";
 import { Point2d } from "../utils/primitives/Point2d";
 import { computRect, getRectFromPoints } from "../utils";
+import { transformToSerializableData } from "../../collector/utils";
 
 export interface LaserPenOptions extends BaseShapeOptions {
     thickness: number;
@@ -35,15 +34,15 @@ export class LaserPenShape extends BaseShapeTool {
         super.setWorkOptions(workOptions);
         this.syncTimestamp = Date.now();
     }
-    consume(props:{data: IWorkerMessage, isFullWork:boolean, isSubWorker?:boolean}): IMainMessage{
+    consume(props:{data: IWorkerMessage, isFullWork:boolean, isSubWorker?:boolean}){
         const {data, isSubWorker} = props;
         const {workId, op }= data;
         if(op?.length === 0){
-          return { type: EPostMessageType.None}
+          return { type: EPostMessageType.None }
         }
         this.updateTempPoints(op || []);
         if (this.consumeIndex > this.tmpPoints.length - 4) {
-            return { type: EPostMessageType.None };
+            return { type: EPostMessageType.None};
         }
         const {strokeColor, thickness, strokeType} = this.workOptions;
         const rect = getRectFromPoints(this.tmpPoints, thickness);
@@ -86,12 +85,12 @@ export class LaserPenShape extends BaseShapeTool {
           },
           type: EPostMessageType.DrawWork,
           dataType: EDataType.Local,
-          workId: isSync ? workId : undefined,
           op: isSync ? nop : undefined,
-          index: isSync ? index * 2 : undefined
+          index: isSync ? index * 2 : undefined, 
+          ...this.baseConsumeResult
         }
     }
-    consumeAll(): IMainMessage {
+    consumeAll() {
         const workId = this.workId?.toString();
         let rect:IRectType|undefined;
         if (this.tmpPoints.length - 1 > this.consumeIndex) {
@@ -124,9 +123,10 @@ export class LaserPenShape extends BaseShapeTool {
             }
         }
         const nop:number[] = [];
-        this.tmpPoints.slice(this.syncIndex).forEach(p=>{
+        this.tmpPoints.forEach(p=>{
             nop.push(p.x,p.y)
         })
+        const ops = transformToSerializableData(nop);
         return {
             rect: rect && {
                 x:rect.x * this.fullLayer.worldScaling[0] + this.fullLayer.worldPosition[0],
@@ -134,11 +134,11 @@ export class LaserPenShape extends BaseShapeTool {
                 w:rect.w * this.fullLayer.worldScaling[0],
                 h:rect.h * this.fullLayer.worldScaling[1],
             },
-            type: EPostMessageType.DrawWork,
+            type: EPostMessageType.FullWork,
             dataType: EDataType.Local,
-            workId: workId,
-            op: nop,
-            index: this.syncIndex * 2
+            ops,
+            index: this.syncIndex * 2,
+            ...this.baseConsumeResult
         }
     }
     clearTmpPoints(): void {
@@ -281,7 +281,6 @@ export class LaserPenShape extends BaseShapeTool {
           points.push(new Point2d(x, y));
           if (i > 0 && i < newPoints.length -1) {
             const angle = newPoints[i].getAngleByPoints(newPoints[i-1],newPoints[i+1]);
-            //console.log('angle', angle, newPoints[i].XY, newPoints[i-1].XY, newPoints[i+1])
             if (angle < 90 || angle > 270) {
               const lastPoint = points.pop()?.clone();
               if (lastPoint) {

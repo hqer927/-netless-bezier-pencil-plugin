@@ -1,6 +1,5 @@
 
 import { EmitEventType } from '../../plugin/types';
-import { ZIndexActiveMethodForWorker } from './activeZIndex/forWorker';
 import { BaseMsgMethodForWorker } from './baseForWorker';
 import { CopyNodeMethodForWorker } from './copyNode/forWorker';
 import { SetColorNodeMethodForWorker } from './setColor/forWorker';
@@ -30,8 +29,6 @@ export class MethodBuilderWorker {
                 return new TranslateNodeMethodForWorker();
             case EmitEventType.ZIndexNode:
                 return new ZIndexNodeMethodForWorker();
-            case EmitEventType.ZIndexActive:
-                return new ZIndexActiveMethodForWorker();
             case EmitEventType.CopyNode:
                 return new CopyNodeMethodForWorker();
             case EmitEventType.SetColorNode:

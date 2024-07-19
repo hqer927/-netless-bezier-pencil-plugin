@@ -1,7 +1,8 @@
-import { ECanvasContextType, TeachingSingleAidsPlugin, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
+import { ApplianceSinglePlugin, ApplianceSigleWrapper } from '@hqer/bezier-pencil-plugin';
 import { CursorTool } from '@netless/cursor-tool';
 import { WhiteWebSdk, DeviceType, DefaultHotKeys} from "white-web-sdk";
-
+import fullWorkerString from '@hqer/bezier-pencil-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@hqer/bezier-pencil-plugin/dist/subWorker.js?raw';
 export async function createWhiteWebSdk(params:{
     elm:HTMLDivElement;
     uuid:string;
@@ -13,8 +14,8 @@ export async function createWhiteWebSdk(params:{
         appIdentifier,
         useMobXState: true,
         deviceType: DeviceType.Surface,
-        invisiblePlugins: [TeachingSingleAidsPlugin],
-        wrappedComponents: [TeachingAidsSigleWrapper]
+        invisiblePlugins: [ApplianceSinglePlugin],
+        wrappedComponents: [ApplianceSigleWrapper]
     })
     const uid = 'uid-' + Math.floor(Math.random() * 10000);
     const cursorAdapter = new CursorTool();
@@ -46,14 +47,16 @@ export async function createWhiteWebSdk(params:{
         },
         disableNewPencil: false,
     })
-    const plugin = await TeachingSingleAidsPlugin.getInstance(room, 
+    const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+    const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+    const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+    const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+    const plugin = await ApplianceSinglePlugin.getInstance(room, 
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {
-                syncOpt: {
-                    interval: 500,
-                },
-                canvasOpt: {
-                    contextType: ECanvasContextType.Canvas2d
+                cdn: {
+                    fullWorkerUrl,
+                    subWorkerUrl
                 }
             },
             cursorAdapter
@@ -63,13 +66,6 @@ export async function createWhiteWebSdk(params:{
     
     room.bindHtmlElement(elm);
     room.disableSerialization = false;
-    plugin.injectMethodToObject(room,'undo');
-    plugin.injectMethodToObject(room,'redo');
-    plugin.injectMethodToObject(room,'callbacks');
-    plugin.injectMethodToObject(room,'cleanCurrentScene');
-    plugin.injectMethodToObject(room,'screenshotToCanvasAsync');
-    plugin.injectMethodToObject(room,'getBoundingRectAsync');
-    plugin.injectMethodToObject(room,'insertImage');
-    window.pluginRoom = plugin;
+    window.appliancePlugin = plugin;
     return {room, whiteWebSdk}
 } 

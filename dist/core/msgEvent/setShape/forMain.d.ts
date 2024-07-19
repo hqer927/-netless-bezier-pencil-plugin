@@ -13,6 +13,7 @@ export type SetShapeEmtData = {
     placement?: SpeechBalloonPlacement;
 };
 export declare class SetShapeOptMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
     collect(data: SetShapeEmtData): void;
 }

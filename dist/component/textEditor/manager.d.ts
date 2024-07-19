@@ -2,13 +2,12 @@ import { TextEditorInfo, TextOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../../plugin/types";
 import { ICameraOpt, IWorkerMessage } from "../../core";
 import type EventEmitter2 from "eventemitter2";
-import { BaseTeachingAidsManager } from "../../plugin/baseTeachingAidsManager";
+import { BaseApplianceManager } from "../../plugin/baseApplianceManager";
 export interface TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
-    readonly control: BaseTeachingAidsManager;
+    readonly control: BaseApplianceManager;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
-    undoTickerId?: number;
     /** 通过view组建中更新文本 */
     updateForViewEdited(activeId?: string, info?: TextEditorInfo): void;
     /** 过滤文本编辑器 */
@@ -20,7 +19,7 @@ export interface TextEditorManager {
     /** 激活文本编辑组件 */
     active(workId: string): void;
     /** 不激活文本编辑组件 */
-    unActive(): void;
+    unActive(blurId: string): void;
     /** 创建文本来源于main */
     createTextForMasterController(params: TextEditorInfo & {
         workId: string;
@@ -42,7 +41,7 @@ export interface TextEditorManager {
         viewId: string;
         canWorker: boolean;
         canSync: boolean;
-    }, undoTickerId?: number): Promise<TextEditorInfo | undefined>;
+    }, undoTickerId?: number): Promise<TextEditorInfo>;
     /** 修改文本来源于worker */
     updateTextForWorker(params: Partial<TextEditorInfo> & {
         workId: string;
@@ -68,10 +67,9 @@ export interface TextEditorManager {
 }
 export declare class TextEditorManagerImpl implements TextEditorManager {
     readonly internalMsgEmitter: EventEmitter2;
-    readonly control: BaseTeachingAidsManager;
+    readonly control: BaseApplianceManager;
     editors: Map<string, TextEditorInfo>;
     activeId?: string;
-    undoTickerId?: number;
     private proxyMap;
     private taskqueue;
     constructor(props: BaseSubWorkModuleProps);
@@ -88,7 +86,7 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
     onServiceDerive(data: IWorkerMessage): void;
     updateForViewEdited(activeId: string, info: TextEditorInfo): void;
     active(workId: string): void;
-    unActive(): void;
+    unActive(blurId: string): void;
     createTextForMasterController(params: TextEditorInfo & {
         workId: string;
         viewId: string;
@@ -104,7 +102,7 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
         viewId: string;
         canWorker: boolean;
         canSync: boolean;
-    }, undoTickerId?: number): Promise<TextEditorInfo | undefined>;
+    }, undoTickerId?: number): Promise<TextEditorInfo>;
     updateTextForWorker(params: TextEditorInfo & {
         workId: string;
         viewId: string;
@@ -116,5 +114,4 @@ export declare class TextEditorManagerImpl implements TextEditorManager {
     deleteBatch(workIds: string[], canSync?: boolean | undefined, canWorker?: boolean | undefined): void;
     clear(viewId: string, justLocal?: boolean): void;
     destory(): void;
-    private getMaxZIndex;
 }

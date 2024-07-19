@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Group, Node, Path } from "spritejs"
-import { EToolsKey } from "../enum";
+import { Group, Node, Path } from "spritejs";
+import { BaseNodeMapItem } from "../types";
 
 export const isSealedGroup = (group: Group | Path | Node ) => {
 	if (group.tagName === 'GROUP') {
@@ -12,6 +12,6 @@ export const isSealedGroup = (group: Group | Path | Node ) => {
     return false
 }
 
-export const isRenderNode = (toolsType:EToolsKey) => {
-	return toolsType !== EToolsKey.Text
+export const isRenderNode = (param:Pick<BaseNodeMapItem,'isHid'>) => {
+	return !param.isHid
 }

@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Group, Path } from "spritejs";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints} from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { getSvgPathFromPoints } from "../utils/getSvgPathFromPoints";
 import { ShapeNodes } from "./utils";
 
@@ -31,19 +31,22 @@ export class StraightShape extends BaseShapeTool{
         this.syncTimestamp = 0;
         this.syncUnitTime = 50;
     }
-    consume(props: { data: IWorkerMessage; isFullWork?: boolean | undefined; isClearAll?: boolean | undefined; isSubWorker?: boolean | undefined; }): IMainMessage {
-        const {data, isFullWork, isSubWorker}= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return { type: EPostMessageType.None}
-        }
-        const {op, workState} = data;
+    consume(props: { 
+        data: IWorkerMessage; 
+        isFullWork?: boolean; 
+        isClearAll?: boolean; 
+        isSubWorker?: boolean;
+        isMainThread?: boolean;
+    }) {
+        const {data, isFullWork, isSubWorker, isMainThread}= props;
+        const workId = this.workId;
+        const {op} = data;
         const opl = op?.length;
         if(!opl || opl < 2){
           return { type: EPostMessageType.None}
         }
         let bol:boolean;
-        if (workState === EvevtWorkState.Start) {
+        if (this.tmpPoints.length === 0) {
             this.tmpPoints = [new Point2d(op[0],op[1])];
             bol = false
         } else {
@@ -52,6 +55,11 @@ export class StraightShape extends BaseShapeTool{
         if (!bol) {
             return { type: EPostMessageType.None}
         }
+        let r: IRectType | undefined;
+        if (isSubWorker || isMainThread) {
+            const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+            r = this.draw({workId, layer});
+        }
         if (!isSubWorker) {
             const now = Date.now();
             if (now - this.syncTimestamp > this.syncUnitTime) {
@@ -59,32 +67,25 @@ export class StraightShape extends BaseShapeTool{
                 return {
                     type: EPostMessageType.DrawWork,
                     dataType: EDataType.Local,
-                    workId,
                     op: this.tmpPoints.map(c=>([...c.XY,0])).flat(1),
                     isSync: true,
-                    index: 0
+                    index: 0,
+                    ...this.baseConsumeResult
                 }
             }
             return { type: EPostMessageType.None};
         }
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const r: IRectType | undefined = this.draw({workId, layer});
         const rect = computRect(r, this.oldRect);
         this.oldRect = r;
         return {
             rect,
             type: EPostMessageType.DrawWork,
             dataType: EDataType.Local,
-            workId,
-            // op: this.tmpPoints.map(c=>[...c.XY,0]).flat(1)
+            ...this.baseConsumeResult
         }
     }
-    consumeAll(props: { data?: IWorkerMessage | undefined}): IMainMessage {
-        const { data }= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return {type: EPostMessageType.None}
-        }
+    consumeAll() {
+        const workId = this.workId;
         if (this.tmpPoints.length < 2) {
             return { 
                 type: EPostMessageType.RemoveNode,
@@ -96,7 +97,7 @@ export class StraightShape extends BaseShapeTool{
         this.oldRect = rect;
         const op = this.tmpPoints.map(c=>[...c.XY,0]).flat(1);
         const ops = transformToSerializableData(op);
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,
@@ -109,10 +110,9 @@ export class StraightShape extends BaseShapeTool{
             rect,
             type: EPostMessageType.FullWork,
             dataType: EDataType.Local,
-            workId,
             ops,
             isSync: true,
-            opt: this.workOptions
+            ...this.baseConsumeResult
         }
     }
 
@@ -121,8 +121,6 @@ export class StraightShape extends BaseShapeTool{
         layer:Group;
     }){
         const {workId, layer} = props;
-        this.fullLayer.getElementsByName(workId).map(o=>o.remove());
-        this.drawLayer?.getElementsByName(workId).map(o=>o.remove());
         const {strokeColor, thickness, zIndex, scale, rotate, translate} = this.workOptions;
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
@@ -153,7 +151,7 @@ export class StraightShape extends BaseShapeTool{
             attr.translate = translate;
         }
         const node = new Path(attr);
-        layer.append(node);
+        this.replace(layer, workId, node);
         if (rotate || scale || translate) {
             const r = node.getBoundingClientRect();
             return {
@@ -239,7 +237,7 @@ export class StraightShape extends BaseShapeTool{
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const rect: IRectType | undefined = this.draw({workId, layer});
         this.oldRect = rect;
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

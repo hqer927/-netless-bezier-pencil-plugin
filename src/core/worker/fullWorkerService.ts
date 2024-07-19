@@ -1,12 +1,34 @@
-import { Group, Node, Scene } from "spritejs";
-import { ISubWorkerInitOption, ServiceWork } from "./base";
-import { VNodeManager } from "./vNodeManager";
-import { IBatchMainMessage, IMainMessageRenderData, IRectType, IServiceWorkItem, IWorkerMessage } from "../types";
+import { Group, Scene } from "spritejs";
+import { ISubWorkerInitOption } from "./base";
+import { VNodeManager } from "../vNodeManager";
+import { IBatchMainMessage, IRectType, IServiceWorkItem, IWorkerMessage } from "../types";
 import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { computRect, getSafetyRect } from "../utils";
-import { ArrowShape, BaseShapeOptions, ImageShape, LaserPenOptions, SelectorShape, ShapeNodes, getShapeInstance } from "../tools";
+import { ArrowShape, BaseShapeOptions, ImageShape, SelectorShape, getShapeInstance } from "../tools";
 import { Storage_Splitter } from "../../collector/const";
 import { transformToNormalData } from "../../collector/utils";
+import { TextShape } from "../tools/text";
+import { WorkThreadEngineForFullWorker } from "./workerManager";
+import { DefaultAppliancePluginOptions } from "../../plugin/const";
+
+export interface ServiceWork{
+    readonly viewId: string;
+    readonly vNodes:VNodeManager;
+    readonly fullLayer: Group;
+    readonly drawLayer: Group;
+    readonly post: (msg: IBatchMainMessage) => void;
+    selectorWorkShapes: Map<string, IServiceWorkItem>;
+    runSelectWork(data: IWorkerMessage): void;
+    consumeDraw(data:IWorkerMessage): void;
+    setNodeKey(workId:string, workShape: IServiceWorkItem ,tools:EToolsKey, opt: BaseShapeOptions):IServiceWorkItem;
+    runReverseSelectWork(selectIds: string[]):void;
+    removeWork(data:IWorkerMessage):Promise<void>;
+    removeSelectWork(data:IWorkerMessage):void;
+    runSelectWork(data: IWorkerMessage):void;
+    consumeFull(data: IWorkerMessage):void;
+    consumeDraw(data: IWorkerMessage):void;
+    destroy():void;
+}
 
 export class ServiceWorkForFullWorker implements ServiceWork {
     viewId: string;
@@ -15,41 +37,33 @@ export class ServiceWorkForFullWorker implements ServiceWork {
     drawLayer: Group;
     workShapes: Map<string, IServiceWorkItem> = new Map();
     selectorWorkShapes: Map<string, IServiceWorkItem> = new Map();
+    thread: WorkThreadEngineForFullWorker;
     protected animationId?: number | undefined;
     private willRunEffectSelectorIds: Set<string> = new Set;
     private runEffectId?: number | undefined;
     private noAnimationRect:IRectType|undefined;
-    post: (msg: IBatchMainMessage, transfer?: Transferable[]) => Promise<void>;
-    constructor(opt:ISubWorkerInitOption & {serviceDrawLayer:Group}){
+    private syncUnitTime: number = DefaultAppliancePluginOptions.syncOpt.interval;
+    post: (msg: IBatchMainMessage) => Promise<void>;
+    constructor(opt:ISubWorkerInitOption){
         this.viewId = opt.viewId;
         this.vNodes = opt.vNodes;
         this.fullLayer = opt.fullLayer;
-        this.drawLayer = opt.serviceDrawLayer as Group;
-        this.post = opt.post;
+        this.drawLayer = opt.drawLayer as Group;
+        this.thread = opt.thread as WorkThreadEngineForFullWorker;
+        this.post = opt.thread.post.bind(opt.thread);
     }
     destroy(): void {
         this.workShapes.clear();
         this.selectorWorkShapes.clear();
         this.willRunEffectSelectorIds.clear();
     }
-    consumeDraw(data:IWorkerMessage){
+    async consumeDraw(data:IWorkerMessage){
         this.activeWorkShape(data);
         this.runAnimation();
     }
     consumeFull(data: IWorkerMessage): void {
         this.activeWorkShape(data);
         this.runAnimation();
-    }
-    clearAllWorkShapesCache(){
-        this.workShapes.forEach((workShape, key)=>{
-            if (workShape.toolsType === EToolsKey.LaserPen) {
-                setTimeout(()=>{
-                    this.workShapes.delete(key);
-                }, 2000)
-            } else {
-                this.workShapes.delete(key);
-            }
-        })
     }
     runSelectWork(data: IWorkerMessage){
         this.activeSelectorShape(data);
@@ -60,13 +74,14 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
         this.runEffect();
     }
-    setNodeKey(workShape: IServiceWorkItem ,tools:EToolsKey, opt: BaseShapeOptions) { 
+    setNodeKey(workId:string, workShape: IServiceWorkItem ,tools:EToolsKey, opt: BaseShapeOptions) { 
         workShape.toolsType = tools;
         workShape.node = getShapeInstance({
+            workId,
             toolsType: tools,
             toolsOpt: opt,
-            vNodes: this.vNodes, 
-            fullLayer: this.fullLayer, 
+            vNodes: this.vNodes,
+            fullLayer: this.fullLayer,
             drawLayer: this.drawLayer,
         }, this);
         return workShape;
@@ -87,17 +102,17 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             this.runEffect();
         }
     }
-    removeWork(data:IWorkerMessage) {
+    async removeWork(data:IWorkerMessage) {
         const {workId} = data;
         const key = workId?.toString();
         if(key){
             const workShape = this.workShapes.get(key);
             if (workShape) {
                 this.workShapes.delete(key);
-                this.removeNode(key, data, workShape?.totalRect, false);
+                await this.removeNode(key, data, workShape?.totalRect, false);
                 return;
             }
-            this.removeNode(key, data);
+            await this.removeNode(key, data);
         }
     }
     removeSelectWork(data:IWorkerMessage):void{
@@ -109,38 +124,40 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
         this.runEffect();
     }
-    private removeNode(key: string, data:IWorkerMessage, oldRect?: IRectType, isFullWork:boolean=true){
-        const nodes = this.fullLayer.getElementsByName(key).concat(this.drawLayer.getElementsByName(key)) as ShapeNodes[];
+    private async removeNode(key: string, data:IWorkerMessage, oldRect?: IRectType, isFullWork:boolean=true){
         if (key.indexOf(SelectorShape.selectorId) > -1) {
             this.removeSelectWork(data);
         }
-        const removeNode:Node[]=[]
         let rect:IRectType|undefined = oldRect;
         const rect1 = this.vNodes.get(key)?.rect;
         if (rect1) {
             rect = computRect(rect1, rect);
         }
-        nodes.forEach(node=>{
-            removeNode.push(node);
+        this.fullLayer.getElementsByName(key).forEach(c=>{
+            c.remove();
         })
-        if(removeNode.length) {
-            removeNode.forEach(r=>r.remove());
-        }
+        this.drawLayer.getElementsByName(key).forEach(c=>{
+            c.remove();
+        })
+        this.vNodes.delete(key);
         if (rect) {
-            this.post({
+            await this.post({
                 render:[
                     {
                         rect: getSafetyRect(rect),
                         isClear:true,
-                        isFullWork,
                         clearCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.ServiceFloat,
+                        workerType: isFullWork ? undefined : EDataType.Service,
+                        viewId: this.viewId
+                    },
+                    {
+                        rect: getSafetyRect(rect),
                         drawCanvas: isFullWork ? ECanvasShowType.Bg : ECanvasShowType.ServiceFloat,
                         workerType: isFullWork ? undefined : EDataType.Service,
                         viewId: this.viewId
                     }
                 ]
             })
-            this.vNodes.delete(key);
         }
     }
     private activeWorkShape(data: IWorkerMessage){
@@ -148,8 +165,8 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         if (!workId) {
             return;
         }
-        // console.log('activeWorkShape', cloneDeep(data))
         const key = workId.toString();
+        const oldRect = this.vNodes.get(key)?.rect;
         if (!this.workShapes?.has(key)) {
             let workItem = {
                 toolsType,
@@ -160,11 +177,11 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 ops,
                 useAnimation: typeof useAnimation !== 'undefined' ? useAnimation : 
                     typeof updateNodeOpt?.useAnimation !== 'undefined' ? updateNodeOpt?.useAnimation : true,
-                oldRect: this.vNodes.get(key)?.rect,
+                oldRect,
                 isDiff:false
             } as IServiceWorkItem;
             if (toolsType && opt) {
-                workItem = this.setNodeKey(workItem, toolsType, opt);
+                workItem = this.setNodeKey(key, workItem, toolsType, opt);
             }
             this.workShapes?.set(key, workItem);
         }
@@ -186,12 +203,17 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         if (workShape.node && workShape.node.getWorkId() !== key) {
             workShape.node.setWorkId(key);
         }
+        if (oldRect) {
+            workShape.oldRect = oldRect;
+        }
         if (toolsType && opt) {
+            if (opt.syncUnitTime) {
+                this.syncUnitTime = opt.syncUnitTime;
+            }
             if (workShape.toolsType !== toolsType && toolsType && opt) {
-                this.setNodeKey(workShape, toolsType, opt)
+                this.setNodeKey(key, workShape, toolsType, opt)
             }
             if(workShape.node){
-                // console.log('setWorkOptions', opt)
                 workShape.node.setWorkOptions(opt);                
             }
         }
@@ -224,15 +246,13 @@ export class ServiceWorkForFullWorker implements ServiceWork {
     private async animationDraw() {
         this.animationId = undefined;
         let isNext:boolean = false;
+        const _postData:IBatchMainMessage = {
+            render:[],
+        }
         const cursorPoints: Map<string,{
             op:number[],
             workState:EvevtWorkState
         }>= new Map();
-
-        const bgRenders: IMainMessageRenderData[] = [];
-        const floatRenders: IMainMessageRenderData[] = [];
-        const bgClearRenders: IMainMessageRenderData[] = [];
-        const floatClearRenders: IMainMessageRenderData[] = [];
 
         for (const [key,workShape] of this.workShapes.entries()) {
             switch (workShape.toolsType) {
@@ -240,10 +260,15 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 {
                         const oldRect =  workShape.oldRect;
                         if (oldRect) {
-                            bgClearRenders.push({
+                            _postData.render?.push({
                                 rect: oldRect,
                                 isClear: true,
                                 clearCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            })
+                            _postData.render?.push({
+                                rect: oldRect,
+                                drawCanvas: ECanvasShowType.Bg,
                                 viewId: this.viewId
                             })
                         }
@@ -260,10 +285,9 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                             }
                         })
                         this.workShapes.delete(key);
-                        bgRenders.push({
+                        _postData.render?.push({
                             rect,
                             drawCanvas: ECanvasShowType.Bg,
-                            isFullWork: true,
                             viewId: this.viewId
                         })
                     break;
@@ -271,9 +295,22 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 case EToolsKey.Text: {
                     if (workShape.node) {
                         const oldRect =  workShape.oldRect;
-                        const rect = workShape.node?.consumeService({
-                            op: workShape.animationWorkData || [], 
-                            isFullWork:true
+                        if (oldRect) {
+                            _postData.render?.push({
+                                rect: oldRect,
+                                isClear: true,
+                                clearCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            })
+                            _postData.render?.push({
+                                rect: oldRect,
+                                drawCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            })
+                        }
+                        const rect = await (workShape.node as TextShape).consumeServiceAsync({
+                            isFullWork:true,
+                            replaceId: key
                         });
                         this.selectorWorkShapes.forEach((s,selectorId)=>{
                             if (s.selectIds?.includes(key)) {
@@ -285,6 +322,11 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         })
                         workShape.node?.clearTmpPoints();
                         this.workShapes.delete(key);
+                        _postData.render?.push({
+                            rect,
+                            drawCanvas: ECanvasShowType.Bg,
+                            viewId: this.viewId
+                        })
                     }
                     break;
                 }
@@ -298,20 +340,23 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 {
                     const isFullWork = !!workShape.ops;
                     if (workShape.animationWorkData?.length) {
-                        // console.log('workShape', workShape)
                         const oldRect =  workShape.oldRect;
                         const tmpRect = (workShape.node as ArrowShape).oldRect;
-                        // console.log('first----2', workShape, oldRect, workShape.oldRect)
                         if (oldRect) {
-                            bgClearRenders.push({
+                            _postData.render?.push({
                                 rect: oldRect,
                                 isClear: true,
                                 clearCanvas: ECanvasShowType.Bg,
-                                viewId:this.viewId
+                                viewId: this.viewId
+                            })
+                            _postData.render?.push({
+                                rect: oldRect,
+                                drawCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
                             })
                         }
                         if (tmpRect) {
-                            floatClearRenders.push({
+                            _postData.render?.push({
                                 rect: tmpRect,
                                 isClear: true,
                                 clearCanvas: ECanvasShowType.ServiceFloat,
@@ -342,26 +387,16 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                             })
                             workShape.node?.clearTmpPoints();
                             this.workShapes.delete(key);
-                            bgRenders.push({
+                            _postData.render?.push({
                                 rect,
                                 drawCanvas: ECanvasShowType.Bg,
-                                isFullWork,
                                 viewId:this.viewId
                             })
-                            cursorPoints.set(key, {
-                                workState: EvevtWorkState.Done,
-                                op: workShape.animationWorkData.filter((_v, i) => {
-                                    if (i % 3 !== 2) {
-                                        return true;
-                                    }
-                                }).slice(-2),
-                            })
                         } else {
-                            floatRenders.push({
+                            _postData.render?.push({
                                 rect,
                                 drawCanvas: ECanvasShowType.ServiceFloat,
                                 workerType: isFullWork ? undefined : EDataType.Service,
-                                isFullWork,
                                 viewId:this.viewId
                             })
                         }
@@ -378,17 +413,17 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         });
                         const rect1 = workShape.node?.updataOptService(workShape.updateNodeOpt);
                         rect = computRect(rect, rect1);
-                        bgClearRenders.push({
+                        _postData.render?.push({
+                            isClear: true,
                             rect: computRect(workShape.oldRect, rect),
                             clearCanvas: ECanvasShowType.Bg,
                             viewId:this.viewId
                         });
-                        bgRenders.push({
+                        _postData.render?.push({
                             rect: computRect(workShape.oldRect, rect),
                             drawCanvas: ECanvasShowType.Bg,
                             viewId:this.viewId
                         });
-                        // console.log('consumeService2', noAnimationRect);
                         this.selectorWorkShapes.forEach((s,selectorId)=>{
                             if (s.selectIds?.includes(key)) {
                                 this.willRunEffectSelectorIds.add(selectorId);
@@ -400,167 +435,78 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                         this.workShapes.delete(key);
                     } 
                     else if(workShape.useAnimation){
+                        if (workShape.isDel) {
+                            workShape.node?.clearTmpPoints();
+                            this.workShapes.delete(key);
+                            break;
+                        }
                         const pointUnit = 3;
                         const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
                         const lastPointIndex = !workShape.isDiff ? Math.max(0, (workShape.animationIndex || 0) - pointUnit) : 0;
                         const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
-                        if (!workShape.isDel) {
-                            if ((workShape.animationIndex || 0) < nextAnimationIndex || workShape.isDiff) {
-                                // console.log('animationDraw', lastPointIndex, workShape.animationIndex, nextAnimationIndex, data)
-                                const rect = workShape.node?.consumeService({
-                                    op: data,
-                                    isFullWork: false,
-                                    replaceId: workShape.node.getWorkId()?.toString()
-                                });
-                                floatRenders.push({
-                                    rect,
-                                    drawCanvas: ECanvasShowType.ServiceFloat,
-                                    viewId:this.viewId
-                                });
-                                workShape.animationIndex = nextAnimationIndex;
-                                if (workShape.isDiff) {
-                                    workShape.isDiff = false;
-                                }
-                                if (data.length) {
-                                    const cursorOp = data.filter((_v, i) => {
-                                        if (i % pointUnit !== pointUnit - 1) {
-                                            return true;
-                                        }
-                                    }).slice(-2);
-                                    // console.log('cursorPoints', cursorOp, lastPointIndex, nextAnimationIndex, data.length)
-                                    cursorPoints.set(key, {
-                                        workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                                        op: cursorOp,
-                                    });
-                                }
-                            } else if (workShape.ops) {
-                                const rect = workShape.node?.consumeService({
-                                    op: workShape.animationWorkData || [],
-                                    isFullWork: true,
-                                    replaceId: workShape.node.getWorkId()?.toString(),
-                                });
-                                workShape.isDel = true;
-                                floatClearRenders.push({
-                                    rect,
-                                    clearCanvas: ECanvasShowType.ServiceFloat,
-                                    viewId:this.viewId
-                                });
-                                // floatRenders.push({
-                                //     rect,
-                                //     clearCanvas: ECanvasShowType.ServiceFloat,
-                                //     viewId:this.viewId
-                                // })
-                                if (workShape.node?.getWorkOptions().isOpacity) {
-                                    bgClearRenders.push({
-                                        rect,
-                                        clearCanvas:ECanvasShowType.Bg,
-                                        viewId:this.viewId
-                                    })
-                                }
-                                bgRenders.push({
-                                    rect,
-                                    drawCanvas:ECanvasShowType.Bg,
-                                    viewId:this.viewId
-                                })
-                                this.vNodes.setInfo(key,{
-                                    op: workShape.animationWorkData,
-                                    opt: workShape.node?.getWorkOptions(),
-                                    toolsType: workShape.toolsType,
-                                    rect
-                                })
-                                cursorPoints.set(key, {
-                                    workState: EvevtWorkState.Done,
-                                    op: data.filter((_v, i) => {
-                                        if (i % pointUnit !== pointUnit - 1) {
-                                            return true;
-                                        }
-                                    }).slice(-2),
-                                })
-                            }
-                            isNext = true;
-                        } else if (workShape.isDel) {
-                            workShape.node?.clearTmpPoints();
-                            this.workShapes.delete(key);
-                        }
-                        break;
-                    }
-                    break;
-                }
-                case EToolsKey.LaserPen: {
-                    const pointUnit = 2;
-                    const nextAnimationIndex = this.computNextAnimationIndex(workShape, pointUnit);
-                    const lastPointIndex = Math.max(0, (workShape.animationIndex || 0) - pointUnit);
-                    const data = (workShape.animationWorkData || []).slice(lastPointIndex, nextAnimationIndex);
-                    if (!workShape.isDel) {
-                        if ((workShape.animationIndex || 0) < nextAnimationIndex) {
+                        const workId = workShape.node?.getWorkId()?.toString();
+                        if ((workShape.animationIndex || 0) < nextAnimationIndex || workShape.isDiff) {
                             const rect = workShape.node?.consumeService({
                                 op: data,
                                 isFullWork: false,
-                                replaceId: workShape.node.getWorkId()?.toString()
                             });
-                            workShape.totalRect = computRect(workShape.totalRect, rect);
-                            if (workShape.timer) {
-                                clearTimeout(workShape.timer);
-                                workShape.timer = undefined;
-                            }
+                            _postData.render?.push({
+                                rect,
+                                drawCanvas: ECanvasShowType.ServiceFloat,
+                                viewId: this.viewId
+                            });
                             workShape.animationIndex = nextAnimationIndex;
+                            if (workShape.isDiff) {
+                                workShape.isDiff = false;
+                            }
                             if (data.length) {
+                                const cursorOp = data.filter((_v, i) => {
+                                    if (i % pointUnit !== pointUnit - 1) {
+                                        return true;
+                                    }
+                                }).slice(-2);
                                 cursorPoints.set(key, {
                                     workState: lastPointIndex === 0 ? EvevtWorkState.Start : nextAnimationIndex === workShape.animationWorkData?.length ? EvevtWorkState.Done : EvevtWorkState.Doing,
-                                    op: data.slice(-2),
-                                })
+                                    op: cursorOp,
+                                });
                             }
-                        } else {
-                            if (!workShape.timer) {
-                                workShape.timer = setTimeout(() => {
-                                    workShape.timer = undefined;
-                                    workShape.isDel = true;
-                                    // console.log('animationDraw--1')
-                                    this.runAnimation();
-                                }, (workShape.node?.getWorkOptions() as LaserPenOptions).duration * 1000 + 100) as unknown as number;
-                                cursorPoints.set(key, {
-                                    workState: EvevtWorkState.Done,
-                                    op: [],
-                                })
-                            }
+                        } else if (workShape.ops) {
                             const rect = workShape.node?.consumeService({
-                                op:[],
-                                isFullWork: false
+                                op: workShape.animationWorkData || [],
+                                isFullWork: true,
+                                replaceId: workId
                             });
-                            workShape.totalRect = computRect(workShape.totalRect, rect);
+                            workShape.isDel = true;
+                            _postData.render?.push({
+                                isClear: true,
+                                rect,
+                                clearCanvas: ECanvasShowType.ServiceFloat,
+                                viewId:this.viewId
+                            },{
+                                rect,
+                                drawCanvas: ECanvasShowType.ServiceFloat,
+                                viewId:this.viewId
+                            },{
+                                isClear: true,
+                                rect,
+                                clearCanvas:ECanvasShowType.Bg,
+                                viewId:this.viewId
+                            },{
+                                rect,
+                                drawCanvas:ECanvasShowType.Bg,
+                                viewId:this.viewId
+                            });
+                            cursorPoints.set(key, {
+                                workState: EvevtWorkState.Done,
+                                op: data.filter((_v, i) => {
+                                    if (i % pointUnit !== pointUnit - 1) {
+                                        return true;
+                                    }
+                                }).slice(-2),
+                            })
                         }
-                        floatClearRenders.push({
-                            rect: workShape.totalRect,
-                            clearCanvas: ECanvasShowType.ServiceFloat,
-                            viewId: this.viewId
-                        });
-                        floatRenders.push({
-                            rect: workShape.totalRect,
-                            drawCanvas: ECanvasShowType.ServiceFloat,
-                            viewId: this.viewId
-                        });
-                        // console.log('animationDraw', floatClearRenders, floatRenders)
                         isNext = true;
-                    }
-                    else if (workShape.isDel) {
-                        const rect = workShape.node?.consumeService({
-                            op:[],
-                            isFullWork: false
-                        });
-                        workShape.totalRect = computRect(workShape.totalRect, rect);
-                        floatClearRenders.push({
-                            rect: workShape.totalRect,
-                            clearCanvas: ECanvasShowType.ServiceFloat,
-                            viewId:this.viewId
-                        });
-                        floatRenders.push({
-                            rect: workShape.totalRect,
-                            drawCanvas: ECanvasShowType.ServiceFloat,
-                            viewId:this.viewId
-                        });
-                        // console.log('animationDraw--2')
-                        workShape.node?.clearTmpPoints();
-                        this.workShapes.delete(key);
+                        break;
                     }
                     break;
                 }
@@ -571,79 +517,9 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         if (isNext) {
             this.runAnimation();
         }
-        const _postData:IBatchMainMessage = {
-            render:[],
-        }
-        if (bgClearRenders.length) {
-            const clearBg = bgClearRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.clearCanvas === ECanvasShowType.Bg) {
-                    pre.rect = computRect(pre.rect, cur.rect);
-                }
-                return pre
-            },{
-                isClear:true,
-                clearCanvas: ECanvasShowType.Bg,
-                viewId:this.viewId
-            } as IMainMessageRenderData)
-            if (clearBg.rect) {
-                clearBg.rect = clearBg.rect && getSafetyRect(clearBg.rect);
-                _postData.render?.push(clearBg);
-            }
-        }
-        if (floatClearRenders.length) {
-            const clearFloat = floatClearRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.clearCanvas === ECanvasShowType.ServiceFloat) {
-                    pre.rect = computRect(pre.rect, cur.rect);
-                }
-                return pre
-            },{
-                isClear:true,
-                clearCanvas: ECanvasShowType.ServiceFloat,
-                workerType: EDataType.Service,
-                viewId:this.viewId
-            } as IMainMessageRenderData)
-            if (clearFloat.rect) {
-                clearFloat.rect = clearFloat.rect && getSafetyRect(clearFloat.rect);
-                _postData.render?.push(clearFloat);
-            }
-        }
-        if (bgRenders.length) {
-            const bgs = bgRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.drawCanvas === ECanvasShowType.Bg) {
-                    pre.rect = computRect(pre.rect, cur.rect);
-                }
-                return pre
-            },{
-                isFullWork:true,
-                drawCanvas: ECanvasShowType.Bg,
-                viewId:this.viewId
-            } as IMainMessageRenderData)
-            if (bgs.rect) {
-                bgs.rect = bgs.rect && getSafetyRect(bgs.rect);
-                _postData.render?.push(bgs);
-            }
-        }
-        if (floatRenders.length) {
-            const floats = floatRenders.reduce((pre,cur)=>{
-                if (cur.rect && cur.drawCanvas === ECanvasShowType.ServiceFloat) {
-                    pre.rect = computRect(pre.rect, cur.rect);
-                }
-                return pre
-            },{
-                isFullWork: false,
-                drawCanvas: ECanvasShowType.ServiceFloat,
-                workerType: EDataType.Service,
-                viewId:this.viewId
-            } as IMainMessageRenderData)
-            if (floats.rect) {
-                floats.rect = floats.rect && getSafetyRect(floats.rect);
-                _postData.render?.push(floats);
-            }
-        }
         if (cursorPoints.size) {
             _postData.sp = [];
             cursorPoints.forEach((v,k)=>{
-                // console.log('cursor---animation', this.viewId, v.op, v.workState);
                 _postData.sp?.push({
                     type: EPostMessageType.Cursor,
                     uid: k.split(Storage_Splitter)[0],
@@ -654,8 +530,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             })
         }
         if (_postData.render?.length) {
-            // console.log('cursor---animation', _postData.render);
-            this.post(_postData);
+            await this.post(_postData);
         }
     }
     private runAnimation(){
@@ -664,8 +539,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
         }
     }
     private computNextAnimationIndex(workShape:IServiceWorkItem, pointUnit:number){
-        // const pointUnit = workShape.toolsType === EToolsKey.Pencil ? 3 : 2;
-        const step = Math.floor((workShape.animationWorkData || []).slice(workShape.animationIndex).length * 32 / pointUnit / (workShape.node?.syncUnitTime || 1000)) * pointUnit;
+        const step = Math.floor((workShape.animationWorkData || []).slice(workShape.animationIndex).length * 32 / pointUnit / this.syncUnitTime) * pointUnit;
         return Math.min((workShape.animationIndex || 0) + (step || pointUnit), (workShape.animationWorkData||[]).length);
     }
     private runEffect(){
@@ -673,12 +547,11 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             this.runEffectId = setTimeout(this.effectRunSelector.bind(this),0) as unknown as number;
         }
     }
-    private effectRunSelector() {
+    private async effectRunSelector() {
         this.runEffectId = undefined;
         let rect: IRectType | undefined = this.noAnimationRect;
         this.willRunEffectSelectorIds.forEach(id => {
             const workShape = this.selectorWorkShapes.get(id);
-            // console.log('effectRunSelector', id)
             const r = workShape && workShape.selectIds && ( workShape.node as SelectorShape)?.selectServiceNode(id, workShape,true);
             rect = computRect(rect, r);
             if (!workShape?.selectIds?.length) {
@@ -686,13 +559,16 @@ export class ServiceWorkForFullWorker implements ServiceWork {
             }
         })
         if (rect) {
-            this.post({render: [
+            await this.post({render: [
+                {
+                    rect: getSafetyRect(rect),
+                    isClear: true,
+                    clearCanvas: ECanvasShowType.Bg,
+                    viewId:this.viewId
+                },
                 {
                     rect: getSafetyRect(rect),
                     drawCanvas: ECanvasShowType.Bg,
-                    isClear: true,
-                    clearCanvas: ECanvasShowType.Bg,
-                    isFullWork: true,
                     viewId:this.viewId
                 }
             ]})
@@ -714,7 +590,7 @@ export class ServiceWorkForFullWorker implements ServiceWork {
                 opt,
             } as IServiceWorkItem;
             if (toolsType && opt) {
-                workItem = this.setNodeKey(workItem, toolsType, opt);
+                workItem = this.setNodeKey(key, workItem, toolsType, opt);
             }
             this.selectorWorkShapes?.set(key, workItem);
         }

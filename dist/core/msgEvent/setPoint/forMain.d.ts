@@ -9,6 +9,7 @@ export type SetPointEmtData = {
     viewId: string;
 };
 export declare class SetPointMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
     private undoTickerId?;
     collect(data: SetPointEmtData): void;

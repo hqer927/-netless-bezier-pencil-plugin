@@ -9,8 +9,8 @@ export type RotateNodeEmtData = {
     viewId: string;
 };
 export declare class RotateNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: RotateNodeEmtData;
     readonly emitEventType: EmitEventType;
-    private undoTickerId?;
     private cacheOriginRotate;
-    collect(data: RotateNodeEmtData): void;
+    collect(data: RotateNodeEmtData, isSync?: boolean): void;
 }

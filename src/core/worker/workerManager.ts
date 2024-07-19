@@ -1,25 +1,30 @@
-import cloneDeep from "lodash/cloneDeep";
-import { Group, Layer } from "spritejs";
+import { Group, Layer, Path } from "spritejs";
 import { EmitEventType } from "../../plugin/types";
-import { ECanvasShowType, EDataType, EPostMessageType, EToolsKey } from "../enum";
+import { ECanvasShowType, EDataType, EMatrixrRelationType, EPostMessageType, EToolsKey, EvevtWorkState } from "../enum";
 import { MethodBuilderWorker } from "../msgEvent/forWorker";
 import { SelectorShape } from "../tools";
 import { IBatchMainMessage, ICameraOpt, ILayerOptionType, IMainMessageRenderData, IRectType, IWorkerMessage } from "../types";
-import { isRenderNode, computRect, getSafetyRect } from "../utils";
+import { computRect, getRectMatrixrRelation, getSafetyRect } from "../utils";
 import { ISubWorkerInitOption, IWorkerInitOption, WorkThreadEngineBase } from "./base";
 import { LocalWorkForFullWorker } from "./fullWorkerLocal";
 import { ServiceWorkForFullWorker } from "./fullWorkerService";
 import { LocalWorkForSubWorker } from "./subWorkerLocal";
+import { TopLayerWorkForSubWorker } from "./subWorkerTopLayer";
 import { Storage_ViewId_ALL } from "../../collector/const";
-import { BaseCollectorReducerAction } from "../../collector/types";
-import { TextOptions } from "../../component/textEditor";
-import { Cursor_Hover_Id } from "../const";
+import { Cursor_Hover_Id, Main_View_Id, Task_Time_Interval } from "../const";
+import cloneDeep from "lodash/cloneDeep";
+import isEqual from "lodash/isEqual";
+import isNumber from "lodash/isNumber";
+import { TextShape } from "../tools/text";
+import { TextOptions } from "../../component/textEditor/types";
+import { DefaultAppliancePluginOptions, pkg_version } from "../../plugin/const";
 export enum EWorkThreadType {
     Full = "full",
     Sub = "sub"
 }
 export class WorkerManager<T extends WorkThreadEngineBase> {
-    _self: Worker
+    readonly _self: Worker;
+    readonly version: string = pkg_version;
     protected type: EWorkThreadType;
     protected workThreadMap: Map<string, T> = new Map();
     constructor(worker:Worker, type:EWorkThreadType) {
@@ -44,7 +49,7 @@ export class WorkerManager<T extends WorkThreadEngineBase> {
             workThread = new WorkThreadEngineForSubWorker(viewId, {
                 dpr,
                 offscreenCanvasOpt,
-                layerOpt
+                layerOpt,
             }, this.post.bind(this))  as unknown as T;
         }
         if(workThread && isSafari){
@@ -56,40 +61,45 @@ export class WorkerManager<T extends WorkThreadEngineBase> {
         workThread && this.workThreadMap.set(viewId, workThread);
     }
     private register(){
-        onmessage = (e: MessageEvent<Set<IWorkerMessage>>)=>{
-            // console.log('onmessage- 1', this.type, e.data)
+        onmessage = async (e: MessageEvent<Set<IWorkerMessage>>) => {
             const data = e.data;
             if (data) {
-                for (const value of data.values()) {
+                for await (const value of data.values()) {
                     const {msgType, viewId, tasksqueue, mainTasksqueueCount} = value;
+                    if (msgType === EPostMessageType.Console) {
+                        console.log(this);
+                        continue;
+                    }
                     if (msgType === EPostMessageType.Init) {
                         this.init(value);
                         continue;
                     }
-                    if (msgType === EPostMessageType.TasksQueue && tasksqueue?.size && mainTasksqueueCount) {
-                        this.workThreadMap.forEach((workThread, viewId) => {
+                    if (msgType === EPostMessageType.TasksQueue && tasksqueue?.size) {
+                        for (const [viewId, workThread] of this.workThreadMap.entries()) {
                             const task = tasksqueue.get(viewId);
                             if (task) {
                                 workThread.on(task);
                             }
-                            this.post({workerTasksqueueCount: mainTasksqueueCount})
-                        });
+                        }
+                        if (this.type === EWorkThreadType.Full && isNumber(mainTasksqueueCount)) {
+                            this.post({workerTasksqueueCount: mainTasksqueueCount});
+                        }
                         continue;
                     } 
                     if (viewId === Storage_ViewId_ALL) {
-                        this.workThreadMap.forEach((workThread) => {
+                        for (const workThread of this.workThreadMap.values()) {
                             workThread.on(value);
                             if (msgType === EPostMessageType.Destroy) {
                                 this.workThreadMap.delete(viewId);
                             }
-                        });
+                        }
                         continue;
                     }
                     const workThread = this.workThreadMap.get(viewId);
                     if (!workThread) {
                         continue;
                     }
-                    workThread.on(value);
+                    await workThread.on(value);
                     if (msgType === EPostMessageType.Destroy) {
                         this.workThreadMap.delete(viewId);
                     }
@@ -98,7 +108,6 @@ export class WorkerManager<T extends WorkThreadEngineBase> {
         }
     }
     post(msg:IBatchMainMessage, transfer?: Transferable[]){
-        // console.log('updateSelector---0---0--00--0', msg)
         if (transfer) {
             this._self.postMessage(msg, transfer)
         } else {
@@ -108,91 +117,62 @@ export class WorkerManager<T extends WorkThreadEngineBase> {
 }
 /** full worker */
 export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
+    readonly type: EWorkThreadType = EWorkThreadType.Full;
     serviceDrawLayer: Group;
-    drawLayer: Group;
+    localDrawLayer: Group;
     snapshotFullLayer: undefined = undefined;
     private methodBuilder: MethodBuilderWorker;
     localWork: LocalWorkForFullWorker;
     serviceWork: ServiceWorkForFullWorker;
     protected _post: (msg: IBatchMainMessage, transfer?: Transferable[] | undefined) => void;
+    private taskUpdateCameraId?: number;
+    private debounceUpdateCameraId?: number;
+    private debounceUpdateCache:Set<string> = new Set();
     constructor(viewId:string, opt: IWorkerInitOption, _post:(msg:IBatchMainMessage, transfer?: Transferable[])=>void){
-        super(viewId, opt)
+        super(viewId, opt, EWorkThreadType.Full)
         this._post = _post;
-        this.serviceDrawLayer = this.createLayer('serviceDrawLayer', this.scene, {...opt.layerOpt, bufferSize: 1000}); 
-        this.drawLayer = this.createLayer('drawLayer', this.scene, {...opt.layerOpt, bufferSize: 1000}); 
+        const bufferSize = DefaultAppliancePluginOptions.bufferSize.sub;
+        this.serviceDrawLayer = this.createLayer('serviceDrawLayer', this.scene, {...opt.layerOpt, bufferSize}); 
+        this.localDrawLayer = this.createLayer('localDrawLayer', this.scene, {...opt.layerOpt, bufferSize}); 
         const subWorkOpt = {
             thread: this,
             viewId: this.viewId,
             vNodes: this.vNodes,
             fullLayer: this.fullLayer,
-            drawLayer: this.drawLayer,
-            post: this.post.bind(this)
         } as ISubWorkerInitOption;
-        this.localWork = new LocalWorkForFullWorker(subWorkOpt); 
+        this.localWork = new LocalWorkForFullWorker({
+            ...subWorkOpt,
+            drawLayer: this.localDrawLayer,
+        }); 
         this.serviceWork = new ServiceWorkForFullWorker({
             ...subWorkOpt,
-            serviceDrawLayer: this.serviceDrawLayer
+            drawLayer: this.serviceDrawLayer
         });
         this.methodBuilder = new MethodBuilderWorker([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.SetFontStyle,
+            EmitEventType.ZIndexNode, EmitEventType.SetFontStyle,
             EmitEventType.SetPoint, EmitEventType.SetLock, EmitEventType.SetShapeOpt
         ]).registerForWorker(this.localWork,this.serviceWork, this.scene);
-        this.vNodes.init(this.fullLayer, this.drawLayer);
+        this.vNodes.init(this.fullLayer);
     }
-    async post(msg: IBatchMainMessage, transfer?: Transferable[]): Promise<void> {
-        const render = msg.render;
-        const newRender:IMainMessageRenderData[] = []
-        let transfers: Transferable[] | undefined  = transfer
+    async combinePost() {
+        const {render, ...msg} = this.combinePostData();
+        let transfers: Transferable[] |undefined;
         if (render?.length) {
+            const newRender:IMainMessageRenderData[] = [];
             for (const renderData of render) {
-                if (renderData.isClearAll) {
-                    renderData.rect = this.getSceneRect();
-                    renderData.isClear = true;
-                    delete renderData.isClearAll;
-                }
-                if (renderData.isDrawAll) {
-                    renderData.rect = this.getSceneRect();
-                    delete renderData.isDrawAll;
-                }
-                if (renderData.drawCanvas) {
-                    const renderLayer = this.getLayer(renderData.isFullWork, renderData.workerType);
-                    // console.log('mainEngine---03---005', (renderLayer?.parent as Layer).children.map(c=>c.name));
-                    (renderLayer?.parent as Layer).render();
-                }
                 if (renderData.rect) {
-                    if (renderData.clearCanvas === renderData.drawCanvas && renderData.drawCanvas === ECanvasShowType.Bg) {
-                        renderData.rect = this.checkRightRectBoundingBox(renderData.rect);
+                    if (renderData.drawCanvas === ECanvasShowType.Bg || renderData.clearCanvas === ECanvasShowType.Bg) {
+                        const {rectRange} = this.vNodes.getRectIntersectRange(renderData.rect, false, true);
+                        renderData.rect = computRect(renderData.rect, rectRange) || renderData.rect;
                     }
-                    const oldRect = renderData.drawCanvas === ECanvasShowType.Selector && renderData.rect;
                     renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
                     if (!renderData.rect) {
                         continue;
                     }
-                    if (renderData.drawCanvas === ECanvasShowType.Selector) {
-                        const sp = msg.sp?.find(f=>f.type === EPostMessageType.Select)
-                        if (sp) {
-                            sp.rect = renderData.rect;
-                        }
-                        if (oldRect) {
-                            renderData.offset = {
-                                x: renderData.rect.x - oldRect.x,
-                                y: renderData.rect.y - oldRect.y,
-                            }
-                            // console.log('post---000', oldRect, renderData.rect, renderData.offset)
-                        }
-                        // const translate = renderData.translate || [0,0];
-                        // if (renderData.offset.x && translate[0]) {
-                        //     renderData.offset.x = renderData.offset.x + translate[0];
-                        // }
-                        // if (renderData.offset.y && translate[1]) {
-                        //     renderData.offset.y = renderData.offset.y + translate[1];
-                        // }
-                        // console.log('onmessage - post - 4', cloneDeep(renderData))
-                    }
-                    if (renderData.drawCanvas) {
-                        const imageBitmap = await this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork, renderData.workerType);
+                    if (renderData.drawCanvas && renderData.rect && renderData.rect.w > 0 && renderData.rect.h > 0) {
+                        const imageBitmap = await this.getRectImageBitmap(renderData as Required<Pick<IMainMessageRenderData, 'rect' | 'drawCanvas'>>);
                         renderData.imageBitmap = imageBitmap;
                         if (!transfers) {
                             transfers = [];
@@ -202,88 +182,113 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
                     newRender.push(renderData);
                 } 
             }
-            msg.render = newRender;
+            (msg as IBatchMainMessage).render = newRender;
         }
-        const rsp = msg.sp?.filter(s=>(s.type !== EPostMessageType.None || Object.keys(s).filter(f=>f === 'type').length));
+        const rsp = msg.sp?.filter(s => s.type !== EPostMessageType.None);
         if (rsp?.length) {
             msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
+        } else {
+            delete msg.sp;
         }
-        if (msg.drawCount || msg.workerTasksqueueCount || msg.sp?.length || newRender?.length) {
-                // console.log('post', this.fullLayer.children.map(c=>({name:c.name,zIndex:c.getAttribute('zIndex')})), 
-                // //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.name),
-                // //     // (this.fullLayer.parent as Layer)?.children?.map(c=>c.id),
-                // //     // this.drawLayer?.children.map(c=>c.name).length,
-                // //     // (this.drawLayer?.parent as Layer)?.children?.map(c=>c.name).length, 
-                // //     // (this.drawLayer?.parent as Layer)?.children?.map(c=>c.id), 
-                // )     
+        if (msg.drawCount === undefined) {
+            delete msg.drawCount;
+        }
+        if (msg?.drawCount || rsp?.length || (msg as IBatchMainMessage).render?.length) {
+            // console.log('msg---layer--full', this.viewId, msg);
             this._post(msg, transfers);
-            if (transfers?.length) {
-                for (const transfer of transfers) {
-                    if (transfer instanceof ImageBitmap) {
-                        transfer.close();
-                    }
-                }
-            }
+        }
+        if (this.delayPostDoneResolve) {
+            this.delayPostDoneResolve(true);
         }
     }
-    on(msg: IWorkerMessage) {
+    async on(msg: IWorkerMessage) {
         if(this.methodBuilder.consumeForWorker(msg)) {
             return;
         }
-        const {msgType, dataType, workId} = msg;
+        const {msgType, dataType, workId, toolsType, workState} = msg;
         switch (msgType) {
-            case EPostMessageType.UpdateCamera:
-                this.updateCamera(msg);
+            case EPostMessageType.CreateWork:
+                if (toolsType !== EToolsKey.LaserPen) {
+                    this.createLocalWork(msg);
+                }
                 break;
-            case EPostMessageType.Select:
-                if (dataType === EDataType.Service) {
-                    if (workId === SelectorShape.selectorId) {
-                        this.localWork.updateFullSelectWork(msg);
+            case EPostMessageType.DrawWork:
+                if (toolsType !== EToolsKey.LaserPen) {
+                    if(workState === EvevtWorkState.Done && dataType === EDataType.Local) {
+                        await this.consumeDrawAll(dataType, msg);
                     } else {
-                        this.serviceWork.runSelectWork(msg);
+                        this.consumeDraw(dataType, msg);
                     }
                 }
                 break;
+            case EPostMessageType.Select:
+                if (workId === SelectorShape.selectorId) {
+                    await this.localWork.updateFullSelectWork(msg);
+                } else {
+                    this.serviceWork.runSelectWork(msg);
+                }
+                return;
             case EPostMessageType.UpdateNode:
             case EPostMessageType.FullWork:
-                this.consumeFull(dataType, msg)
-                break;
+                await this.consumeFull(dataType, msg)
+                return;
             case EPostMessageType.RemoveNode:
-                this.removeNode(msg);
-                break;
+                await this.removeNode(msg);
+                return;
             case EPostMessageType.GetTextActive:
-                this.checkTextActive(msg);
-                break;
+                await this.checkTextActive(msg);
+                return;
             case EPostMessageType.CursorHover:
-                this.cursorHover(msg);
+                await this.cursorHover(msg);
+                return;
+            case EPostMessageType.CursorBlur:
+                await this.cursorBlur();
+                return;
         }
-        super.on(msg);
+        await super.on(msg);
     }
     async removeNode(data:IWorkerMessage){
-        const {dataType, workId} = data;
-        if (workId === SelectorShape.selectorId) {
-            this.localWork.blurSelector(data)
-            return;
+        const {dataType, workId, removeIds} = data;
+        const promises:Promise<void>[] = [];
+        const workIds = removeIds || [];
+        if (workId) {
+            workIds.push(workId.toString());
         }
-        if (dataType === EDataType.Local) {
-            this.localWork.removeWork(data);
-            this.localWork.colloctEffectSelectWork(data);
-        }
-        if (dataType === EDataType.Service) {
-            this.serviceWork.removeWork(data);
-            this.localWork.colloctEffectSelectWork(data);
+        if (workIds.length) {
+            for (const id of workIds) {
+                if (id === SelectorShape.selectorId) {
+                    promises.push(this.localWork.removeSelector(data)); 
+                } else if(dataType === EDataType.Local){
+                    promises.push(this.localWork.removeWork(data).then(()=>{
+                        this.localWork.colloctEffectSelectWork(data)
+                    }));
+                } else if(dataType === EDataType.Service){
+                    promises.push(this.serviceWork.removeWork(data).then(()=>{
+                        this.localWork.colloctEffectSelectWork(data)
+                    }));
+                }
+            }
+            await Promise.all(promises);
         }
     }
-    checkTextActive(data:IWorkerMessage){
+    async checkTextActive(data:IWorkerMessage){
         const {dataType} = data;
         if (dataType === EDataType.Local) {
-            this.localWork.checkTextActive(data);
+            await this.localWork.checkTextActive(data);
         }
         
     }
-    clearAll(): void {
+    async clearAll(): Promise<void> {
         this.vNodes.clear();
         super.clearAll();
+        if (this.localDrawLayer) {
+            (this.localDrawLayer.parent as Layer).children.forEach(c => {
+                if (c.name !== 'viewport') {
+                    c.remove()
+                }
+            });
+            this.localDrawLayer.removeAllChildren();
+        }
         if (this.serviceDrawLayer) {
             (this.serviceDrawLayer.parent as Layer).children.forEach(c => {
                 if (c.name !== 'viewport') {
@@ -292,21 +297,18 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
             });
             this.serviceDrawLayer.removeAllChildren();
         }
-        this.post({
+        await this.post({
             render:[{
                 isClearAll:true,
                 clearCanvas: ECanvasShowType.Bg,
-                isFullWork: true,
-                viewId:this.viewId
-            },{
-                isClearAll: true,
-                clearCanvas: ECanvasShowType.Float,
-                isFullWork: false,
                 viewId:this.viewId
             },{
                 isClearAll: true,
                 clearCanvas: ECanvasShowType.ServiceFloat,
-                isFullWork: false,
+                viewId: this.viewId
+            },{
+                isClearAll: true,
+                clearCanvas: ECanvasShowType.Float,
                 viewId:this.viewId
             }],
             sp:[{
@@ -317,6 +319,12 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
     protected updateLayer(layerOpt:ILayerOptionType) {
         const { width, height } = layerOpt;
         super.updateLayer(layerOpt);
+        if (this.localDrawLayer) {
+            (this.localDrawLayer.parent as Layer).setAttribute('width', width);
+            (this.localDrawLayer.parent as Layer).setAttribute('height', height);
+            this.localDrawLayer.setAttribute('size',[width, height]);
+            this.localDrawLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
         if (this.serviceDrawLayer) {
             (this.serviceDrawLayer.parent as Layer).setAttribute('width', width);
             (this.serviceDrawLayer.parent as Layer).setAttribute('height', height);
@@ -334,23 +342,28 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
             this.fullLayer.setAttribute('scale', [scale, scale]);
             this.fullLayer.setAttribute('translate', [-centerX,-centerY]);
         }
-        if (this.drawLayer) {
-            this.drawLayer.setAttribute('scale', [scale, scale]);
-            this.drawLayer.setAttribute('translate', [-centerX,-centerY]);
+        if (this.localDrawLayer) {
+            this.localDrawLayer.setAttribute('scale', [scale, scale]);
+            this.localDrawLayer.setAttribute('translate', [-centerX,-centerY]);
         }
         if (this.serviceDrawLayer) {
             this.serviceDrawLayer.setAttribute('scale', [scale, scale]);
             this.serviceDrawLayer.setAttribute('translate', [-centerX,-centerY]);
         }
     }
-    getLayer(isFullWork?:boolean, workerType?:EDataType.Local | EDataType.Service) {
-        const layer = isFullWork ? this.fullLayer : 
-            workerType && workerType === EDataType.Service ? this.serviceDrawLayer : this.drawLayer;
-        return layer;
+    protected getLayer(drawCanvas: ECanvasShowType) {
+        switch (drawCanvas) {
+            case ECanvasShowType.Bg:
+                return this.fullLayer
+            case ECanvasShowType.ServiceFloat:
+                return this.serviceDrawLayer
+            case ECanvasShowType.Float:
+                return this.localDrawLayer;           
+        }
     }
-    getOffscreen(isFullWork:boolean, workerType?:EDataType.Local | EDataType.Service): OffscreenCanvas {
-        const layerParent = this.getLayer(isFullWork, workerType).parent as Layer;
-        return layerParent.canvas as OffscreenCanvas;
+    getOffscreen(drawCanvas:ECanvasShowType): OffscreenCanvas {
+        const layer = this.getLayer(drawCanvas) as Group;
+        return (layer.parent as Layer).canvas as OffscreenCanvas;
     }
     async consumeFull(type: EDataType, data: IWorkerMessage) {
         const noLocalEffectData = await this.localWork.colloctEffectSelectWork(data);
@@ -361,45 +374,121 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
             this.serviceWork.consumeFull(noLocalEffectData);
         }
     }
-    consumeDraw(type: EDataType, data: IWorkerMessage): void {
-        if (type === EDataType.Local) {
-            this.localWork.consumeDraw(data, this.serviceWork);
+    async consumeDraw(type: EDataType, data: IWorkerMessage) {
+        const {workId} = data;
+        if (type === EDataType.Local && workId) {
+            const workShapeNode = this.localWork.getWorkShape(workId.toString());
+            if (!workShapeNode) {
+                this.createLocalWork(data);
+            }
+            await this.localWork.consumeDraw(data, this.serviceWork);
         } 
         if (type === EDataType.Service) {
             this.serviceWork.consumeDraw(data);
         }
     }
-    consumeDrawAll(type: EDataType, data: IWorkerMessage): void {
-        if (type === EDataType.Local) {
-            this.localWork.consumeDrawAll(data, this.serviceWork);
+    async consumeDrawAll(type: EDataType, data: IWorkerMessage) {
+        const {workId} = data;
+        if (type === EDataType.Local && workId) {
+            const workShapeNode = this.localWork.getWorkShape(workId.toString());
+            if (!workShapeNode) {
+                this.createLocalWork(data);
+            }
+            await this.localWork.consumeDrawAll(data, this.serviceWork);
         }
     }
-    private updateCamera(msg:IWorkerMessage){
-        // console.log('updateCamera', msg, this.viewId)
+    async updateCamera(msg:IWorkerMessage){
         const render:IMainMessageRenderData[] = [];
-        const {cameraOpt} = msg;
-        if (cameraOpt) {
+        const {cameraOpt, scenePath} = msg;
+        if (cameraOpt && !isEqual(this.cameraOpt, cameraOpt)) {
+            if (this.taskUpdateCameraId) {
+                clearTimeout(this.taskUpdateCameraId)
+                this.taskUpdateCameraId = undefined;
+            }
+            const isClearServiceFloat:boolean = !!this.serviceDrawLayer.children.length;
+            if (scenePath) {
+                // 等待绘制任务都中断了才开始相机变化
+                let isWaitting:boolean = false;
+                for (const [key, value] of this.localWork.getWorkShapes().entries()) {
+                    if(value.toolsType !== EToolsKey.Text && value.toolsType !== EToolsKey.Eraser && value.toolsType !== EToolsKey.Selector
+                        && value.toolsType !== EToolsKey.LaserPen && key !== Cursor_Hover_Id && key !== SelectorShape.selectorId) {
+                        isWaitting = true;
+                        break;
+                    }
+                } 
+                if (isWaitting) {
+                    this.taskUpdateCameraId = setTimeout(()=>{
+                        this.taskUpdateCameraId = undefined;
+                        this.updateCamera(msg);
+                    }, Task_Time_Interval ) as unknown as number;
+                    return;
+                }
+            }
+            const diffRectMap = new Map<string, IRectType>();
+            for (const [name,value] of this.vNodes.getNodesByType(EToolsKey.Text).entries()) {
+                const rect = value.rect;
+                diffRectMap.set(name, cloneDeep(rect));
+            }
+            const highLevelIds = new Set(diffRectMap.keys())
+            let isHasLocalSelector = false;
+            if (this.localWork.hasSelector()) {
+                const selectIds = this.localWork.getSelector()?.selectIds;
+                if (selectIds) {
+                    isHasLocalSelector = true;
+                    for (const id of selectIds) {
+                        highLevelIds.add(id);
+                    }
+                }
+            }
+            let isHasServiceSelector = false;
+            if (this.serviceWork.selectorWorkShapes.size) {
+                for (const value of this.serviceWork.selectorWorkShapes.values()) {
+                    const selectIds = value.selectIds;
+                    if (selectIds) {
+                        isHasServiceSelector = true;
+                        for (const id of selectIds) {
+                            highLevelIds.add(id)
+                        }
+                    }
+                }
+            }
             this.setCameraOpt(cameraOpt);
             // 对进行中的任务进行标记处理
-            this.localWork.workShapes.forEach((w,k)=>{
-                if (
-                    w.toolsType === EToolsKey.Pencil || 
-                    w.toolsType === EToolsKey.Arrow || 
-                    w.toolsType === EToolsKey.Straight || 
-                    w.toolsType === EToolsKey.Ellipse || 
-                    w.toolsType === EToolsKey.Rectangle || 
-                    w.toolsType === EToolsKey.Star || 
-                    w.toolsType === EToolsKey.Polygon || 
-                    w.toolsType === EToolsKey.SpeechBalloon || 
-                    w.toolsType === EToolsKey.Text
-                ) {
-                    this.localWork.workShapeState.set(k, {willClear:true} );
-                }
-            })
             if (this.vNodes.curNodeMap.size) {
-                this.vNodes.updateNodesRect();
-                this.localWork.reRenderSelector();
-                if (this.serviceWork.selectorWorkShapes.size) {
+                this.vNodes.clearTarget();
+                this.vNodes.updateHighLevelNodesRect(highLevelIds);
+                if (this.debounceUpdateCameraId) {
+                    clearTimeout(this.debounceUpdateCameraId);
+                }
+                for (const [name,r] of diffRectMap.entries()) {
+                    const value = this.vNodes.get(name);
+                    if (value) {
+                        const oldRect = r;
+                        const newRect = value.rect;
+                        const boxRect = this.getSceneRect();
+                        const oldRelation = getRectMatrixrRelation(oldRect, boxRect);
+                        const newRelation = getRectMatrixrRelation(newRect, boxRect);
+                        let isForceUpdate = false;
+                        if (oldRelation !== newRelation) {
+                            isForceUpdate = true;
+                        } else if(oldRect.w !== newRect.w || oldRect.h !== newRect.h) {
+                            isForceUpdate = true;
+                        } else if (newRelation === EMatrixrRelationType.intersect) {
+                            isForceUpdate = true;
+                        }
+                        if (isForceUpdate) {
+                            const {toolsType, opt} = value;
+                            if (toolsType === EToolsKey.Text && (opt as TextOptions).workState === EvevtWorkState.Done) {
+                                this.debounceUpdateCache.add(name);
+                            }
+                        }
+
+                    }
+                }
+                if (isHasLocalSelector) {
+                    this.localWork.reRenderSelector();
+                }
+                if (isHasServiceSelector) {
                     for (const [key,value] of this.serviceWork.selectorWorkShapes.entries()) {
                         this.serviceWork.runSelectWork({
                             workId: key,
@@ -410,146 +499,133 @@ export class WorkThreadEngineForFullWorker extends WorkThreadEngineBase{
                         })
                     }
                 }
-                let rect:IRectType|undefined;
-                const cursorHover = this.localWork.getWorkShape(Cursor_Hover_Id) as SelectorShape;
-                if (cursorHover && cursorHover.selectIds?.length) {
-                    // console.log('cursorHover', cursorHover?.selectIds)
-                    rect = cursorHover.oldSelectRect;
-                    cursorHover.cursorBlur();
-                    // console.log('cursorHover---rect', rect)
-                }
-                // 输出render结果
-                if (this.vNodes.hasRenderNodes()) {
-                    render.push({
-                        isClearAll: true,
-                        clearCanvas: ECanvasShowType.Bg,
-                        isFullWork: true,
-                        viewId:this.viewId
-                    },{
-                        isClearAll: true,
-                        clearCanvas: ECanvasShowType.Float,
-                        isFullWork: false,
-                        viewId:this.viewId
-                    });
-                    for (const node of this.vNodes.curNodeMap.values()) {
-                        if (isRenderNode(node.toolsType)) {
-                            rect = computRect(rect, node.rect);
+                this.debounceUpdateCameraId = setTimeout(()=>{
+                    this.debounceUpdateCameraId = undefined;
+                    const promises:Promise<IRectType|undefined>[] = [];
+                    for (const name of this.debounceUpdateCache.values()) {
+                        const node = this.fullLayer?.getElementsByName(name)[0] as Group;
+                        if (node) {
+                            const value = this.vNodes.get(name);
+                            if (value) {
+                                const {toolsType, opt, rect} = value;
+                                const workShape = this.localWork.setFullWork({
+                                    toolsType,
+                                    opt,
+                                    workId: name,
+                                })
+                                if (workShape) {
+                                    const boxRect = this.getSceneRect();
+                                    const newRelation = getRectMatrixrRelation(rect, boxRect);
+                                    promises.push((workShape as TextShape).consumeServiceAsync({
+                                        isFullWork: true,
+                                        replaceId: name,
+                                        isDrawLabel: newRelation !== EMatrixrRelationType.outside
+                                    }))
+                                }
+                            }
                         }
+                        this.debounceUpdateCache.delete(name)
                     }
-                    if (rect) {
-                        render.push({
-                            rect: getSafetyRect(rect,20),
-                            drawCanvas: ECanvasShowType.Bg,
-                            isClear: false,
-                            isFullWork: true,
-                            viewId: this.viewId
-                        });
+                    if (promises.length) {
+                        Promise.all(promises).then(()=>{
+                            const render:IMainMessageRenderData[] = []; 
+                            render.push({
+                                isClearAll: true,
+                                clearCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            },{
+                                isDrawAll:true,
+                                drawCanvas: ECanvasShowType.Bg,
+                                viewId: this.viewId
+                            });
+                            if (render.length) {
+                                this.post({ render })
+                            }
+                            this.vNodes.updateLowLevelNodesRect(); 
+                            this.vNodes.clearHighLevelIds();
+                        })
+                    } else {
+                        this.vNodes.updateLowLevelNodesRect(); 
+                        this.vNodes.clearHighLevelIds();
                     }
-                }
-                if (render.length) {
-                    // console.log('cursorHover---post', render)
-                    this.post({ render })
-                }
+                }, Task_Time_Interval) as unknown as number;
             }
-        }
-    }
-    private getRectImageBitmap(rect:IRectType, isFullWork:boolean, workerType?:EDataType.Local | EDataType.Service): Promise<ImageBitmap>  {
-        const x = rect.x * this.dpr;
-        const y = rect.y * this.dpr;
-        const w = rect.w * this.dpr;
-        const h = rect.h * this.dpr;
-        return createImageBitmap(this.getOffscreen(isFullWork, workerType), x, y, w, h)
-    }
-    private safariFixRect(rect:IRectType):IRectType|undefined{
-        if (rect.w + rect.x <=0 || rect.h + rect.y <=0 ) {
-            return undefined;
-        }
-        if (rect.w <= 0 || rect.h <= 0) {
-            return undefined
-        }
-        const newRect = {
-            x: 0,
-            y: 0,
-            w: Math.floor(this.scene.width),
-            h: Math.floor(this.scene.height)
-        }
-        if (rect.x < 0) {
-            if (rect.w + rect.x < this.scene.width) {
-                newRect.w = rect.w + rect.x;
+            if (isClearServiceFloat) {
+                render.push({
+                    isClearAll: true,
+                    clearCanvas: ECanvasShowType.ServiceFloat,
+                    viewId: this.viewId
+                });
             }
-        } else if(rect.w + rect.x > 0) {
-            newRect.x = rect.x;
-            newRect.w = Math.floor(this.scene.width - rect.x);
-        }
-        if (rect.y < 0) {
-            if (rect.h + rect.y < this.scene.height) {
-                newRect.h = rect.h + rect.y;
+            if (this.vNodes.hasRenderNodes()) {
+                render.push({
+                    isClearAll: true,
+                    clearCanvas: ECanvasShowType.Bg,
+                    viewId: this.viewId
+                },{
+                    isDrawAll:true,
+                    drawCanvas: ECanvasShowType.Bg,
+                    viewId: this.viewId
+                });
             }
-        } else if(rect.h + rect.y > 0) {
-            newRect.y = rect.y;
-            newRect.h = Math.floor(this.scene.height - rect.y);
-        }
-        if (newRect.w <= 0 || newRect.h <= 0) {
-            return undefined
-        }
-        return  newRect;
-    }
-    private getSceneRect():IRectType {
-        const {width, height} = this.scene;
-        return {
-            x: 0,
-            y: 0,
-            w: Math.floor(width),
-            h: Math.floor(height)
+            if (render.length) {
+                this.post({ render })
+            } 
         }
     }
-    private checkRightRectBoundingBox(rect:IRectType){
-        return this.vNodes.combineIntersectRect(rect);
+    private getRectImageBitmap(renderData:Required<Pick<IMainMessageRenderData, 'rect' | 'drawCanvas'>>): Promise<ImageBitmap>  {
+        const {rect, drawCanvas} = renderData;
+        const x = Math.floor(rect.x * this.dpr);
+        const y = Math.floor(rect.y * this.dpr);
+        const w = Math.floor(rect.w * this.dpr || 1);
+        const h = Math.floor(rect.h * this.dpr || 1);
+        return createImageBitmap(this.getOffscreen(drawCanvas), x, y, w, h, { resizeQuality: 'low' })
     }
-    private cursorHover(msg:IWorkerMessage){
-        this.localWork.cursorHover(msg);
+    private async cursorHover(msg:IWorkerMessage){
+        await this.localWork.cursorHover(msg);
     }
-    
+    private async cursorBlur(){
+        await this.localWork.cursorBlur()
+    }
 }
 /** sub worker */
 export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
+    readonly type: EWorkThreadType = EWorkThreadType.Sub;
     protected _post: (msg: IBatchMainMessage, transfer?: Transferable[] | undefined) => void;
-    drawLayer:undefined = undefined;
+    topLayer: Group;
     snapshotFullLayer: Group | undefined;
     serviceWork: undefined = undefined;
     localWork: LocalWorkForSubWorker;
+    topLayerWork: TopLayerWorkForSubWorker;
     constructor(viewId:string, opt: IWorkerInitOption, _post:(msg:IBatchMainMessage, transfer?: Transferable[])=>void){
-        super(viewId, opt)
+        super(viewId, opt, EWorkThreadType.Sub)
         this._post = _post;
+        const bufferSize = DefaultAppliancePluginOptions.bufferSize.sub;
+        this.topLayer = this.createLayer('topLayer',this.scene, {...opt.layerOpt, bufferSize });
         const subWorkOpt = {
             thread: this,
             viewId: this.viewId,
             vNodes: this.vNodes,
             fullLayer: this.fullLayer,
-            drawLayer: this.drawLayer,
-            post: this.post.bind(this)
+            topLayer: this.topLayer
         } as ISubWorkerInitOption;
         this.localWork = new LocalWorkForSubWorker(subWorkOpt);
-        this.vNodes.init(this.fullLayer, this.drawLayer); 
+        this.topLayerWork = new TopLayerWorkForSubWorker(subWorkOpt);
+        this.vNodes.init(this.fullLayer); 
     }
-    async post(msg: IBatchMainMessage, transfer?: Transferable[]): Promise<void> {
-        const render = msg.render;
-        const newRender:IMainMessageRenderData[] = [];
-        let transfers: Transferable[] | undefined  = transfer;
+    async combinePost(): Promise<void> {
+        const {render, ...msg} = this.combinePostData();
+        let transfers: Transferable[] |undefined;
         if (render?.length) {
+            const newRender:IMainMessageRenderData[] = [];
             for (const renderData of render) {
-                if (renderData.drawCanvas) {
-                    (this.fullLayer.parent as Layer).render();
-                }
                 if (renderData.rect) {
-                    // if(this.isSafari){
-                        renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
-                    // }
+                    renderData.rect = this.safariFixRect(cloneDeep(renderData.rect));
                     if (!renderData.rect) {
                         continue;
                     }
-                    if (renderData.drawCanvas) {
-                        const imageBitmap = await this.getRectImageBitmap(renderData.rect, !!renderData.isFullWork);
+                    if (renderData.drawCanvas && renderData.rect && renderData.rect.w > 0 && renderData.rect.h > 0) {
+                        const imageBitmap = await this.getRectImageBitmap(renderData as Required<Pick<IMainMessageRenderData, 'rect' | 'drawCanvas'>>);
                         renderData.imageBitmap = imageBitmap;
                         if (!transfers) {
                             transfers = [];
@@ -559,105 +635,247 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                     newRender.push(renderData);
                 } 
             }
-            msg.render = newRender;
+            (msg as IBatchMainMessage).render = newRender;
         }
-        const rsp = msg.sp?.filter(s=>(s.type !== EPostMessageType.None || Object.keys(s).filter(f=>f === 'type').length));
+        if(msg.workIds?.size && msg.drawCount) {
+            for (const workId of msg.workIds.values()) {
+                this.fullLayer.getElementsByName(workId).forEach(c=>{
+                    if (c.id && msg.drawCount && (Number(c.id) < msg.drawCount)) {
+                        c.remove();
+                    }
+                })
+            }
+        }
+        const rsp = msg.sp?.filter(s => s.type !== EPostMessageType.None);
         if (rsp?.length) {
             msg.sp = rsp.map(p=>({...p, viewId:this.viewId}));
+        } else {
+            delete msg.sp;
         }
-        if (msg.sp?.length || msg.drawCount || newRender?.length) {
+        if (msg.drawCount === undefined) {
+            delete msg.drawCount;
+        }
+        if (rsp?.length || msg.drawCount || (msg as IBatchMainMessage)?.render?.length) {
+            // console.log('msg---layer--sub', this.viewId, cloneDeep(msg), this.fullLayer?.children.length, this.topLayer?.children.length);
             this._post(msg, transfers);
-            if (transfers?.length) {
-                for (const transfer of transfers) {
-                    if (transfer instanceof ImageBitmap) {
-                        transfer.close();
+        }
+        if (this.delayPostDoneResolve) {
+            this.delayPostDoneResolve(true);
+        }
+    }
+    getLayer(drawCanvas:ECanvasShowType, isSnapshot?:boolean): Group {
+        if (isSnapshot && this.snapshotFullLayer) {
+            return this.snapshotFullLayer;
+        }
+        switch (drawCanvas) {
+            case ECanvasShowType.TopFloat:
+                return this.topLayer
+            default:
+                return this.fullLayer
+        }
+    }
+    async on(msg: IWorkerMessage) {
+        const {msgType, toolsType, opt, dataType, workState} = msg;
+        switch (msgType) {
+            case EPostMessageType.UpdateTools:
+                if(toolsType && this.topLayerWork.canUseTopLayer(toolsType) && opt){
+                    const param = {
+                        toolsType,
+                        toolsOpt: opt
+                    }
+                    this.topLayerWork.setToolsOpt(param);
+                    return;
+                }
+                break;
+            case EPostMessageType.CreateWork:
+                this.createLocalWork(msg);
+                return;
+            case EPostMessageType.DrawWork:
+                if(workState === EvevtWorkState.Done && dataType === EDataType.Local) {
+                    await this.consumeDrawAll(dataType, msg);
+                } else {
+                    this.consumeDraw(dataType, msg);
+                }
+                return;
+            case EPostMessageType.RemoveNode:
+                await this.removeNode(msg);
+                return;
+            case EPostMessageType.FullWork:
+                if (toolsType && this.topLayerWork.canUseTopLayer(toolsType)) {
+                    await this.consumeDrawAll(dataType, msg);
+                }
+                return;
+            case EPostMessageType.Snapshot:
+                this.snapshotFullLayer = this.createLayer('snapshotFullLayer', this.scene, {...this.opt.layerOpt, bufferSize: this.viewId === Main_View_Id ? 6000 : 3000});
+                if (this.snapshotFullLayer) {
+                    await this.getSnapshot(msg);
+                    this.snapshotFullLayer = undefined;
+                }
+                return;
+            case EPostMessageType.BoundingBox:
+                this.snapshotFullLayer = this.createLayer('snapshotFullLayer', this.scene, {...this.opt.layerOpt, bufferSize: this.viewId === Main_View_Id ? 6000 : 3000});
+                if (this.snapshotFullLayer) {
+                    await this.getBoundingRect(msg);
+                    this.snapshotFullLayer = undefined;
+                }
+                return;
+        }
+        await super.on(msg);
+    }
+    protected createLocalWork(data: IWorkerMessage): void {
+        const {workId, toolsType, opt} = data;
+        if (toolsType && this.topLayerWork.canUseTopLayer(toolsType) && workId && opt) {
+            if (!this.topLayerWork.getToolsOpt()) {
+                this.topLayerWork.setToolsOpt({
+                    toolsType,
+                    toolsOpt: opt,
+                })
+            }
+            this.topLayerWork.setWorkOptions(workId.toString(),opt)
+            return;
+        }
+        super.createLocalWork(data);
+        return;
+    }
+    async removeNode(data:IWorkerMessage){
+        const {dataType} = data;
+        if (dataType === EDataType.Local) {
+            await this.localWork.removeWork(data);
+        }
+    }
+    getOffscreen(drawCanvas:ECanvasShowType, isSnapshot?:boolean): OffscreenCanvas {
+        const layerParent = this.getLayer(drawCanvas, isSnapshot).parent as Layer;
+        return layerParent.canvas as OffscreenCanvas;
+    }
+    async consumeDraw(dataType: EDataType, data: IWorkerMessage) {
+        const {workId, toolsType} = data;
+        if(workId){
+            if (toolsType && this.topLayerWork.canUseTopLayer(toolsType)) {
+                if (dataType === EDataType.Local) {
+                    const workShapeNode = this.topLayerWork.getWorkShape(workId.toString());
+                    if (!workShapeNode) {
+                        this.createLocalWork(data);
+                    }
+                }
+                this.topLayerWork.consumeDraw(data);
+                return;
+            }
+            const workShapeNode = this.localWork.getWorkShape(workId.toString());
+            if (!workShapeNode) {
+                this.createLocalWork(data);
+            }
+            await this.localWork.consumeDraw(data);
+            return;
+        }
+    }
+    async consumeDrawAll(_type: EDataType, data: IWorkerMessage) {
+        const {workId, toolsType, dataType} = data;
+        if(workId) {
+            const workIdStr = workId.toString();
+            if (toolsType && this.topLayerWork.canUseTopLayer(toolsType)) {
+                if (dataType === EDataType.Local) {
+                    const workShapeNode = this.topLayerWork.getWorkShape(workIdStr);
+                    if (!workShapeNode) {
+                        this.createLocalWork(data);
+                    }
+                }
+                this.topLayerWork.consumeDrawAll(data);
+                return;
+            }
+            const workShapeNode = this.localWork.getWorkShape(workIdStr);
+            if (!workShapeNode) {
+                super.createLocalWork(data);
+            }
+            this.localWork.consumeDrawAll(data);
+            return;
+        }
+        return;
+    }
+    async clearAll(): Promise<void> {
+        this.vNodes.clear();
+        super.clearAll();
+        if (this.topLayer) {
+            (this.topLayer.parent as Layer).children.forEach(c => {
+                if (c.name !== 'viewport') {
+                    c.remove();
+                }
+            });
+            this.topLayer.removeAllChildren();
+        }
+        await this.post({
+            render:[{
+                isClearAll: true,
+                clearCanvas: ECanvasShowType.TopFloat,
+                viewId: this.viewId
+            }],
+            sp:[{
+                type: EPostMessageType.Clear
+            }]
+        })
+    }
+    private getRectImageBitmap(renderData:Required<Pick<IMainMessageRenderData, 'rect' | 'drawCanvas'>>, isSnapshot:boolean = false, options?:ImageBitmapOptions): Promise<ImageBitmap>{
+        const {rect, drawCanvas} = renderData;
+        const x = Math.floor(rect.x * this.dpr);
+        const y = Math.floor(rect.y * this.dpr);
+        const w = Math.floor(rect.w * this.dpr || 1);
+        const h = Math.floor(rect.h * this.dpr || 1);
+        return createImageBitmap(this.getOffscreen(drawCanvas, isSnapshot), x, y, w,  h, options)
+    }
+    protected updateLayer(layerOpt:ILayerOptionType) {
+        const { width, height } = layerOpt;
+        super.updateLayer(layerOpt);
+        if (this.topLayer) {
+            (this.topLayer.parent as Layer).setAttribute('width', width);
+            (this.topLayer.parent as Layer).setAttribute('height', height);
+            this.topLayer.setAttribute('size',[width, height]);
+            this.topLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
+        if (this.snapshotFullLayer) {
+            (this.snapshotFullLayer.parent as Layer).setAttribute('width', width);
+            (this.snapshotFullLayer.parent as Layer).setAttribute('height', height);
+            this.snapshotFullLayer.setAttribute('size',[width, height]);
+            this.snapshotFullLayer.setAttribute('pos',[width * 0.5, height * 0.5]);
+        }
+    }
+    async updateCamera(msg:IWorkerMessage){
+        const render:IMainMessageRenderData[] = [];
+        const {cameraOpt} = msg;
+        if (cameraOpt && !isEqual(this.cameraOpt, cameraOpt)) {
+            const isClearTopFloat:boolean = !!this.topLayerWork.localWorkShapes.size;
+            const isClearFloat:boolean = !!this.localWork.getWorkShapes().size;
+            if(isClearFloat){
+                this.localWork.workShapesDone();
+            }
+            this.setCameraOpt(cameraOpt);
+            if (isClearFloat) {
+                render.push({
+                    isClearAll: true,
+                    clearCanvas: ECanvasShowType.Float,
+                    viewId: this.viewId
+                });
+            }
+            if (isClearTopFloat) {
+                render.push({
+                    isClearAll: true,
+                    clearCanvas: ECanvasShowType.TopFloat,
+                    viewId: this.viewId
+                });
+                for (const [key, value] of this.topLayerWork.localWorkShapes.entries()) {
+                    if (value.totalRect) {
+                        let totalRect:IRectType|undefined;
+                        this.topLayer.getElementsByName(key.toString()).forEach(n=>{
+                            const r = (n as Path).getBoundingClientRect();
+                            const rect = getSafetyRect({x:r.x,y:r.y,w:r.width,h:r.height})
+                            totalRect = computRect(totalRect, rect);
+                        })
+                        value.totalRect = totalRect;
+                        this.topLayerWork.localWorkShapes.set(key, value);
                     }
                 }
             }
-        }
-    }
-    on(msg: IWorkerMessage) {
-        const {msgType} = msg;
-        switch (msgType) {
-            case EPostMessageType.UpdateCamera:
-                this.updateCamera(msg);
-                break;
-            case EPostMessageType.Snapshot:
-                this.snapshotFullLayer = this.createLayer('snapshotFullLayer', this.scene, {...this.opt.layerOpt, bufferSize: this.viewId === 'mainView' ? 6000 : 3000});
-                if (this.snapshotFullLayer) {
-                    this.getSnapshot(msg).then(()=>{
-                        this.snapshotFullLayer = undefined;
-                    })
-                }
-                break;
-            case EPostMessageType.BoundingBox:
-                this.snapshotFullLayer = this.createLayer('snapshotFullLayer', this.scene, {...this.opt.layerOpt, bufferSize: this.viewId === 'mainView' ? 6000 : 3000});
-                if (this.snapshotFullLayer) {
-                    this.getBoundingRect(msg).then(()=>{
-                        this.snapshotFullLayer = undefined;
-                    })
-                }
-                break;
-        }
-        super.on(msg);
-    }
-    getOffscreen(isSnapshot:boolean): OffscreenCanvas {
-        return ((isSnapshot && this.snapshotFullLayer || this.fullLayer).parent as Layer)?.canvas as OffscreenCanvas;
-    }
-    consumeDraw(type: EDataType, data: IWorkerMessage): void {
-        if (type === EDataType.Local) {
-            this.localWork.consumeDraw(data);
-        }
-    }
-    consumeDrawAll(_type: EDataType, data: IWorkerMessage): void {
-        this.localWork.consumeDrawAll(data);
-        return;
-    }
-    private getRectImageBitmap(rect:IRectType, isSnapshot:boolean = false, options?:ImageBitmapOptions): Promise<ImageBitmap>{
-        const x = rect.x * this.dpr;
-        const y = rect.y * this.dpr;
-        const w = rect.w * this.dpr;
-        const h = rect.h * this.dpr;
-        return createImageBitmap(this.getOffscreen(isSnapshot), x, y, w,  h, options)
-    }
-    private safariFixRect(rect:IRectType):IRectType|undefined{
-        if (rect.w + rect.x <=0 || rect.h + rect.y <=0 ) {
-            return undefined;
-        }
-        if (rect.w <= 0 || rect.h <= 0) {
-            return undefined
-        }
-        const newRect = {
-            x: 0,
-            y: 0,
-            w: Math.floor(this.scene.width),
-            h: Math.floor(this.scene.height)
-        }
-        if (rect.x < 0) {
-            if (rect.w + rect.x < this.scene.width) {
-                newRect.w = rect.w + rect.x;
-            }
-        } else if(rect.w + rect.x > 0) {
-            newRect.x = rect.x;
-            newRect.w = Math.floor(this.scene.width - rect.x);
-        }
-        if (rect.y < 0) {
-            if (rect.h + rect.y < this.scene.height) {
-                newRect.h = rect.h + rect.y;
-            }
-        } else if(rect.h + rect.y > 0) {
-            newRect.y = rect.y;
-            newRect.h = Math.floor(this.scene.height - rect.y);
-        }
-        if (newRect.w <= 0 || newRect.h <= 0) {
-            return undefined
-        }
-        return newRect;
-    }
-    private updateCamera(msg:IWorkerMessage){
-        const {cameraOpt} = msg;
-        if (cameraOpt) {
-            this.setCameraOpt(cameraOpt);
+            if (render.length) {
+               await this.post({ render })
+            } 
         }
     }
     setCameraOpt(cameraOpt:ICameraOpt, layer?:Group){
@@ -668,33 +886,29 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
         }
         if (layer) {
             layer.setAttribute('scale', [scale, scale]);
-            layer.setAttribute('translate', [-centerX,-centerY]);
-        } else {
+            layer.setAttribute('translate', [-centerX, -centerY]);
+        } 
+        else {
             this.fullLayer.setAttribute('scale', [scale, scale]);
             this.fullLayer.setAttribute('translate', [-centerX,-centerY]);
+            this.topLayer.setAttribute('scale', [scale, scale]);
+            this.topLayer.setAttribute('translate', [-centerX,-centerY]);
         }
     }
     private async getSnapshot(data:IWorkerMessage){
-        const {scenePath, scenes, cameraOpt, w, h, maxZIndex} = data;
+        const {scenePath, scenes, cameraOpt, w, h} = data;
         if (scenePath && scenes && cameraOpt && this.snapshotFullLayer) {
             const curCameraOpt = cloneDeep(this.cameraOpt);
             this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
             this.localWork.fullLayer = this.snapshotFullLayer;
-            this.localWork.drawLayer = this.fullLayer;
+            this.localWork.drawLayer = undefined;
             let rect:IRectType|undefined;
-            const willRenderMap:Map<string,BaseCollectorReducerAction> = new Map();
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {
                     switch (value?.type) {
                         case EPostMessageType.UpdateNode:
                         case EPostMessageType.FullWork: {
-                            const {toolsType, opt} = value;
-                            if(toolsType === EToolsKey.Text && opt){
-                                opt.zIndex = opt.zIndex + (maxZIndex || 0)
-                                if (((opt as TextOptions).lineThrough || (opt as TextOptions).underline)) {
-                                    willRenderMap.set(key,value);
-                                }
-                            }
+                            const {opt} = value;
                             const r = await this.localWork.runFullWork({
                                 ...value,
                                 opt,
@@ -702,7 +916,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                                 msgType: EPostMessageType.FullWork,
                                 dataType: EDataType.Service,
                                 viewId:this.viewId
-                            }, toolsType === EToolsKey.Text);
+                            });
                             rect = computRect(rect,r);
                             break;
                         }
@@ -711,8 +925,6 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                     }
                 }
             }
-            this.localWork.fullLayer = this.fullLayer;
-            this.localWork.drawLayer = undefined;
             let options:ImageBitmapOptions|undefined;
             if (w && h) {
                 options = {
@@ -720,21 +932,9 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
                     resizeHeight: h,
                 }
             }
-            if(willRenderMap.size){
-                await new Promise((resolve)=>{
-                    setTimeout(resolve,500);
-                })
-                this.willRenderSpecialLabel(willRenderMap);
-            }
             await this.getSnapshotRender({scenePath,curCameraOpt,options})
-        }
-    }
-    private willRenderSpecialLabel(willRenderMap:Map<string,BaseCollectorReducerAction>){
-        for (const [key,value] of willRenderMap.entries()) {
-            const labelGroup = this.snapshotFullLayer?.getElementsByName(key)[0] as Group;
-            if (labelGroup && value.opt) {
-                this.localWork.updateLabels(labelGroup, value);
-            }
+            this.localWork.fullLayer = this.fullLayer;
+            this.localWork.drawLayer = undefined;
         }
     }
     private async getSnapshotRender(data:{
@@ -744,13 +944,14 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
     }){
         const {scenePath, curCameraOpt, options} = data;
         (this.snapshotFullLayer?.parent as Layer).render();
-        const imageBitmap = await this.getRectImageBitmap({ x: 0, y: 0, w: this.scene.width, h: this.scene.height }, true, options)
+        const imageBitmap = await this.getRectImageBitmap({ rect: this.getSceneRect(), drawCanvas: ECanvasShowType.None }, true, options)
         if(imageBitmap) {
-            await this.post({
+            this._post({
                 sp:[{
                     type: EPostMessageType.Snapshot,
                     scenePath,
                     imageBitmap,
+                    viewId: this.viewId
                 }]
             },[imageBitmap]);
             imageBitmap.close();
@@ -764,7 +965,7 @@ export class WorkThreadEngineForSubWorker extends WorkThreadEngineBase{
             const curCameraOpt = cloneDeep(this.cameraOpt);
             this.setCameraOpt(cameraOpt, this.snapshotFullLayer);
             this.localWork.fullLayer = this.snapshotFullLayer;
-            this.localWork.drawLayer = this.drawLayer;
+            this.localWork.drawLayer = undefined;
             let rect:IRectType|undefined;
             for (const [key,value] of Object.entries(scenes)) {
                 if (value?.type) {

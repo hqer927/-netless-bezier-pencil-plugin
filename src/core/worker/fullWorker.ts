@@ -2,4 +2,4 @@
 import { WorkerManager, WorkThreadEngineForFullWorker, EWorkThreadType } from "./workerManager";
 
 const _self: Worker = self as unknown as Worker;
-new WorkerManager<WorkThreadEngineForFullWorker>(_self, EWorkThreadType.Full);
+(_self as any).full = new WorkerManager<WorkThreadEngineForFullWorker>(_self, EWorkThreadType.Full);

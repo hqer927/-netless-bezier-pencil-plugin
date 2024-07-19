@@ -2,10 +2,10 @@
 import './App.css';
 import { useState, useEffect, createContext} from 'react';
 import { FloatTools } from './view/floatTools';
-import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
 import { ZoomController } from './view/zoomController';
-import { EStrokeType, ShapeType, MemberState } from '@hqer/bezier-pencil-plugin/src/plugin/types';
-import { ApplianceNames, Room, RoomState, isRoom } from 'white-web-sdk';
+import { isRoom } from 'white-web-sdk'
+import { EStrokeType, MemberState, ShapeType, ApplianceNames, EToolsKey } from '@hqer/bezier-pencil-plugin';
+import type { AppliancePluginInstance, Room, RoomState } from '@hqer/bezier-pencil-plugin';
 import { TopTools } from './view/topTools';
 export const AppContext = createContext<{
   toolsKey:EToolsKey;
@@ -77,69 +77,64 @@ export default function App() {
       window.room.callbacks.off('onRoomStateChanged', roomStateChangeListener);
     }
   },[])
+  
+  // document.addEventListener("visibilitychange", () => {if (document.visibilityState === "visible") {setTimeout(()=>{_wm.queryAll()[0].view.fireReloadLibrary()},1000)}
+  // _wm.queryAll()[0].view.pressedHotKeys
+  // });
   useEffect(()=>{
       if (window.room) {
+        const _object: AppliancePluginInstance = window.room;
+        // if ( window.manager ) {
+        //   _object = window.manager.mainView;
+        // }
         switch (toolsKey) {
           case EToolsKey.Text:
-              window.room.setMemberState({currentApplianceName: ApplianceNames.text});
+              _object.setMemberState({currentApplianceName: ApplianceNames.text});
               break;
           case EToolsKey.Pencil:
-              // window.room.disableDeviceInputs = true;
-              window.room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil: true, useLaserPen: false, strokeType: EStrokeType.Stroke});
+              _object.setMemberState({currentApplianceName: ApplianceNames.pencil, strokeType: EStrokeType.Stroke});
               break;
           case EToolsKey.Selector:
-            // window.room.disableDeviceInputs = true;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.selector});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.selector});
+              break;
           case EToolsKey.Eraser:
-            // window.room.disableDeviceInputs = true;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.eraser});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.eraser});
+              break;
           case EToolsKey.Clicker:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.clicker});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.clicker});
+              break;``
           case EToolsKey.LaserPen:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, useNewPencil: false, strokeType: EStrokeType.Normal});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.laserPen, strokeType: EStrokeType.Normal});
+              break;
           case EToolsKey.Arrow:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.arrow, arrowCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.arrow, arrowCompleteToSelector: true});
+              break;
           case EToolsKey.Straight:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.straight, straightCompleteToSelector: true});
-            break; 
+              _object.setMemberState({currentApplianceName: ApplianceNames.straight, straightCompleteToSelector: false});
+              break; 
           case EToolsKey.Ellipse:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.ellipse, ellipseCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.ellipse, ellipseCompleteToSelector: false});
+              break;
           case EToolsKey.Rectangle:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.rectangle, rectangleCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.rectangle, rectangleCompleteToSelector: false});
+              break;
           case EToolsKey.Star:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Pentagram, shapeCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Pentagram, shapeCompleteToSelector: false});
+              break;
           case EToolsKey.Triangle:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Triangle, shapeCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Triangle, shapeCompleteToSelector: false});
+              break;
           case EToolsKey.Rhombus:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus, shapeCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.Rhombus, shapeCompleteToSelector: false});
+              break;
           case EToolsKey.SpeechBalloon:
-            window.room.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon, shapeCompleteToSelector: true});
-            break;
+              _object.setMemberState({currentApplianceName: ApplianceNames.shape, shapeType:ShapeType.SpeechBalloon, shapeCompleteToSelector: false});
+              break;
           case EToolsKey.Hand:
-            // window.room.disableDeviceInputs = false;
-            window.room.setMemberState({currentApplianceName: ApplianceNames.hand});
-            break;    
+              _object.setMemberState({currentApplianceName: ApplianceNames.hand});
+              break;    
           default:
-            break;
+              break;  
         }
       }
   },[toolsKey])

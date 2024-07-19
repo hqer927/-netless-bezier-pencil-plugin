@@ -10,7 +10,7 @@ import { transformToSerializableData } from "../../collector/utils";
 import { computRect, getRectFromPoints, isSealedGroup } from "../utils";
 import { EStrokeType } from "../../plugin/types";
 import { ShapeNodes } from "./utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 
 export interface PencilOptions extends BaseShapeOptions {
     thickness: number;
@@ -22,13 +22,13 @@ export class PencilShape extends BaseShapeTool {
     readonly scaleType: EScaleType = EScaleType.all;
     readonly toolsType: EToolsKey = EToolsKey.Pencil;
     private syncTimestamp: number;
-    private syncIndex:number = 0;
+    private syncIndex: number = 0;
     protected tmpPoints:Array<Point2d> = [];
     private MAX_REPEAR = 10;
     /** 合并原始点的灵敏度 */
     private uniThickness: number;
     protected workOptions: PencilOptions;
-    private centerPos:[number,number]=[0,0];
+    private centerPos: [number,number]=[0,0];
     constructor(props:BaseShapeToolProps) {
         super(props);
         this.workOptions = props.toolsOpt as PencilOptions;
@@ -38,7 +38,11 @@ export class PencilShape extends BaseShapeTool {
     /** 批量合并消费本地数据,返回绘制结果 */
     combineConsume(): IMainMessage | undefined {
       const workId = this.workId?.toString();
-      // console.log('post-combineConsume', workId)
+      if (this.tmpPoints.length < 2) {
+        return {
+            type: EPostMessageType.None
+        }
+      }
       const tasks = this.transformDataAll(true);
       const attrs = {
         name: workId,
@@ -46,7 +50,7 @@ export class PencilShape extends BaseShapeTool {
       let rect:IRectType|undefined;
       const layer = this.drawLayer || this.fullLayer;
       if (tasks.length) {
-        rect = this.draw({attrs, tasks, replaceId: workId, layer, isClearAll:true});
+        rect = this.draw({attrs, tasks, replaceId: workId, layer});
       }
       return {
         rect,
@@ -59,17 +63,20 @@ export class PencilShape extends BaseShapeTool {
         this.syncTimestamp = Date.now();
     }
     consume(props:{
-      data: IWorkerMessage, isFullWork?:boolean, isClearAll?:boolean, isSubWorker?:boolean
-    }): IMainMessage{
-        const {data, isFullWork, isClearAll, isSubWorker}= props;
-        if(data.op?.length === 0){
-          return { type: EPostMessageType.None}
-        }
+        data: IWorkerMessage;
+        isFullWork?:boolean;
+        isSubWorker?:boolean;
+        drawCount?:number;
+        isMainThread?:boolean;
+        replaceId?:string;
+    }){
+        const {data, isFullWork, isSubWorker, isMainThread, drawCount, replaceId}= props;
         const {workId}= data;
         const {tasks, effects, consumeIndex} = this.transformData(data,false);
         this.syncIndex = Math.min(this.syncIndex, consumeIndex, Math.max(0, this.tmpPoints.length - 2));
         const attrs = {
-            name: workId?.toString()
+            name: workId,
+            id: drawCount?.toString(),
         }
         let rect:IRectType|undefined;
         let isSync:boolean = false;
@@ -77,16 +84,15 @@ export class PencilShape extends BaseShapeTool {
         if (this.syncTimestamp === 0) {
           this.syncTimestamp = Date.now();
         }
-        //console.log('tmpPoints', effects, this.tmpPoints.map(p=>({p:p.toArray(),t:p.t})))
         if (tasks.length) {
           if (tasks[0].taskId - this.syncTimestamp > this.syncUnitTime) {
             isSync = true;
             this.syncTimestamp = tasks[0].taskId;
             this.syncIndex = this.tmpPoints.length;
           }
-          if (isSubWorker) {
+          if (isSubWorker || isMainThread) {
             const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-            rect = this.draw({attrs, tasks, effects, layer, isClearAll});
+            rect = this.draw({attrs, tasks, effects, layer, replaceId});
           }
         }
         if(isSubWorker){
@@ -103,17 +109,20 @@ export class PencilShape extends BaseShapeTool {
         this.tmpPoints.slice(index).forEach(p=>{
           op.push(p.x,p.y, this.computRadius(p.z, this.workOptions.thickness))
         })
-        // !isSubWorker && console.log('collectorAsyncData---0---0', this.tmpPoints.length, index, isSync, consumeIndex)
         return {
-          rect,
+          ...this.baseConsumeResult,
           type: EPostMessageType.DrawWork,
           dataType: EDataType.Local,
-          workId: isSync ? workId : undefined,
+          rect,
           op: isSync ? op : undefined,
-          index: isSync ? index * 3 : undefined
+          index: isSync ? index * 3 : undefined,
+          updateNodeOpt:{
+            useAnimation: true
+          },
         }
     }
-    consumeAll(props:{data?: IWorkerMessage}): IMainMessage {
+    consumeAll(props:{data?: IWorkerMessage}) {
+        const workId = this.workId;
         if(props.data){
           const {op, workState} = props.data;
           if (op?.length && workState === EvevtWorkState.Done) {
@@ -122,10 +131,6 @@ export class PencilShape extends BaseShapeTool {
             }
           }
         }
-        const workId = this.workId?.toString();
-        if (!workId) {
-          return {type: EPostMessageType.None};
-        }
         const tasks = this.transformDataAll(true);
         const attrs = {
           name: workId,
@@ -133,7 +138,15 @@ export class PencilShape extends BaseShapeTool {
         let rect:IRectType|undefined;
         const layer = this.fullLayer;
         if (tasks.length) {
-          rect = this.draw({attrs, tasks, replaceId: workId, layer, isClearAll:false});
+          rect = this.draw({attrs, tasks, replaceId: workId, layer});
+        }
+        if (this.tmpPoints.length < 2) {
+          this.replace(layer, workId);
+          return {
+              type: EPostMessageType.RemoveNode,
+              removeIds: [workId],
+              rect,
+          }
         }
         const nop:number[] = [];
         this.tmpPoints.map(p=>{
@@ -142,7 +155,7 @@ export class PencilShape extends BaseShapeTool {
         this.syncTimestamp = 0;
         delete this.workOptions.syncUnitTime;
         const ops = transformToSerializableData(nop);
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
           rect,
           op: nop,
           opt: this.workOptions,
@@ -152,17 +165,15 @@ export class PencilShape extends BaseShapeTool {
           centerPos: rect && BaseShapeTool.getCenterPos(rect, layer)
         });
         return {
+          ...this.baseConsumeResult,
           rect,
           type: EPostMessageType.FullWork,
           dataType: EDataType.Local,
-          workId,
           ops,
           updateNodeOpt:{
             pos: this.centerPos,
             useAnimation: true
           },
-          opt: this.workOptions,
-          undoTickerId: props.data?.undoTickerId
         }
     }
     clearTmpPoints(): void {
@@ -174,10 +185,8 @@ export class PencilShape extends BaseShapeTool {
       op: number[], 
       isFullWork?:boolean,
       replaceId?: string,
-      isClearAll?: boolean,
-      isTemp?:boolean,
     }): IRectType | undefined {
-      const {op, isFullWork, replaceId, isClearAll, isTemp} = params;
+      const {op, isFullWork, replaceId} = params;
       this.tmpPoints.length = 0
       for (let i = 0; i < op.length; i+=3) {
         const point = new Point2d(op[i],op[i+1],op[i+2]);
@@ -188,6 +197,9 @@ export class PencilShape extends BaseShapeTool {
         }
         this.tmpPoints.push(point);
       }
+      if (this.tmpPoints.length < 2) {
+        return;
+      }
       const tasks = this.transformDataAll(false);
       const name = this.workId?.toString();
       const attrs = {
@@ -196,8 +208,8 @@ export class PencilShape extends BaseShapeTool {
       let rect:IRectType|undefined;
       if (name && tasks.length) {
           const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-          rect = this.draw({attrs, tasks, replaceId, layer, isClearAll});
-          isFullWork && !isTemp && this.vNodes.setInfo(name, {
+          rect = this.draw({attrs, tasks, replaceId, layer});
+          this.vNodes?.setInfo(name, {
             rect,
             op,
             opt: this.workOptions,
@@ -210,7 +222,8 @@ export class PencilShape extends BaseShapeTool {
       return rect
     }
     private transformDataAll(shoulAddThickness:boolean = true) {
-        return this.getTaskPoints(this.tmpPoints, shoulAddThickness && this.workOptions.thickness || undefined);
+        const _points = this.filterSamePoints(this.tmpPoints, this.workOptions.thickness);
+        return this.getTaskPoints(_points, shoulAddThickness && this.workOptions.thickness || undefined);
     }
     private draw(data:{
         attrs: Record<string, any>;
@@ -225,18 +238,9 @@ export class PencilShape extends BaseShapeTool {
         layer:Group;
         replaceId?: number|string;
         effects?: Set<number>;
-        isClearAll?: boolean;
       }): IRectType | undefined {
-        const {attrs, tasks, replaceId, effects, layer, isClearAll} = data;
+        const {attrs, tasks, replaceId, effects, layer} = data;
         const {strokeColor, strokeType, thickness, zIndex, scale, rotate, translate} = this.workOptions;
-        if (isClearAll) {
-          layer.removeAllChildren();
-        }
-        if (replaceId) {
-          this.fullLayer.getElementsByName(replaceId+'').map(o=>o.remove());
-          this.drawLayer?.getElementsByName(replaceId+'').map(o=>o.remove());
-        }
-        // console.log('post-0', replaceId, this.fullLayer.getElementsByName(replaceId+'').length)
         if (effects?.size) {
             effects.forEach(id=>{
               layer.getElementById(id+'')?.remove()
@@ -248,17 +252,16 @@ export class PencilShape extends BaseShapeTool {
         const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling; 
         for (let i=0; i < tasks.length; i++) {
-            const {pos, points, taskId} = tasks[i];
-            attrs.id = taskId.toString();
+            const {pos, points} = tasks[i];
+            // attrs.id = taskId.toString();
             const {ps, rect} = this.computDrawPoints(points);
             let d:string;
             const isDot:boolean = points.length === 1;
             if (strokeType === EStrokeType.Stroke || isDot) {
-              d = getSvgPathFromPoints(ps,true);
+              d = getSvgPathFromPoints(ps, true);
             } else {
               d = getSvgPathFromPoints(ps, false);
             }
-            // console.log('getRectFromLayer-pencil', rect)
             const attr:any = {
               pos,
               d,
@@ -274,7 +277,6 @@ export class PencilShape extends BaseShapeTool {
               w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding),
               h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding)
             });
-            // console.log('getRectFromLayer-pencil', r)
             // todo 渲染材质
             // const {vertex, fragment} = this.workOptions;
             // if (vertex && fragment) {
@@ -288,7 +290,6 @@ export class PencilShape extends BaseShapeTool {
             // }
             pathAttrs.push(attr);
         }
-        // let node:Group|Path|undefined;
         if (scale) {
           attrs.scale = scale;
         }
@@ -304,7 +305,6 @@ export class PencilShape extends BaseShapeTool {
           group.attr({
             ...attrs,
             normalize:true,
-            id: attrs.name,
             anchor: [0.5, 0.5],
             bgcolor: strokeType === EStrokeType.Stroke ? strokeColor : undefined,
             pos: this.centerPos,
@@ -319,7 +319,7 @@ export class PencilShape extends BaseShapeTool {
           if (strokeType === EStrokeType.Stroke) {
             group.seal();
           }
-          layer.append(group);
+          this.replace(layer, replaceId || attrs.workId, group);
         }
         if(scale || rotate || translate){
           const r = group?.getBoundingClientRect();
@@ -488,7 +488,6 @@ export class PencilShape extends BaseShapeTool {
           pos,
           points
         });
-        //console.log('aaaa11', newPoints, tasks)
         return tasks
     }
     private updateTempPointsWithPressure(globalPoints:number[], thickness: number, effects?:Set<number>) {
@@ -507,7 +506,7 @@ export class PencilShape extends BaseShapeTool {
           const lastTemPoint = this.tmpPoints[lastIndex];
           const vector = Vec2d.Sub(nextPoint, lastTemPoint).uni();
           // 合并附近点,不需要nextPoint
-          if (nextPoint.isNear(lastTemPoint, thickness)) {
+          if (nextPoint.isNear(lastTemPoint, thickness )) {
             if (lastTemPoint.z < this.MAX_REPEAR) {
               lastTemPoint.setz(Math.min(lastTemPoint.z + 1, this.MAX_REPEAR));
               willChangeMinIndex = Math.min(willChangeMinIndex, lastIndex);
@@ -552,7 +551,6 @@ export class PencilShape extends BaseShapeTool {
         // 增量无副作用，那最后一个点做为消费下标
         if (willChangeMinIndex === oldLength) {
           consumeIndex = Math.max(consumeIndex - 1, 0);
-          //console.log('consumeInde1x', consumeIndex, this.tmpPoints[consumeIndex])
           const t = this.tmpPoints[consumeIndex].t;
           if (t) {
             effects?.add(t);
@@ -563,7 +561,6 @@ export class PencilShape extends BaseShapeTool {
           let i = oldLength - 1;
           consumeIndex = willChangeMinIndex;
           while (i >= 0) {
-            //console.log('consumeIndex', i, this.tmpPoints[i])
             const t = this.tmpPoints[i].t;
             if (t) {
               effects?.add(t);
@@ -577,7 +574,6 @@ export class PencilShape extends BaseShapeTool {
           }
         }
         this.tmpPoints[consumeIndex].setT(taskId);
-        //console.log('tmpPoints', consumeIndex, this.tmpPoints.map(t=>(t.toArray())))
         return consumeIndex;
     }
     private updateTempPoints(globalPoints:number[], thickness:number, effects?:Set<number>) {
@@ -595,7 +591,7 @@ export class PencilShape extends BaseShapeTool {
           const lastTemPoint = this.tmpPoints[lastIndex];
           const vector = Vec2d.Sub(nextPoint, lastTemPoint).uni();
           // 向量一致的点，在z可线性变化下移除
-          if(nextPoint.isNear(lastTemPoint, thickness / 2)){
+          if(nextPoint.isNear(lastTemPoint, thickness  / 2)){
             willChangeMinIndex = Math.min(lastIndex, willChangeMinIndex);
             continue;
           }
@@ -613,7 +609,6 @@ export class PencilShape extends BaseShapeTool {
       // 增量无副作用，那最后一个点做为消费下标
       if (willChangeMinIndex === oldLength) {
         consumeIndex = Math.max(consumeIndex - 1, 0);
-        //console.log('consumeInde1x', consumeIndex, this.tmpPoints[consumeIndex])
         const t = this.tmpPoints[consumeIndex].t;
         if (t) {
           effects?.add(t);
@@ -623,10 +618,8 @@ export class PencilShape extends BaseShapeTool {
       else {
         let i = Math.min(oldLength - 1, willChangeMinIndex);
         consumeIndex = willChangeMinIndex;
-        //console.log('consumeIndex', oldLength, willChangeMinIndex, this.tmpPoints.length)
         while (i >= 0) {
           const t = this.tmpPoints[i]?.t;
-          //console.log('consumeIndex1', i, this.tmpPoints[i], t)
           if (t) {
             effects?.add(t);
             if (i <= willChangeMinIndex) {
@@ -720,17 +713,4 @@ export class PencilShape extends BaseShapeTool {
       nodeOpt && vNodes.setInfo(node.name, nodeOpt);
       return BaseShapeTool.updateNodeOpt(param);
     }
-    static getRectFromLayer(layer: Group, name:string): IRectType|undefined {
-      const node = layer.getElementsByName(name)[0] as ShapeNodes;
-      if (node) {
-          const r = node.getBoundingClientRect();
-          return {
-              x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
-              y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
-              w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
-              h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
-          }
-      }
-      return undefined
-  }
 }

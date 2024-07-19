@@ -8,11 +8,13 @@ export type SetColorNodeEmtData = {
     fillColor?: string;
     fontColor?: string;
     fontBgColor?: string;
-    workState?: EvevtWorkState;
+    workState: EvevtWorkState;
     viewId: string;
 };
 export declare class SetColorNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
+    private undoTickerId?;
     private setTextColor;
     collect(data: SetColorNodeEmtData): void;
 }

@@ -6,26 +6,29 @@ import { Button } from 'antd';
 import RedoUndo from "@netless/redo-undo";
 import type { Room, RoomState } from 'white-web-sdk';
 import { WindowManager } from '@netless/window-manager';
+import React from 'react';
 
 export const ZoomController = () => {
     const [camera, setCamera] = useState<{centerX?:number,centerY?:number,scale:number}>();
     useEffect(()=>{
         if (window.manager) {
-            (window.manager as WindowManager).setCameraBound({
+            (window.manager as WindowManager).mainView.setCameraBound({
                 maxContentMode: ()=>{
-                    return 5
+                    return 3
                 },
                 minContentMode: ()=>{
                     return 0.2
                 }
             });
-            (window.manager as WindowManager).mainView.callbacks.on('onCameraUpdated',listenerMainViewCamera)
+            (window.manager as WindowManager).emitter.on("cameraStateChange",listenerMainViewCamera);
+            // (window.manager as WindowManager).mainView.callbacks.on('onCameraUpdated',listenerMainViewCamera)
         } else {
             (window.room as Room).callbacks.on('onRoomStateChanged',listenerRoomStateCamera)
         }
         return ()=>{
             if (window.manager) {
-                (window.manager as WindowManager).mainView.callbacks.off('onCameraUpdated', listenerMainViewCamera)
+                (window.manager as WindowManager).emitter.off("cameraStateChange",listenerMainViewCamera);
+                // (window.manager as WindowManager).mainView.callbacks.off('onCameraUpdated', listenerMainViewCamera)
             } else {
                 (window.room as Room).callbacks.off('onRoomStateChanged',listenerRoomStateCamera)
             }

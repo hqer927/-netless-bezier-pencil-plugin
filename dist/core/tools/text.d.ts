@@ -1,12 +1,14 @@
-import { Group, Label, Polyline } from "spritejs";
-import { BaseNodeMapItem, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EScaleType, EToolsKey } from "../enum";
+import { Group, Label, Polyline, Sprite } from "spritejs";
+import { BaseNodeMapItem, IRectType, IUpdateNodeOpt } from "../types";
+import { EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeTool, BaseShapeToolProps } from "./base";
 import { TextOptions } from "../../component/textEditor";
 import { ShapeNodes } from "./utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 export declare class TextShape extends BaseShapeTool {
+    static textImageSnippetSize: number;
+    static SafeBorderPadding: number;
     readonly canRotate: boolean;
     readonly scaleType: EScaleType;
     readonly toolsType: EToolsKey;
@@ -14,23 +16,28 @@ export declare class TextShape extends BaseShapeTool {
     protected workOptions: TextOptions;
     oldRect?: IRectType;
     constructor(props: BaseShapeToolProps);
-    consume(): IMainMessage;
-    consumeAll(): IMainMessage;
+    consume(): {
+        type: EPostMessageType;
+    };
+    consumeAll(): {
+        type: EPostMessageType;
+    };
+    consumeService(): IRectType | undefined;
     private draw;
-    consumeService(props: {
+    consumeServiceAsync(props: {
         isFullWork: boolean;
         replaceId?: string;
         isDrawLabel?: boolean;
-    }): IRectType | undefined;
-    updataOptService(updateNodeOpt: IUpdateNodeOpt): IRectType | undefined;
+    }): Promise<IRectType | undefined>;
+    updataOptService(): IRectType | undefined;
+    updataOptServiceAsync(updateNodeOpt: IUpdateNodeOpt, isDrawLabel?: boolean): Promise<IRectType | undefined>;
     clearTmpPoints(): void;
-    static getFontWidth(param: {
-        text: string;
-        ctx: OffscreenCanvasRenderingContext2D;
-        opt: TextOptions;
-        worldScaling: number[];
-    }): number;
-    static createLabels(textOpt: TextOptions, layer: Group): (Polyline | Label)[];
+    static getSafetySnippetRatio(layer: Group): number;
+    static getSafetySnippetFontLength(fontSize: number): number;
+    static createLabels(textOpt: TextOptions, layer: Group, groupRect: IRectType): Promise<{
+        labels: (Group | Polyline | Sprite | Label)[];
+        maxWidth: number;
+    }>;
     static updateNodeOpt(param: {
         node: ShapeNodes;
         opt: IUpdateNodeOpt;

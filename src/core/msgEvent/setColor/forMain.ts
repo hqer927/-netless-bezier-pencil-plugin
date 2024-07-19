@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { EmitEventType, MemberState } from "../../../plugin/types";
+import { EmitEventType, MemberState, _MemberState } from "../../../plugin/types";
 import { BaseMsgMethod } from "../base";
 import { IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId } from "../../types";
 import cloneDeep from "lodash/cloneDeep";
@@ -14,11 +14,13 @@ export type SetColorNodeEmtData = {
     fillColor?: string,
     fontColor?: string,
     fontBgColor?: string,
-    workState?: EvevtWorkState;
+    workState: EvevtWorkState;
     viewId: string;
 }
 export class SetColorNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.SetColorNode;
+    private undoTickerId?:number;
     private setTextColor(key: string, curStore:BaseCollectorReducerAction, updateNodeOpt: IUpdateNodeOpt, viewId:string){
         const {fontColor, fontBgColor}= updateNodeOpt;
         if (curStore.opt) {
@@ -26,7 +28,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                 curStore.opt.fontColor = fontColor;
             }
             if (fontBgColor) {
-                curStore.opt.fontColor = fontBgColor;
+                curStore.opt.fontBgColor = fontBgColor;
             }
             this.control.textEditorManager.updateTextForMasterController({
                 workId: key,
@@ -41,7 +43,7 @@ export class SetColorNodeMethod extends BaseMsgMethod {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workIds, strokeColor, fillColor, fontColor, fontBgColor, viewId} = data;
+        const {workIds, strokeColor, fillColor, fontColor, fontBgColor, viewId, workState} = data;
         const view =  this.control.viewContainerManager.getView(viewId);
         if (!view?.displayer) {
             return ;
@@ -51,6 +53,10 @@ export class SetColorNodeMethod extends BaseMsgMethod {
         const store = this.serviceColloctor.storage;
         const localMsgs: [IWorkerMessage,IqueryTask][] = [];
         const memberState:Partial<MemberState> = {};
+        if (workState === EvevtWorkState.Start || (!this.undoTickerId && workState === EvevtWorkState.Done)) {
+            this.undoTickerId = Date.now();
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', this.undoTickerId, viewId);
+        }
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -74,13 +80,21 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                         memberState.textOpacity = a;
                     }
                     if (fontBgColor) {
-                        updateNodeOpt.fontBgColor = fontBgColor;
-                        const [r,g,b,a] = colorRGBA2Array(fontBgColor); 
-                        memberState.textBgColor = [r,g,b];
-                        memberState.textBgOpacity = a;
+                        updateNodeOpt.fontBgColor = isTransparent(fontBgColor) ? 'transparent' : fontBgColor;
+                        if (isTransparent(fontBgColor)) {
+                            memberState.textBgColor = undefined;
+                            memberState.textBgOpacity = undefined;
+                        } else {
+                            const [r,g,b,a] = colorRGBA2Array(fontBgColor); 
+                            memberState.textBgColor = [r,g,b];
+                            memberState.textBgOpacity = a;
+                        }
                     }
-                    if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
+                    if (curStore.toolsType === EToolsKey.Text && curStore.opt && workState !== EvevtWorkState.Start) {
                         this.setTextColor(localWorkId, cloneDeep(curStore), updateNodeOpt, viewId)
+                        if (workState === EvevtWorkState.Done) {
+                            this.undoTickerId = undefined;
+                        }
                         continue;
                     }
                 }
@@ -112,7 +126,6 @@ export class SetColorNodeMethod extends BaseMsgMethod {
                     willSyncService: true,
                     textUpdateForWoker: true,
                     viewId,
-                    // undoTickerId
                 };
                 localMsgs.push([taskData,{
                     workId: localWorkId,
@@ -122,11 +135,14 @@ export class SetColorNodeMethod extends BaseMsgMethod {
             }
         }
         if (localMsgs.length) {
+            if (workState === EvevtWorkState.Done) {
+                this.undoTickerId = undefined;
+            }
             this.collectForLocalWorker(localMsgs);
         }
         if (Object.keys(memberState).length) {
             setTimeout(()=>{
-                this.control.room?.setMemberState(memberState);
+                this.control.room?.setMemberState(memberState as _MemberState);
             },0)
         }
     }

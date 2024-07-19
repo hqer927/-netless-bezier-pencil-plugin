@@ -11,14 +11,15 @@ export type RotateNodeEmtData = {
     viewId: string
 }
 export class RotateNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: RotateNodeEmtData;
     readonly emitEventType: EmitEventType = EmitEventType.RotateNode;
-    private undoTickerId?:number;
     private cacheOriginRotate:number = 0;
-    collect(data: RotateNodeEmtData): void {
+    collect(data: RotateNodeEmtData, isSync?:boolean): void {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
         const {workIds, angle, workState, viewId} = data;
+        this.lastEmtData = data;
         const view =  this.control.viewContainerManager.getView(viewId);
         if (!view?.displayer) {
             return ;
@@ -31,8 +32,7 @@ export class RotateNodeMethod extends BaseMsgMethod {
         const selectIds: string[] = [];
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
-            this.undoTickerId = undoTickerId;
-            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         }
         while (keys.length) {
             const curKey = keys.pop();
@@ -73,7 +73,6 @@ export class RotateNodeMethod extends BaseMsgMethod {
                     if (workState === EvevtWorkState.Done) {
                         taskData.willRefreshSelector = true;
                         taskData.willSerializeData = true;
-                        taskData.undoTickerId = this.undoTickerId;
                         this.cacheOriginRotate = 0;
                     }
                     localMsgs.push([taskData,{
@@ -89,9 +88,10 @@ export class RotateNodeMethod extends BaseMsgMethod {
             this.mainEngine.unWritable();
         } else if (workState === EvevtWorkState.Done) {
             this.mainEngine.abled();
+            this.lastEmtData = undefined;
         }
         if (localMsgs.length) {
-            this.collectForLocalWorker(localMsgs);
+            this.collectForLocalWorker(localMsgs, isSync);
         }
     }
 }

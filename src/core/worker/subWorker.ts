@@ -2,5 +2,5 @@
 import { WorkerManager, WorkThreadEngineForSubWorker, EWorkThreadType } from "./workerManager";
 
 const _self: Worker = self as unknown as Worker;
-new WorkerManager<WorkThreadEngineForSubWorker>(_self, EWorkThreadType.Sub);
+(_self as any).sub = new WorkerManager<WorkThreadEngineForSubWorker>(_self, EWorkThreadType.Sub);
 

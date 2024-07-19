@@ -27,7 +27,7 @@ const Container = () => {
   window.room = data.room;
   useEffect(()=>{
     return ()=>{
-      window.pluginRoom?.plugin?.destroy()
+      window.appliancePlugin?.destroy()
     }
   })
   if (data.room) {
@@ -41,7 +41,7 @@ export const ReplayContainer = () => {
   window.player = data.player;
   useEffect(()=>{
       return ()=>{
-        window.pluginRoom?.plugin?.destroy()
+        window.appliancePlugin?.destroy()
       }
   })
   if (data.player) {

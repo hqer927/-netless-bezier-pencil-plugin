@@ -4,9 +4,9 @@ import {useContext, useState} from 'react';
 import { ArrowIcon, EllipseIcon, RectangleIcon, RhombusIcon, SpeechBalloonIcon, StarIcon, StraightIcon, TriangleIcon } from '../../assets/svg';
 import { Popover, Button, FloatButton, Slider, Flex, Form, InputNumber, Select } from 'antd';
 import { AppContext } from "../../App";
-import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
 import { ApplianceNames } from 'white-web-sdk';
-import { ShapeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
+import { EToolsKey, ShapeType } from '@hqer/bezier-pencil-plugin';
+import React from 'react';
 
 const GeometryToolsKeys = [EToolsKey.Straight, EToolsKey.Arrow, EToolsKey.Ellipse, EToolsKey.Rectangle, EToolsKey.Star, EToolsKey.Triangle, EToolsKey.SpeechBalloon]
 

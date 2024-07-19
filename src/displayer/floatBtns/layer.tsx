@@ -40,7 +40,9 @@ export const Layer = (props:SubButProps) => {
                 <div className="image-layer-menu" style={ subBtnStyle }>
                     <SubBtn icon={'to-top'} 
                         onClickHandler={(e) => {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             e.stopPropagation();
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Top, viewId:maranger?.viewId})
@@ -53,7 +55,9 @@ export const Layer = (props:SubButProps) => {
                     />
                     <SubBtn icon={'to-bottom'} 
                         onClickHandler={(e) => {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             e.stopPropagation();
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                                 EmitEventType.ZIndexNode, {workIds:[Storage_Selector_key], layer: ElayerType.Bottom, viewId:maranger?.viewId})
@@ -70,23 +74,19 @@ export const Layer = (props:SubButProps) => {
         return null
     }, [showSubBtn, subBtnStyle])
     const onClickHandler = (e:any) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(isActive)
-        if (isActive) {
-            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive, viewId:maranger?.viewId })
-        }
     }
     const onTouchEndHandler = (e:any) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
         setShowSubBtn(isActive)
-        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive, viewId:maranger?.viewId})
     }
     useEffect(()=>{
         if (!isEqual(floatBarData?.selectIds, selectIds)) {
@@ -96,14 +96,6 @@ export const Layer = (props:SubButProps) => {
             }
         }
     },[showSubBtn, floatBarData, selectIds, setShowSubBtn])
-    useEffect(()=>{
-        return ()=> {
-            if (showSubBtn) {
-                MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.ZIndexActive, {workId:Storage_Selector_key, isActive:false, viewId:maranger?.viewId})
-            }
-        }
-    },[showSubBtn])
     return (
         <div className={`button normal-button ${showSubBtn && 'active'}`}
             onClick={onClickHandler}

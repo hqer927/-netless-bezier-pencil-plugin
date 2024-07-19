@@ -11,20 +11,16 @@ export type TranslateNodeEmtData = {
     viewId: string
 }
 export class TranslateNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: TranslateNodeEmtData;
     readonly emitEventType: EmitEventType = EmitEventType.TranslateNode;
     private undoTickerId?:number;
-    private oldRect: {
-        height: number;
-        width: number;
-        x: number;
-        y: number;
-    } | undefined;
-    private cachePosition: {x:number,y:number} | undefined;
-    collect(data: TranslateNodeEmtData): void {
+    private cachePosition: [number,number]| undefined;
+    collect(data: TranslateNodeEmtData, isSync?:boolean): void {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
         const {workIds, position, workState, viewId} = data;
+        this.lastEmtData = data;
         const view =  this.control.viewContainerManager.getView(viewId);
         if (!view?.displayer) {
             return ;
@@ -33,32 +29,10 @@ export class TranslateNodeMethod extends BaseMsgMethod {
         const keys = [...workIds];
         const store = this.serviceColloctor?.storage;
         const localMsgs: [IWorkerMessage,IqueryTask][] = [];
-        const bgRect = view.displayer.canvasBgRef.current?.getBoundingClientRect();
-        const floatBarRect = view.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
-        let willRefreshSelector = false;
-        // const isSafari = navigator.userAgent.indexOf('Safari') !== -1 && navigator.userAgent.indexOf('Chrome') === -1;
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
             this.undoTickerId = undoTickerId;
-            // console.log('undoTickerStart--000', workState)
-            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
-        }
-        if (bgRect && floatBarRect && this.oldRect) {
-            if (this.oldRect.x < bgRect.x && floatBarRect.x > this.oldRect.x) {
-                willRefreshSelector = true;
-            } else 
-            if (this.oldRect.y < bgRect.y && floatBarRect.y > this.oldRect.y) {
-                willRefreshSelector = true;
-            } else 
-            if (this.oldRect.x + this.oldRect.width > bgRect.x + bgRect.width && floatBarRect.x < this.oldRect.x) {
-                willRefreshSelector = true;
-            } else 
-            if (this.oldRect.y + this.oldRect.height > bgRect.y + bgRect.height && floatBarRect.y < this.oldRect.y) {
-                willRefreshSelector = true;
-            }
-        }
-        if(floatBarRect){
-            this.oldRect = floatBarRect;
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         }
         while (keys.length) {
             const curKey = keys.pop();
@@ -73,12 +47,13 @@ export class TranslateNodeMethod extends BaseMsgMethod {
             const curStore = store[viewId][scenePath][key];
             if (curStore && localWorkId === Storage_Selector_key) {
                 if (curStore.selectIds) {
+                    const point = this.control.viewContainerManager.transformToScenePoint([position.x, position.y], viewId)
                     if (workState === EvevtWorkState.Start) {
-                        this.cachePosition = position;
+                        this.cachePosition = point;
                     }
                     if (this.cachePosition) {
                         const updateNodeOpt = curStore.updateNodeOpt || {}
-                        updateNodeOpt.translate = [position.x - this.cachePosition.x, position.y - this.cachePosition.y];
+                        updateNodeOpt.translate = [point[0] - this.cachePosition[0], point[1] - this.cachePosition[1]];
                         updateNodeOpt.workState = workState;
                         const taskData: IWorkerMessage = {
                             workId: curKey,
@@ -86,13 +61,11 @@ export class TranslateNodeMethod extends BaseMsgMethod {
                             dataType: EDataType.Local,
                             updateNodeOpt,
                             emitEventType: this.emitEventType,
-                            willRefreshSelector,
                             willSyncService: true,
-                            textUpdateForWoker: false,
+                            textUpdateForWoker: true,
                             viewId
                         };
                         if (workState === EvevtWorkState.Done) {
-                            taskData.willRefreshSelector = true;
                             taskData.textUpdateForWoker = true;
                             taskData.willSerializeData = true;
                             taskData.undoTickerId = this.undoTickerId;
@@ -112,10 +85,10 @@ export class TranslateNodeMethod extends BaseMsgMethod {
             this.mainEngine.unWritable();
         } else if (workState === EvevtWorkState.Done) {
             this.mainEngine.abled();
+            this.lastEmtData = undefined;
         }
         if (localMsgs.length) {
-            // console.log('TranslateNode', localMsgs)
-            this.collectForLocalWorker(localMsgs);
+            this.collectForLocalWorker(localMsgs, isSync);
         }
     }
 }

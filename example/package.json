@@ -6,17 +6,17 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --ext ts,tsx --emitDeclarationOnly --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
-    "@hqer/bezier-pencil-plugin": "^0.0.45-beta.3",
+    "@hqer/bezier-pencil-plugin": "^1.0.0",
     "@netless/app-slide": "^0.2.55",
     "@netless/cursor-tool": "^0.1.1",
     "@netless/player-controller": "^0.0.9",
     "@netless/redo-undo": "0.0.2",
-    "@netless/window-manager": "^0.4.73-beta.0",
+    "@netless/window-manager": "^0.4.73",
     "antd": "^5.11.4",
     "polly-js": "^1.8.3",
     "react": "^17",

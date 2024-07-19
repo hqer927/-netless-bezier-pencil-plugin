@@ -19,7 +19,9 @@ const BoldBtn = (props: {
     const { bold, setBold, workIds, viewId } = props;
     const onClickHandler = (e:React.MouseEvent|React.TouchEvent) =>{
         const _bold = bold === 'bold' ? 'normal' : 'bold'
-        e?.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e?.stopPropagation();
         setBold(_bold);
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
@@ -41,7 +43,9 @@ const UnderlineBtn = (props: {
     const { underline, setUnderline, workIds, viewId } = props;
     const onClickHandler = (e:React.MouseEvent|React.TouchEvent) =>{
         const _underline = !underline;
-        e?.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e?.stopPropagation();
         setUnderline(_underline);
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
@@ -63,7 +67,9 @@ const LineThrough = (props: {
     const { lineThrough, setLineThrough, workIds, viewId } = props;
     const onClickHandler = (e:React.MouseEvent|React.TouchEvent) =>{
         const _lineThrough = !lineThrough;
-        e?.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e?.stopPropagation();
         setLineThrough(_lineThrough);
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
@@ -85,7 +91,9 @@ const ItalicBtn = (props: {
     const { italic, setItalic, workIds, viewId } = props;
     const onClickHandler = (e:React.MouseEvent|React.TouchEvent) =>{
         const _italic = italic === 'italic' ? 'normal' : 'italic'
-        e?.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e?.stopPropagation();
         setItalic(_italic);
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
@@ -137,7 +145,9 @@ export const FontStyleBtn = (props:FontStyleProps) => {
                         e.nativeEvent.stopImmediatePropagation()
                     }}
                     onClick={(e)=>{
-                        e.preventDefault();
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -159,7 +169,9 @@ export const FontStyleBtn = (props:FontStyleProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);

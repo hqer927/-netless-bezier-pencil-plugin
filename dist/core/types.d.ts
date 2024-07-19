@@ -30,7 +30,7 @@ export interface IOffscreenCanvasOptionType {
     width: number;
     /** offscreenCanvas 高度 */
     height: number;
-    /** 上下文类型,默认webgl2 */
+    /** 上下文类型 */
     contextType?: ECanvasContextType;
     /** 是否自动渲染,默认自动渲染 */
     autoRender?: boolean;
@@ -120,7 +120,6 @@ export type IWorkerMessage = Omit<Partial<BaseCollectorReducerAction>, 'op'> & {
     }>;
     willSerializeData?: boolean;
     isRunSubWork?: boolean;
-    undoTickerId?: number;
     scenes?: ISerializableStorageData;
     textType?: ETextEditorType;
     mainTasksqueueCount?: number;
@@ -162,7 +161,6 @@ export interface IMainMessage extends INormalPushMsg {
         workId: IworkId;
         toolsType: EToolsKey;
     }>;
-    undoTickerId?: number;
     scenePath?: string;
     canvasWidth?: number;
     canvasHeight?: number;
@@ -179,6 +177,7 @@ export interface IMainMessage extends INormalPushMsg {
     isLocked?: boolean;
     shapeOpt?: ShapeOptType;
     toolsTypes?: EToolsKey[];
+    isLockSentEventCursor?: boolean;
 }
 export interface IMainMessageRenderData {
     viewId: string;
@@ -191,13 +190,13 @@ export interface IMainMessageRenderData {
     clearCanvas?: ECanvasShowType;
     /** 是否需要销毁imageBitmap */
     isUnClose?: boolean;
-    isFullWork?: boolean;
     workerType?: EDataType.Local | EDataType.Service;
     offset?: {
         x: number;
         y: number;
     };
     translate?: [number, number];
+    workId?: string;
 }
 export interface IBatchMainMessage {
     /** 绘制数据 */
@@ -206,6 +205,7 @@ export interface IBatchMainMessage {
     sp?: Array<IMainMessage>;
     drawCount?: number;
     workerTasksqueueCount?: number;
+    workIds?: Set<string>;
 }
 export interface ICameraOpt {
     centerX: number;
@@ -244,7 +244,6 @@ export interface IActiveWorkDataType {
     toolsOpt?: ShapeOptions;
     viewId?: string;
     workId?: IworkId;
-    undoTickerId?: number;
 }
 export type IServiceWorkItem = {
     toolsType: EToolsKey;
@@ -263,6 +262,16 @@ export type IServiceWorkItem = {
     totalRect?: IRectType;
     isDiff?: boolean;
 };
+export type ILocalWorkItem = {
+    toolsType: EToolsKey;
+    node: BaseShapeTool;
+    data?: IWorkerMessage;
+    result?: IMainMessage;
+    totalRect?: IRectType;
+    workState: EvevtWorkState;
+    isDel?: boolean;
+    willRefresh?: boolean;
+};
 export type BaseNodeMapItem = {
     name: string;
     rect: IRectType;
@@ -272,6 +281,9 @@ export type BaseNodeMapItem = {
     toolsType: EToolsKey;
     canRotate: boolean;
     scaleType: EScaleType;
+    /** 是否被框选中,框选中的元素不能被其它人操作 */
+    isSelected: boolean;
+    isHid?: boolean;
 };
 export type Size = {
     /**

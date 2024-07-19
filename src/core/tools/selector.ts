@@ -2,16 +2,18 @@ import { Path, Rect, Group, Layer, Scene } from "spritejs";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkItem, BaseNodeMapItem } from "../types";
-import { computRect, getRectFromPoints, isSameArray, isSealedGroup } from "../utils";
+import { computRect, getRectFromPoints } from "../utils";
 import { Point2d } from "../utils/primitives/Point2d";
-import { Storage_Selector_key } from "../../collector/const";
-import { VNodeManager } from "../worker/vNodeManager";
+import { Storage_Selector_key, Storage_Splitter } from "../../collector/const";
+import type { VNodeManager } from "../vNodeManager";
 import { ImageOptions, ImageShape, PolygonOptions, ShapeNodes, SpeechBalloonOptions, StarOptions, findShapeBody, getShapeTools } from ".";
 import isNumber from "lodash/isNumber";
 import { TextOptions } from "../../component/textEditor/types";
 import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
 import isEqual from "lodash/isEqual";
 import { ShapeOptType } from "../../displayer/types";
+import type { SubLocalThread } from "../mainThread/subLocalThread";
+import { TextShape } from "./text";
 export interface SelectorOptions extends BaseShapeOptions {
 }
 type ComputSelectorResult = {
@@ -25,6 +27,7 @@ export class SelectorShape extends BaseShapeTool {
     static selectorBorderId = 'selector-border';
     protected tmpPoints:Array<Point2d> = [];
     protected workOptions: BaseShapeOptions;
+    vNodes:VNodeManager;
     selectIds?: string[];
     selectorColor?: string;
     strokeColor?: string;
@@ -41,6 +44,7 @@ export class SelectorShape extends BaseShapeTool {
     constructor(props:BaseShapeToolProps) {
         super(props);
         this.workOptions = props.toolsOpt as BaseShapeOptions;
+        this.vNodes = props.vNodes as VNodeManager;
     }
     private computSelector(filterLock:boolean = true) {
         const interRect = getRectFromPoints(this.tmpPoints);
@@ -78,14 +82,13 @@ export class SelectorShape extends BaseShapeTool {
         isService: boolean;
     }){
         const {drawRect, subNodeMap, selectorId, layer, isService} = data; 
-        // console.log('drawSelector', selectorId, isService)
         const group = new Group({
             pos: [drawRect.x, drawRect.y],
             anchor: [0, 0],
             size: [drawRect.w, drawRect.h],
             id: selectorId,
             name: selectorId,
-            zIndex: 1000
+            zIndex: 9999
         })
         const childrenNode:Path[] = []
         if (isService) {
@@ -222,7 +225,7 @@ export class SelectorShape extends BaseShapeTool {
         }
     }
     getChildrenPoints(){
-        if(this.scaleType === EScaleType.both && this.selectIds){
+        if(this.scaleType === EScaleType.both && this.selectIds?.length === 1){
             const chilrenId = this.selectIds[0];
             const op = this.vNodes.get(chilrenId)?.op;
             if (op) {
@@ -234,33 +237,31 @@ export class SelectorShape extends BaseShapeTool {
             }
         }
     }
-    consume(props:{data: IWorkerMessage}): IMainMessage {
+    consume(props:{data: IWorkerMessage}) {
         const { op, workState }= props.data;
         let oldRect:IRectType|undefined = this.oldSelectRect;
         if (workState === EvevtWorkState.Start) {
-            oldRect = this.backToFullLayer();
+            oldRect = this.unSelectedAllIds();
         }
         if (!op?.length || !this.vNodes.curNodeMap.size) {
             return { type: EPostMessageType.None}
         }
         this.updateTempPoints(op);
         const result = this.computSelector();
-        if (this.selectIds && isSameArray(this.selectIds, result.selectIds)) {
+        if (this.selectIds && isEqual(this.selectIds, result.selectIds)) {
             return { type: EPostMessageType.None}
         }
         this.selectIds = result.selectIds;
         const rect: IRectType | undefined = result.intersectRect;
         this.getSelecteorInfo(result.subNodeMap);
-        this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, result);
+        this.draw(SelectorShape.selectorId, this.fullLayer, result);
         this.oldSelectRect = rect;
         const points = this.getChildrenPoints();
-        // console.log('consume', this)
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
             rect: computRect(rect, oldRect),
             selectIds: result.selectIds,
-            opt: this.workOptions,
             selectRect: rect,
             selectorColor: this.selectorColor,
             strokeColor: this.strokeColor,
@@ -274,25 +275,25 @@ export class SelectorShape extends BaseShapeTool {
             points,
             isLocked:this.isLocked,
             toolsTypes: this.toolsTypes,
-            shapeOpt:this.shapeOpt
+            shapeOpt:this.shapeOpt,
+            ...this.baseConsumeResult
         }
     }
-    consumeAll(props?:{hoverId?:string}): IMainMessage {
+    consumeAll() {
+        let rect:IRectType|undefined = this.oldSelectRect;
         if(!this.selectIds?.length && this.tmpPoints[0]){
-            this.selectSingleTool(this.tmpPoints[0].XY,SelectorShape.selectorId, false, props?.hoverId);
+            this.selectSingleTool(this.tmpPoints[0].XY,SelectorShape.selectorId, false);
         }
         if (this.selectIds?.length) {
-            this.sealToDrawLayer(this.selectIds);
+            rect = this.selectedByIds(this.selectIds);
         }
-        if (this.oldSelectRect) {
+        if (rect) {
             const points = this.getChildrenPoints();
-            // console.log('consumeAll---01', this.selectIds)
             return {
                 type: EPostMessageType.Select,
                 dataType: EDataType.Local,
                 rect: this.oldSelectRect,
                 selectIds: this.selectIds,
-                opt: this.workOptions,
                 selectorColor: this.selectorColor,
                 selectRect:  this.oldSelectRect,
                 strokeColor: this.strokeColor,
@@ -306,12 +307,11 @@ export class SelectorShape extends BaseShapeTool {
                 points,
                 isLocked:this.isLocked,
                 toolsTypes: this.toolsTypes,
-                shapeOpt:this.shapeOpt
+                shapeOpt:this.shapeOpt,
+                ...this.baseConsumeResult
             }
         }
-        return {
-            type: EPostMessageType.None
-        }
+        return { type: EPostMessageType.None }
     }
     consumeService(): undefined {
         return ;
@@ -323,124 +323,79 @@ export class SelectorShape extends BaseShapeTool {
         this.selectIds = undefined;
         this.oldSelectRect = undefined;
     }
-    private selectSingleTool(point:[number,number], key:string = SelectorShape.selectorId, isService:boolean = false, hoverId?:string){
+    private selectSingleTool(point:[number,number], key:string = SelectorShape.selectorId, isService:boolean = false){
         if (point.length === 2) {
             const x = point[0];
             const y = point[1];
-            let collision:ShapeNodes | undefined;
-            for (const node of this.fullLayer.children) {
-                const bodys = findShapeBody([node]);
-                let isCollision:boolean = false;
-                const isOptimal:boolean = hoverId && hoverId === node.name || false;
-                if (isOptimal && bodys.find(body=>body.isPointCollision(x,y))) {
-                    collision = node as ShapeNodes;
+            let collision: BaseNodeMapItem | undefined;
+            const {nodeRange}  = this.vNodes.getRectIntersectRange({x,y,w:0,h:0}, false);
+            const InsertNodes = [...nodeRange.values()].sort((a,b)=> ((b.opt.zIndex || 0) - (a.opt.zIndex || 0)));
+            for (const value of InsertNodes) {
+                const nodes = this.fullLayer.getElementsByName(value.name) as ShapeNodes[];
+                const bodys = findShapeBody(nodes);
+                if (bodys.find(body => body.isPointCollision(x,y))) {
+                    collision = value;
                     break;
-                }
-                for (const body of bodys) {
-                    isCollision = body.isPointCollision(x,y);
-                    if (isCollision) {
-                        if (!collision) {
-                            collision = node as ShapeNodes;
-                        } else {
-                            const newNodeInfo = this.vNodes.get(node.name);
-                            const oldNodeInfo = this.vNodes.get(collision.name);
-                            if (newNodeInfo?.toolsType !== EToolsKey.Text && oldNodeInfo?.toolsType === EToolsKey.Text) {
-                                break;
-                            }
-                            if (newNodeInfo?.toolsType === EToolsKey.Text && oldNodeInfo?.toolsType !== EToolsKey.Text) {
-                                collision = node as ShapeNodes;
-                            } else {
-                                const newZIndex = newNodeInfo?.opt.zIndex || 0;
-                                const oldZIndex = oldNodeInfo?.opt.zIndex || 0;
-                                if (Number(newZIndex) >= Number(oldZIndex)) {
-                                    collision = node as ShapeNodes;
-                                }
-                            }
-                        }
-                        break;
-                    }
                 }
             }
             if (collision) {
-               const name = collision.name;
-               const v = this.vNodes.get(name);
-                if (v) {
-                    if (!isEqual(this.oldSelectRect, v.rect)) {
-                        const subNodeMap = new Map([[name, v]]);
-                        this.getSelecteorInfo(subNodeMap);
-                        this.draw(key, this.drawLayer || this.fullLayer, {
-                            intersectRect: v.rect,
-                            subNodeMap,
-                            selectIds: this.selectIds || []
-                        }, isService);
-                    }
-                    this.selectIds = [name];
-                    this.oldSelectRect = v.rect;
+                const name = collision.name;
+                if (!isEqual(this.oldSelectRect, collision.rect)) {
+                    const subNodeMap = new Map([[name, collision]]);
+                    this.getSelecteorInfo(subNodeMap);
+                    this.draw(key, this.fullLayer, {
+                        intersectRect: collision.rect,
+                        subNodeMap,
+                        selectIds: this.selectIds || []
+                    }, isService);
                 }
-            }
+                this.selectIds = [name];
+                this.oldSelectRect = collision.rect;
+             }
         }
     }
-    private backToFullLayer(backToFullIds?:string[]): IRectType | undefined {
+    private unSelectedAllIds(){
         let rect:IRectType | undefined;
-        const cloneNodes:Array<ShapeNodes> = [];
-        const removeNodes:Array<ShapeNodes> = [];
-        // console.log('this.fullLayer-1', this.fullLayer.children.length, this.drawLayer?.children.length, backToFullIds)
-        for (const c of this.drawLayer?.children || []) {
-            if (backToFullIds?.length && !backToFullIds.includes(c.id) ) {
-                continue;
+        for (const [key,value] of this.vNodes.curNodeMap.entries()) {
+            if (value.isSelected) {
+                rect = computRect(rect, value.rect);
+                this.vNodes.unSelected(key);
             }
-            if (c.id !== SelectorShape.selectorId) {
-                const cloneP = c.cloneNode(true) as ShapeNodes;
-                if (isSealedGroup(c)) {
-                    (cloneP as Group).seal();
-                }
-                if (!this.fullLayer.getElementsByName(c.name).length) {
-                    cloneNodes.push(cloneP);
-                }
-                removeNodes.push(c);
-                const r = this.vNodes.get(c.name)?.rect
-                if (r) {
-                    rect = computRect(rect, r);
-                }
-            }
-        }
-        removeNodes.forEach(r=>r.remove());
-        cloneNodes.length && this.fullLayer.append(...cloneNodes);
-        // console.log('this.fullLayer', this.fullLayer.children.length, this.drawLayer?.children.length)
+        } 
         return rect;
     }
-    private sealToDrawLayer(sealToDrawIds:string[]) {
-        const cloneNodes:Array<ShapeNodes> = [];
-        const removeNodes:Array<ShapeNodes> = [];
-        // console.log('this.drawLayer-1', this.drawLayer?.children.length, sealToDrawIds, this.fullLayer.children.length)
-        sealToDrawIds.forEach(name => {
-            this.fullLayer.getElementsByName(name.toString()).forEach(c=>{
-                // console.log('this.drawLayer-2', c.tagName)
-                const cloneP = c.cloneNode(true) as (ShapeNodes);
-                if (isSealedGroup(c)) {
-                    (cloneP as Group).seal();
-                }
-                if (!this.drawLayer?.getElementsByName(c.name).length) {
-                    cloneNodes.push(cloneP);
-                }
-                removeNodes.push(c as Path)
-            })
-        });
-        removeNodes.forEach(r=>r.remove());
-        cloneNodes && this.drawLayer?.append(...cloneNodes);
-        // console.log('this.drawLayer', this.drawLayer?.children.length, this.drawLayer?.children.length)
+    private unSelectedByIds(unSelectedIs:string[]){
+        let rect:IRectType | undefined;
+        for (const id of unSelectedIs) {
+            const value = this.vNodes.get(id);
+            if (value && value.isSelected) {
+                rect = computRect(rect, value.rect);
+                this.vNodes.unSelected(id);
+            }
+        }
+        return rect;
+    }
+    private selectedByIds(selectedIs:string[]){
+        let rect:IRectType | undefined;
+        for (const id of selectedIs) {
+            const value = this.vNodes.get(id);
+            if (value) {
+                rect = computRect(rect, value.rect);
+                this.vNodes.selected(id);
+            }
+        }
+        return rect;
     }
     private getSelectorRect(layer:Group, selectorId: string) {
         let rect:IRectType | undefined;
         const selector = (layer.parent as Layer)?.getElementById(selectorId) as Group;
-        // const box = selector?.getElementById(SelectorShape.selectorBorderId);
         const r = (selector as Group)?.getBoundingClientRect();
         if (r) {
             rect = computRect(rect, {
                 x: Math.floor(r.x),
                 y: Math.floor(r.y),
-                w: Math.round(r.width),
-                h: Math.round(r.height),
+                w: Math.floor(r.width + 1),
+                h: Math.floor(r.height + 1),
             });
         }
         return rect;
@@ -458,12 +413,13 @@ export class SelectorShape extends BaseShapeTool {
         vNodes: VNodeManager,
         selectIds?: string[],
         willSerializeData?: boolean,
-        worker?: LocalWorkForFullWorker,
+        worker?: LocalWorkForFullWorker | SubLocalThread,
         offset?:[number,number],
         scene?: Scene;
+        isMainThread?:boolean;
     }): Promise<IMainMessage | undefined> {
-        const {updateSelectorOpt, selectIds, vNodes, willSerializeData, worker, offset, scene} = param;
-        const layer = this.drawLayer;
+        const {updateSelectorOpt, selectIds, vNodes, willSerializeData, worker, offset, scene, isMainThread} = param;
+        const layer = this.fullLayer;
         if (!layer) {
             return;
         }
@@ -510,14 +466,12 @@ export class SelectorShape extends BaseShapeTool {
                         const itemOpt: IUpdateNodeOpt = {...updateSelectorOpt};
                         let targetNode: BaseNodeMapItem | undefined;
                         if (toolsType) {
-                            if (targetNodes) {
-                                targetNode = targetNodes.get(name);
-                                if (targetNode && box) {
-                                    itemOpt.boxScale = scale;
-                                    const subCenter = [(targetNode.rect.x + targetNode.rect.w / 2), (targetNode.rect.y + targetNode.rect.h / 2)];
-                                    const oldDistance = [subCenter[0] - targetRectCenter[0], subCenter[1] - targetRectCenter[1]];
-                                    itemOpt.boxTranslate = [oldDistance[0] * (scale[0] - 1) + _translate[0] + (offset && offset[0] || 0), oldDistance[1] * (scale[1]-1) + _translate[1] + (offset && offset[1] || 0)];
-                                }
+                            targetNode = targetNodes?.get(name);
+                            if (targetNode && box) {
+                                itemOpt.boxScale = scale;
+                                const subCenter = [(targetNode.rect.x + targetNode.rect.w / 2), (targetNode.rect.y + targetNode.rect.h / 2)];
+                                const oldDistance = [subCenter[0] - targetRectCenter[0], subCenter[1] - targetRectCenter[1]];
+                                itemOpt.boxTranslate = [oldDistance[0] * (scale[0] - 1) + _translate[0] + (offset && offset[0] || 0), oldDistance[1] * (scale[1]-1) + _translate[1] + (offset && offset[1] || 0)];
                             }
                             const shape = getShapeTools(toolsType)
                             shape?.updateNodeOpt({
@@ -528,6 +482,7 @@ export class SelectorShape extends BaseShapeTool {
                                 targetNode,
                             })
                             if (info && worker && (
+                                    // itemOpt.angle || itemOpt.translate || itemOpt.boxScale ||
                                     (willSerializeData && (itemOpt.angle || itemOpt.translate)) ||
                                     (itemOpt.box && itemOpt.workState !== EvevtWorkState.Start) ||
                                     (itemOpt.pointMap && itemOpt.pointMap.has(name)) ||
@@ -536,6 +491,7 @@ export class SelectorShape extends BaseShapeTool {
                                     (toolsType === itemOpt.toolsType && itemOpt.willRefresh)
                             )){
                                 const workShape = worker.createWorkShapeNode({
+                                    workId: name,
                                     toolsType,
                                     toolsOpt: info.opt
                                 })
@@ -543,21 +499,29 @@ export class SelectorShape extends BaseShapeTool {
                                 let r:IRectType|undefined;
                                 if (toolsType === EToolsKey.Image && scene) {
                                     r = await (workShape as ImageShape).consumeServiceAsync({
-                                        isFullWork: false,
+                                        isFullWork: true,
                                         replaceId: name,
-                                        scene
+                                        scene,
+                                        isMainThread
+                                    })
+                                } else if (toolsType === EToolsKey.Text) {
+                                    r = await (workShape as TextShape).consumeServiceAsync({
+                                        isFullWork: true,
+                                        replaceId: name
                                     })
                                 } else {
-                                    r = workShape?.consumeService({
-                                        op: info.op,
-                                        isFullWork: false,
-                                        replaceId: name,
-                                        isClearAll: false
-                                    })
+                                    try {
+                                        r = workShape?.consumeService({
+                                            op: info.op,
+                                            isFullWork: true,
+                                            replaceId: name
+                                        }) 
+                                    } catch (error) {
+                                        continue;
+                                    }
                                 }
                                 if (r) {
                                     info.rect = r;
-                                    vNodes.setInfo(name, info);
                                 }
                                 node = (layer?.getElementsByName(name) as ShapeNodes[])[0];
                             }
@@ -572,41 +536,98 @@ export class SelectorShape extends BaseShapeTool {
         }
         if (targetNodes && workState === EvevtWorkState.Done) {
             vNodes.deleteLastTarget();
+            targetNodes = undefined;
         }
         const selectRect = intersectRect;
-        if (targetBox && updateSelectorOpt.dir && selectRect) {
-            let translate:[number,number] = [0,0];
+        if (targetBox && updateSelectorOpt.dir && selectRect && !offset) {
+            const translate:[number,number] = [0,0];
             switch (updateSelectorOpt.dir) {
-                case 'topLeft':
-                case 'left':{
-                    const moveToBlockPoint = [targetBox.x+targetBox.w,targetBox.y+targetBox.h];
-                    translate = [moveToBlockPoint[0]-(selectRect.x+ selectRect.w),moveToBlockPoint[1]-(selectRect.y+selectRect.h)];
-                    break;
-                } 
-                case 'bottomLeft':
-                case 'bottom':{
-                    const moveToBlockPoint = [targetBox.x+targetBox.w,targetBox.y];
-                    translate = [moveToBlockPoint[0]-(selectRect.x+ selectRect.w),moveToBlockPoint[1]-(selectRect.y)];
+                case "top":{
+                    const moveToBlockPoint = [targetBox.x, targetBox.y + targetBox.h];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h)                    }
                     break;
                 }
-                case 'topRight':
-                case 'top':{
-                    const moveToBlockPoint = [targetBox.x,targetBox.y+targetBox.h];
-                    translate = [moveToBlockPoint[0]-(selectRect.x),moveToBlockPoint[1]-(selectRect.y+selectRect.h)];
+                case "topLeft": {
+                    const moveToBlockPoint = [targetBox.x + targetBox.w , targetBox.y + targetBox.h];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h);
+                    }
+                    if (updateSelectorOpt.reverseX) {
+                        translate[0] = moveToBlockPoint[0] - selectRect.x;
+                    } else {
+                        translate[0] = moveToBlockPoint[0] - (selectRect.x + selectRect.w);   
+                    }
                     break;
-                }  
-                case 'right':
-                case 'bottomRight':{
-                    const moveToBlockPoint = [targetBox.x,targetBox.y];
-                    translate = [moveToBlockPoint[0]-selectRect.x,moveToBlockPoint[1]-selectRect.y];
+                }
+                case "topRight": {
+                    const moveToBlockPoint = [targetBox.x , targetBox.y + targetBox.h];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h);
+                    }
+                    if (updateSelectorOpt.reverseX) {
+                        translate[0] = moveToBlockPoint[0] - (selectRect.x + selectRect.w);
+                    } else {
+                        translate[0] = moveToBlockPoint[0] - selectRect.x;     
+                    }
+                    break;
+                }
+                case "bottom":{
+                    const moveToBlockPoint = [targetBox.x , targetBox.y];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h);
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;    
+                    }
+                    break;               
+                }
+                case "bottomLeft": {
+                    const moveToBlockPoint = [targetBox.x + targetBox.w , targetBox.y];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h);
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;    
+                    }
+                    if (updateSelectorOpt.reverseX) {
+                        translate[0] = moveToBlockPoint[0] - selectRect.x;
+                    } else {
+                        translate[0] = moveToBlockPoint[0] - (selectRect.x + selectRect.w);   
+                    }
+                    break;
+                }
+                case "bottomRight":{
+                    const moveToBlockPoint = [targetBox.x, targetBox.y];
+                    if (updateSelectorOpt.reverseY) {
+                        translate[1] = moveToBlockPoint[1] - (selectRect.y + selectRect.h);
+                    } else {
+                        translate[1] = moveToBlockPoint[1] - selectRect.y;    
+                    }
+                    if (updateSelectorOpt.reverseX) {
+                        translate[0] = moveToBlockPoint[0] - (selectRect.x + selectRect.w);
+                    } else {
+                        translate[0] = moveToBlockPoint[0] - selectRect.x;     
+                    }
+                    break;               
+                }
+                case "right":{
+                    const moveToBlockPoint = [targetBox.x, targetBox.y];
+                    if (updateSelectorOpt.reverseX) {
+                        translate[0] = moveToBlockPoint[0] - (selectRect.x + selectRect.w);
+                    } else {
+                        translate[0] = moveToBlockPoint[0] - selectRect.x;     
+                    }
                     break;
                 } 
             }
             if (translate[0] || translate[1]) {
                 selectRect.x = selectRect.x + translate[0];
                 selectRect.y = selectRect.y + translate[1];
-                // console.log('updateSelector---0---0--00--00', intersectRect, intersectRect && [intersectRect.x+intersectRect?.w,intersectRect.y+intersectRect.h], translate,
-                // selectRect, selectRect && [selectRect.x+selectRect?.w,selectRect.y+selectRect.h])
                 return await this.updateSelector({...param, offset:translate});
             }
         }
@@ -616,21 +637,19 @@ export class SelectorShape extends BaseShapeTool {
             subNodeMap,
             intersectRect: selectRect
         });
-        const rect = computRect(this.oldSelectRect, intersectRect)
-        this.oldSelectRect = intersectRect;
-        // if (!this.oldSelectRect) {
-        //     debugger;
-        // }
+        const rect = computRect(this.oldSelectRect, selectRect)
+        this.oldSelectRect = selectRect;
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
             selectRect,
             renderRect: intersectRect,
-            rect:computRect(rect, selectRect)
+            rect: computRect(rect, selectRect),
+            selectIds
         }
     }
     blurSelector(){
-        const rect = this.backToFullLayer();
+        const rect = this.unSelectedAllIds();
         return {
             type: EPostMessageType.Select,
             dataType: EDataType.Local,
@@ -639,20 +658,19 @@ export class SelectorShape extends BaseShapeTool {
             willSyncService: true,
         }
     }
-    private getRightServiceId(serviceWorkId:string) {
-        return serviceWorkId.replace("++",'-');
+    getRightServiceId(serviceWorkId:string) {
+        return serviceWorkId.replace(Storage_Splitter,'-');
     }
     selectServiceNode(workId:string, workItem: Pick<IServiceWorkItem, 'selectIds'>, isService:boolean) {
         const {selectIds} = workItem;
         const rightWorkId = this.getRightServiceId(workId);
-        // console.log('selectServiceNode', rightWorkId)
         const oldRect:IRectType | undefined = this.getSelectorRect(this.fullLayer, rightWorkId);
+
         let intersectRect:IRectType | undefined;
         const subNodeMap:Map<string,BaseNodeMapItem> = new Map();
         selectIds?.forEach(name => {
             const c = this.vNodes.get(name);
-            const f = this.fullLayer.getElementsByName(name)[0];
-            if (c && f) {
+            if (c) {
                 intersectRect = computRect(intersectRect, c.rect);
                 subNodeMap.set(name,c);
             }
@@ -676,7 +694,7 @@ export class SelectorShape extends BaseShapeTool {
             }
         },this);
         this.getSelecteorInfo(subNodeMap);
-        this.draw(SelectorShape.selectorId, this.drawLayer || this.fullLayer, {
+        this.draw(SelectorShape.selectorId, this.fullLayer, {
             intersectRect,
             subNodeMap,
             selectIds: this.selectIds || []
@@ -686,19 +704,13 @@ export class SelectorShape extends BaseShapeTool {
     }
     updateSelectIds(nextSelectIds:string[] ){
         let bgRect:IRectType|undefined;
-        const backToFullIds = this.selectIds?.filter(id=>!nextSelectIds.includes(id));
-        const sealToDrawIds = nextSelectIds.filter(id=>!this.selectIds?.includes(id));
-        if (backToFullIds?.length) {
-            bgRect = this.backToFullLayer(backToFullIds);
+        const unSelectedIds = this.selectIds?.filter(id=>!nextSelectIds.includes(id));
+        if (unSelectedIds?.length) {
+            bgRect = this.unSelectedByIds(unSelectedIds);
         }
-        if (sealToDrawIds.length) {
-            this.sealToDrawLayer(sealToDrawIds);
-            for (const id of sealToDrawIds) {
-                const r = this.vNodes.get(id)?.rect;
-                if (r) {
-                    bgRect = computRect(bgRect, r);
-                }
-            }
+        if (nextSelectIds.length) {
+            const rect = this.selectedByIds(nextSelectIds);
+            bgRect = computRect(bgRect, rect);
         }
         this.selectIds = nextSelectIds;
         const selectRect = this.reRenderSelector();

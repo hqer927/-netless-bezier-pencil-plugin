@@ -13,18 +13,31 @@ export type ScaleNodeEmtData = {
     box: IRectType;
     viewId: string;
     dir?: Direction;
+    reverseY?:boolean;
+    reverseX?:boolean;
 }
 export class ScaleNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: ScaleNodeEmtData;
     readonly emitEventType: EmitEventType = EmitEventType.ScaleNode;
-    private undoTickerId?:number;
     private targetBox:Map<string,IRectType> = new Map;
     private targetText:Map<string,TextEditorInfo> = new Map;
     private cacheTextInfo:Map<string,Partial<TextOptions>> = new Map;
-    async collect(data: ScaleNodeEmtData): Promise<void> {
+    private async setTextStyle(key: string, opt:TextOptions, viewId:string){
+        const textInfo = await this.control.textEditorManager.updateTextControllerWithEffectAsync({
+            workId: key,
+            opt,
+            viewId,
+            canSync: false,
+            canWorker: false,
+        })
+        return {key, textInfo}
+    }
+    async collect(data: ScaleNodeEmtData, isSync?:boolean): Promise<void> {
         if (!this.serviceColloctor || !this.mainEngine) {
             return;
         }
-        const {workIds, box, workState, viewId, dir} = data;
+        const {workIds, box, workState, viewId, dir, reverseY, reverseX} = data;
+        this.lastEmtData = data;
         const view =  this.control.viewContainerManager.getView(viewId);
         if (!view?.displayer) {
             return ;
@@ -33,11 +46,9 @@ export class ScaleNodeMethod extends BaseMsgMethod {
         const keys = [...workIds];
         const store = this.serviceColloctor?.storage;
         const localMsgs: [IWorkerMessage,IqueryTask][] = [];
-        // const selectIds: string[] = [];
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
-            this.undoTickerId = undoTickerId;
-            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         }
         while (keys.length) {
             const curKey = keys.pop();
@@ -58,7 +69,10 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                     updateNodeOpt.dir = dir;
                     updateNodeOpt.box = box
                     updateNodeOpt.workState = workState;
+                    updateNodeOpt.reverseY = reverseY;
+                    updateNodeOpt.reverseX = reverseX;
                     if (workState === EvevtWorkState.Start && box) {
+                        this.cacheTextInfo.clear();
                         for (const name of curStore.selectIds) {
                             const isLocalId = this.serviceColloctor?.isLocalId(name);
                             const  storeKey = isLocalId && this.serviceColloctor?.transformKey(name) || name;
@@ -67,7 +81,6 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                                 textKey = this.serviceColloctor.getLocalId(storeKey);
                             }
                             const textEditor =  this.control.textEditorManager.get(textKey)
-                            // console.log('showFloatBar--1', textKey, textEditor?.opt.fontColor)
                             if (textEditor && workState === EvevtWorkState.Start) {
                                 this.targetText.set(textKey, cloneDeep(textEditor));
                             }
@@ -80,32 +93,26 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                         const cache = this.targetBox.get(localWorkId);
                         if (cache) {
                             const scale:[number,number] = [box.w / cache.w, box.h / cache.h];
+                            const promises:Promise<{key:string, textInfo:TextEditorInfo}>[] = [];
                             for (const [textKey,editor] of this.targetText.entries()) {
                                 const {opt} = editor;
                                 const newFontSize = Math.floor(opt.fontSize * scale[0]);
                                 const cacheTextInfo = this.cacheTextInfo.get(textKey);
                                 const isUpdate = (!cacheTextInfo && opt.fontSize !== newFontSize) || (cacheTextInfo && cacheTextInfo.fontSize !== newFontSize) || false;
-                                // const isLocalId = this.serviceColloctor.isLocalId(textKey) as boolean;
-                                // const storeName = isLocalId && this.serviceColloctor.transformKey(textKey) || textKey;
-                                // let textName: string = storeName;
-                                // if (!isLocalId && this.serviceColloctor?.isOwn(storeName)) {
-                                //     textName = this.serviceColloctor.getLocalId(storeName);
-                                // }
                                 const textEditor = this.control.textEditorManager.get(textKey)?.opt;
-                                // console.log('showFloatBar--2',textKey, newFontSize, textEditor, isLocalId, this.control.textEditorManager.editors)
                                 if (isUpdate && textEditor && opt.boxSize && opt.boxPoint) {
-                                    // console.log('showFloatBar--3', textKey, newFontSize)
-                                    const newInfo = await this.control.textEditorManager.updateTextControllerWithEffectAsync({
-                                        workId: textKey,
-                                        opt: {...textEditor, fontSize:newFontSize},
-                                        viewId,
-                                        canSync: false,
-                                        canWorker: false,
-                                    })
-                                    newInfo && this.cacheTextInfo.set(textKey, {
-                                        fontSize: newInfo.opt.fontSize,
-                                        boxSize: newInfo.opt.boxSize,
-                                        boxPoint: newInfo.opt.boxPoint
+                                    const p = this.setTextStyle(textKey, {...textEditor, fontSize:newFontSize}, viewId)
+                                    promises.push(p);
+                                }
+                            }
+                            const textInfos = await Promise.all(promises);
+                            for (const info of textInfos) {
+                                if (info) {
+                                    const {key , textInfo} = info;
+                                    this.cacheTextInfo.set(key, {
+                                        fontSize: textInfo.opt.fontSize,
+                                        boxSize: textInfo.opt.boxSize,
+                                        boxPoint: textInfo.opt.boxPoint
                                     })
                                 }
                             }
@@ -124,10 +131,10 @@ export class ScaleNodeMethod extends BaseMsgMethod {
                     };
                     if (workState === EvevtWorkState.Done) {
                         taskData.willSerializeData = true;
-                        taskData.undoTickerId = this.undoTickerId;
                         this.targetBox.delete(localWorkId);
                         this.targetText.clear();
                     }
+                    // console.log('ScaleNode---3', box)
                     localMsgs.push([taskData, {
                         workId: curKey,
                         msgType: EPostMessageType.UpdateNode,
@@ -141,9 +148,10 @@ export class ScaleNodeMethod extends BaseMsgMethod {
             this.mainEngine.unWritable();
         } else if (workState === EvevtWorkState.Done) {
             this.mainEngine.abled();
+            this.lastEmtData = undefined;
         }
         if (localMsgs.length) {
-            this.collectForLocalWorker(localMsgs);
+            this.collectForLocalWorker(localMsgs, isSync);
         }
     }
 }

@@ -3,10 +3,10 @@ import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types
 import { BaseCollector } from "./base";
 import { requestAsyncCallBack } from "../core/utils";
 import { Storage_Splitter } from "./const";
-import isEqual from "lodash/isEqual";
-import cloneDeep from "lodash/cloneDeep";
-import type { TeachingAidsPluginLike } from "../plugin/types";
+import {isEqual, cloneDeep} from "lodash";
+import type { AppliancePluginLike } from "../plugin/types";
 import { autorun } from "../plugin/external";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 
 /**
  * 服务端事件/状态同步收集器
@@ -19,8 +19,8 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
     private stateDisposer: (() => void) | undefined;
     private asyncClockTimer?:number;
     protected namespace!: string;
-    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number ){
-        super(plugin);
+    constructor(control:BaseApplianceManager,plugin: AppliancePluginLike, syncInterval?: number ){
+        super(control, plugin);
         this.namespace = EventCollector.namespace;
         EventCollector.syncInterval = (syncInterval || EventCollector.syncInterval) * 0.5;
         this.serviceStorage = this.getNamespaceData();
@@ -31,6 +31,7 @@ export class EventCollector extends BaseCollector<ISerializableEventData> {
             const storage = this.getNamespaceData();
             const diffMap = this.getDiffMap(this.serviceStorage, storage);
             this.serviceStorage = storage;
+            // console.log('EventCollector', diffMap, storage)
             if (diffMap.size) {
                 callBack(diffMap);
             }

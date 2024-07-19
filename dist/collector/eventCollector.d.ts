@@ -1,6 +1,7 @@
 import { BaseEventCollectorReducerAction, ISerializableEventData } from "./types";
 import { BaseCollector } from "./base";
-import type { TeachingAidsPluginLike } from "../plugin/types";
+import type { AppliancePluginLike } from "../plugin/types";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -12,7 +13,7 @@ export declare class EventCollector extends BaseCollector<ISerializableEventData
     private stateDisposer;
     private asyncClockTimer?;
     protected namespace: string;
-    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number);
+    constructor(control: BaseApplianceManager, plugin: AppliancePluginLike, syncInterval?: number);
     addStorageStateListener(callBack: (event: Map<string, Array<BaseEventCollectorReducerAction | undefined>>) => void): void;
     private getDiffMap;
     removeStorageStateListener(): void;

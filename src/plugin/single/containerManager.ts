@@ -1,25 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ViewWorkerOptions } from "../../core/types";
-import { MainViewDisplayerManager, ViewContainerManager, ViewInfo } from "../baseViewContainerManager";
-import { TeachingAidsSingleManager } from "./teachingAidsSingleManager";
+import { ViewContainerManager, ViewInfo } from "../baseViewContainerManager";
+import { ApplianceSingleManager } from "./applianceSingleManager";
 import { MainViewSingleDisplayerManager } from "./displayer/mainViewDisplayerManager";
-import { BaseTeachingAidsManager } from "../baseTeachingAidsManager";
+import { BaseApplianceManager } from "../baseApplianceManager";
 import { BaseSubWorkModuleProps } from "../types";
+import { Main_View_Id } from "../../core/const";
 
 export class ViewContainerSingleManager extends ViewContainerManager {
     focuedViewId?: string;
-    control: TeachingAidsSingleManager;
+    control: ApplianceSingleManager;
     focuedView?: ViewInfo;
     constructor(props:BaseSubWorkModuleProps) {
         super(props);
-        this.control = props.control as TeachingAidsSingleManager;
+        this.control = props.control as ApplianceSingleManager;
     }
     bindMainView() {
         if (!this.control.divMainView) {
             return ;
         }
-        const displayer = new MainViewSingleDisplayerManager(this.control, BaseTeachingAidsManager.InternalMsgEmitter);
-        this.focuedViewId = MainViewDisplayerManager.viewId;
+        const displayer = new MainViewSingleDisplayerManager(this.control, BaseApplianceManager.InternalMsgEmitter);
+        this.focuedViewId = Main_View_Id;
         const {width, height, dpr} = displayer;
         const opt = {
             dpr,
@@ -41,7 +42,6 @@ export class ViewContainerSingleManager extends ViewContainerManager {
             }
         }  as ViewWorkerOptions;
         const viewData = this.control.room  && (this.control.room as any).mainView || (this.control.play && (this.control.play as any).mainView);
-        // console.log('ContainerManager - bindMainView', viewData)
         if (viewData) {
             const {scale,...camera} = viewData.camera;
             opt.cameraOpt = {
@@ -50,7 +50,7 @@ export class ViewContainerSingleManager extends ViewContainerManager {
                 scale: scale === Infinity ? 1 : scale
             }
             this.createMianView({
-                id: MainViewDisplayerManager.viewId,
+                id: Main_View_Id,
                 displayer: displayer,
                 focusScenePath: viewData.focusScenePath || viewData.scenePath,
                 cameraOpt: opt.cameraOpt,
@@ -60,8 +60,7 @@ export class ViewContainerSingleManager extends ViewContainerManager {
             displayer.createMainViewDisplayer(this.control.divMainView);
         }
     }
-    mountView(viewId:string){
-        // console.log('ContainerManager - mountView-1', viewId);
+    async mountView(viewId:string){
         const viewInfo = this.getView(viewId);
         if (viewInfo) {
             const {width, height, dpr} = viewInfo.displayer;
@@ -93,12 +92,12 @@ export class ViewContainerSingleManager extends ViewContainerManager {
                 }
             }
             if (!this.control.worker.isActive) {
-                this.control.activeWorker();
+                this.control.cursor.activeCollector();
+                await this.control.activeWorker();
             }
             this.control.worker?.createViewWorker(viewId, opt);
             if(viewInfo.focusScenePath && this.control.collector){
-                // console.log('pullServiceData---1', viewId, viewInfo.focusScenePath)
-                this.control.worker.pullServiceData(viewId,viewInfo.focusScenePath);
+                this.control.worker.pullServiceData(viewId,viewInfo.focusScenePath, {isAsync: true, useAnimation:false});
             }
         }
     }

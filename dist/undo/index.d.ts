@@ -2,7 +2,7 @@
 import EventEmitter2 from "eventemitter2";
 import { BaseCollectorReducerAction } from "../collector";
 import type { Room } from "../plugin/types";
-import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "../plugin/types";
+import { BaseSubWorkModuleProps, ApplianceManagerLike } from "../plugin/types";
 import { MasterController } from "../core/mainEngine";
 export declare enum EUndoType {
     sdk = 1,
@@ -38,7 +38,7 @@ export declare class UndoRedoMethod {
     undoStack: IUndoStackItem[];
     redoStack: IUndoStackItem[];
     worker: MasterController;
-    control: TeachingAidsManagerLike;
+    control: ApplianceManagerLike;
     room: Room;
     private isTicking;
     private undoTickerId?;
@@ -50,8 +50,7 @@ export declare class UndoRedoMethod {
     get collector(): import("../collector").Collector | undefined;
     addExcludeIds(ids: string[]): void;
     undoTickerStart(id: number, scenePath: string): void;
-    undoTickerEndSync(id: number, viewId: string, scenePath: string, isTmp?: boolean): void;
-    undoTickerEnd: import("lodash").DebouncedFunc<(id: number, viewId: string, scenePath: string) => void>;
+    undoTickerEndSync(id: number, viewId: string, scenePath: string): void;
     undo(scenePath: string): number;
     redo(scenePath: string): number;
     clear(): void;

@@ -1,9 +1,9 @@
 import { Scene } from "spritejs";
-import { IMainMessage, IRectType, IUpdateNodeOpt, BaseNodeMapItem } from "../types";
-import { EScaleType, EToolsKey } from "../enum";
+import { IRectType, IUpdateNodeOpt, BaseNodeMapItem } from "../types";
+import { EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 export interface ImageOptions extends BaseShapeOptions {
     /** 图片的唯一识别符 */
@@ -33,16 +33,22 @@ export declare class ImageShape extends BaseShapeTool {
     protected workOptions: ImageOptions;
     oldRect?: IRectType;
     constructor(props: BaseShapeToolProps);
-    consume(): IMainMessage;
-    consumeAll(): IMainMessage;
+    consume(): {
+        type: EPostMessageType;
+    };
+    consumeAll(): {
+        type: EPostMessageType;
+    };
     private draw;
     consumeService(): IRectType | undefined;
     consumeServiceAsync(props: {
         isFullWork: boolean;
         scene: Scene;
         replaceId?: string;
+        isMainThread?: boolean;
     }): Promise<IRectType | undefined>;
     clearTmpPoints(): void;
+    static getScaleType(opt: ImageOptions): EScaleType.all | EScaleType.proportional;
     static updateNodeOpt(param: {
         node: ShapeNodes;
         opt: IUpdateNodeOpt;

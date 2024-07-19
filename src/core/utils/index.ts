@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { EMatrixrRelationType } from '../enum';
+import { IRectType } from '../types';
 import { Box2d } from './primitives/Box2d'
 import { Vec2d, VecLike } from './primitives/Vec2d'
 export * from "./math";
@@ -772,11 +774,57 @@ export const requestAsyncCallBack = (callBack:()=>void, timeout:number):Promise<
 	});
 }
 
-export const getRatioWithContext = (context: CanvasRenderingContext2D) => {
-	const backingStoreRatio = (context as any).webkitBackingStorePixelRatio ||
-		(context as any).mozBackingStorePixelRatio ||
-		(context as any).msBackingStorePixelRatio ||
-		(context as any).oBackingStorePixelRatio ||
-		(context as any).backingStorePixelRatio || 1.0;
+export const getRatioWithContext = (context?: CanvasRenderingContext2D) => {
+	const backingStoreRatio = (context as any)?.webkitBackingStorePixelRatio ||
+		(context as any)?.mozBackingStorePixelRatio ||
+		(context as any)?.msBackingStorePixelRatio ||
+		(context as any)?.oBackingStorePixelRatio ||
+		(context as any)?.backingStorePixelRatio || 1.0;
 	return Math.max(1.0, (window.devicePixelRatio || 1.0) / backingStoreRatio);
+}
+
+export const getRectMatrixrRelation = (rect:IRectType, BoxRect:IRectType) => {	
+	if (rect.x + rect.w < BoxRect.x || rect.x > BoxRect.x + BoxRect.w || rect.y + rect.h < BoxRect.y || rect.y > BoxRect.y + BoxRect.h) {
+		return EMatrixrRelationType.outside;
+	}
+	if (rect.x >= BoxRect.x && rect.y >= BoxRect.y && rect.x + rect.w <= BoxRect.x + BoxRect.w && rect.y + rect.h <= BoxRect.y + BoxRect.h) {
+		return EMatrixrRelationType.inside;
+	}
+	return EMatrixrRelationType.intersect;
+}
+
+export function strlen(str:string){
+	let len = 0;
+	for (let i=0; i<str.length; i++) { 
+		const c = str.charCodeAt(i); 
+		//单字节加1 
+		if ((c >= 0x0001 && c <= 0x007e) || (0xff60<=c && c<=0xff9f)) { 
+			len++; 
+		} 
+		else { 
+			len+=2; 
+		} 
+	} 
+	return len;
+}
+export const getInSertRect = (rect:IRectType, boxRect:IRectType) => {
+	if (rect.w + rect.x <=boxRect.x || rect.h + rect.y <= boxRect.y || rect.x >= boxRect.x + boxRect.w || rect.y >= boxRect.y + boxRect.h) {
+		return undefined;
+	}
+	if (rect.w <= 0 || rect.h <= 0) {
+		return undefined
+	}
+	const newRect = {
+		x: Math.max(0, rect.x),
+		y: Math.max(0, rect.y),
+		w: Math.min(boxRect.w, rect.w),
+		h: Math.min(boxRect.h, rect.h)
+	}
+	if (newRect.x + newRect.w > boxRect.w) {
+		newRect.w = Math.floor(boxRect.w - newRect.x);
+	}
+	if (newRect.y + newRect.h > boxRect.h) {
+		newRect.h = Math.floor(boxRect.h - newRect.y);
+	}
+	return newRect;
 }

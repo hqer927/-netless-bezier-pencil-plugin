@@ -12,7 +12,9 @@ export type SetFontEmtData = {
     viewId: string;
 };
 export declare class SetFontStyleMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
+    private timerId?;
     private setTextStyle;
-    collect(data: SetFontEmtData): void;
+    collect(data: SetFontEmtData): Promise<void>;
 }

@@ -2,28 +2,134 @@ import { ISerializableEventData, ISerializableStorageViewData } from "../collect
 import type { Cursor, View, CameraState, DisplayerCallbacks, HotKeys, Player, Room, Point, RoomMember, RoomState, Size, Callbacks, Camera, Color, CursorAdapter, Displayer, ImageInformation, Rectangle, RenderEngine, MemberState as _MemberState } from "white-web-sdk";
 import { ECanvasContextType } from "../core/enum";
 import type EventEmitter2 from "eventemitter2";
-import type { TeachingAidsSingleManager } from "./single/teachingAidsSingleManager";
-import type { TeachingAidsMultiManager } from "./multi/teachingAidsMultiManager";
-import type { BaseTeachingAidsManager } from "./baseTeachingAidsManager";
+import type { ApplianceSingleManager } from "./single/applianceSingleManager";
+import type { ApplianceMultiManager, WindowManager } from "./multi/applianceMultiManager";
+import type { BaseApplianceManager } from "./baseApplianceManager";
 import type { AppViewDisplayerManager, MainViewDisplayerManager } from "./baseViewContainerManager";
-import type { TeachingSingleAidsPlugin } from "./teachingSingleAidsPlugin";
-import type { TeachingMulitAidsPlugin } from "./teachingMultiAidsPlugin";
-export type { Room, ImageInformation, Point, Size, Rectangle, RoomMember, RoomState, Player, HotKeys, Camera, Displayer, DisplayerCallbacks, CameraState, View, Cursor, CursorAdapter, RenderEngine };
-export type TeachingAidsPluginLike = TeachingMulitAidsPlugin | TeachingSingleAidsPlugin;
-export type TeachingAidsManagerLike = TeachingAidsMultiManager | TeachingAidsSingleManager | BaseTeachingAidsManager;
-export type TeachingAidsViewManagerLike = AppViewDisplayerManager | MainViewDisplayerManager;
+import type { ApplianceSinglePlugin } from "./applianceSinglePlugin";
+import type { ApplianceMultiPlugin } from "./applianceMultiPlugin";
+export type { Room, ImageInformation, Point, Size, Rectangle, RoomMember, RoomState, Player, HotKeys, Camera, Displayer, DisplayerCallbacks, CameraState, View, Cursor, CursorAdapter, RenderEngine, _MemberState };
+export declare enum ApplianceNames {
+    /**
+     * 选择工具
+     */
+    selector = "selector",
+    /**
+     * 互动工具（无默认行为，可供 plugin 自定义）
+     */
+    clicker = "clicker",
+    /**
+     * 激光笔
+     */
+    laserPointer = "laserPointer",
+    /**
+     * 铅笔工具
+     */
+    pencil = "pencil",
+    /**
+     * 矩形工具
+     */
+    rectangle = "rectangle",
+    /**
+     * 圆形工具
+     */
+    ellipse = "ellipse",
+    /**
+     * 图形工具
+     */
+    shape = "shape",
+    /**
+     * 橡皮工具
+     */
+    eraser = "eraser",
+    /**
+     * 橡皮工具（用来擦除铅笔笔迹的局部）
+     */
+    pencilEraser = "pencilEraser",
+    /**
+     * 文字工具
+     */
+    text = "text",
+    /**
+     * 直线工具
+     */
+    straight = "straight",
+    /**
+     * 箭头工具
+     */
+    arrow = "arrow",
+    /**
+     * 抓手工具
+     */
+    hand = "hand",
+    /**
+     * 激光笔
+     */
+    laserPen = "laserPen"
+}
+/** 扩展的MemberState */
+export type ExtendMemberState = {
+    /**
+     * 当前用户所选择的教具
+     */
+    currentApplianceName: ApplianceNames;
+    /** 是否开启笔锋 */
+    strokeType?: EStrokeType;
+    /** 是否删除整条线段 */
+    isLine?: boolean;
+    /** 线框透明度 */
+    strokeOpacity?: number;
+    /** 是否开启激光笔 */
+    useLaserPen?: boolean;
+    /** 激光笔保持时间, second */
+    duration?: number;
+    /** 是否使用新铅笔教具 */
+    useNewPencil?: boolean;
+    /** 填充样式 */
+    fillColor?: Color;
+    /** 填充透明度 */
+    fillOpacity?: number;
+    /**
+     * 使用 ``shape`` 教具时，绘制图形的具体类型
+     */
+    shapeType?: ShapeType;
+    /** 多边形顶点数 */
+    vertices?: number;
+    /** 多边形向内顶点步长 */
+    innerVerticeStep?: number;
+    /** 多边形向内顶点与外顶点半径比率 */
+    innerRatio?: number;
+    /** 文字透明度 */
+    textOpacity?: number;
+    /** 文字背景颜色  */
+    textBgColor?: Color;
+    /** 文字背景颜色透明度 */
+    textBgOpacity?: number;
+    /** 水平对齐方式 */
+    textAlign?: "left" | "center" | "right";
+    /** 垂直对齐方式 */
+    verticalAlign?: "top" | "middle" | "bottom";
+    /** 位置 */
+    placement?: SpeechBalloonPlacement;
+};
+export type MemberState = Omit<_MemberState, 'currentApplianceName' | 'shapeType'> & ExtendMemberState;
+export type AppliancePluginLike = ApplianceMultiPlugin | ApplianceSinglePlugin;
+export type ApplianceManagerLike = ApplianceMultiManager | ApplianceSingleManager | BaseApplianceManager;
+export type ApplianceViewManagerLike = AppViewDisplayerManager | MainViewDisplayerManager;
 export interface BaseSubWorkModuleProps {
-    control: TeachingAidsManagerLike;
+    control: ApplianceManagerLike;
     internalMsgEmitter: EventEmitter2;
 }
-export type TeachingAidsAdaptor = {
+export type ApplianceAdaptor = {
+    options: AppliancePluginOptions;
     logger?: Logger;
-    options?: TeachingAidsPluginOptions;
     cursorAdapter?: CursorAdapter;
 };
-export type canBindMethodType = keyof Omit<DisplayerForPlugin, 'displayer' | 'windowManager' | 'injectMethodToObject' | 'callbacksOn' | 'callbacksOnce' | 'callbacksOff'>;
-export interface DisplayerForPlugin {
+export type canBindMethodType = keyof Omit<AppliancePluginInstance, 'displayer' | 'windowManager' | 'injectMethodToObject' | 'callbacksOn' | 'callbacksOnce' | 'callbacksOff' | '_injectTargetObject'>;
+export interface AppliancePluginInstance {
     readonly displayer: Displayer;
+    readonly currentManager?: ApplianceManagerLike;
+    readonly windowManager?: WindowManager;
     /**
      * 获取某个场景里包含所有元素的矩形
      */
@@ -67,32 +173,28 @@ export interface DisplayerForPlugin {
     /** 清空当前场景 */
     cleanCurrentScene(retainPpt?: boolean): void;
     /** 把指定的方法注入到指定对象上 */
-    injectMethodToObject(object: unknown, methodName: canBindMethodType): void;
+    /** 销毁 */
+    destroy(): void;
+    /** setMemberState */
+    setMemberState(modifyState: Partial<MemberState>): void;
     /** 事件监听器 */
     callbacks: Callbacks<any>;
-    callbacksOn: Callbacks<any>["on"];
-    callbacksOnce: Callbacks<any>["once"];
-    callbacksOff: Callbacks<any>["off"];
 }
 export type Logger = {
     readonly info: (...messages: any[]) => void;
     readonly warn: (...messages: any[]) => void;
     readonly error: (...messages: any[]) => void;
 };
-export type TeachingAidsPluginOptions = {
+export type AppliancePluginOptions = {
+    /** cdn配置项 */
+    cdn: CdnOpt;
     /** 同步数据配置项 */
     syncOpt?: SyncOpt;
     /** 画布配置项 */
     canvasOpt?: CanvasOpt;
 };
-export interface TeachingAidsPluginAttributes {
+export interface AppliancePluginAttributes {
     [key: string]: ISerializableStorageViewData | ISerializableEventData;
-}
-export declare enum DisplayStateEnum {
-    pedding = 0,
-    mounted = 1,
-    update = 2,
-    unmounted = 3
 }
 export declare enum EStrokeType {
     Normal = "Normal",
@@ -117,51 +219,15 @@ export declare enum ShapeType {
      * 说话泡泡
      */
     SpeechBalloon = "speechBalloon",
-    /** 星形 */
+    /**
+     * 星形
+     *  */
     Star = "star",
-    /** 多边形 */
+    /**
+     * 多边形
+     *  */
     Polygon = "polygon"
 }
-export type MemberState = _MemberState & {
-    /** 是否开启笔锋 */
-    strokeType?: EStrokeType;
-    /** 是否删除整条线段 */
-    isLine?: boolean;
-    /** 线框透明度 */
-    strokeOpacity?: number;
-    /** 是否开启激光笔 */
-    useLaserPen?: boolean;
-    /** 激光笔保持时间, second */
-    duration?: number;
-    /** 是否使用新铅笔教具 */
-    useNewPencil?: boolean;
-    /** 填充样式 */
-    fillColor?: Color;
-    /** 填充透明度 */
-    fillOpacity?: number;
-    /**
-     * 使用 ``shape`` 教具时，绘制图形的具体类型
-     */
-    shapeType?: ShapeType;
-    /** 多边形顶点数 */
-    vertices?: number;
-    /** 多边形向内顶点步长 */
-    innerVerticeStep?: number;
-    /** 多边形向内顶点与外顶点半径比率 */
-    innerRatio?: number;
-    /** 文字透明度 */
-    textOpacity?: number;
-    /** 文字背景颜色  */
-    textBgColor?: Color;
-    /** 文字背景颜色透明度 */
-    textBgOpacity?: number;
-    /** 水平对齐方式 */
-    textAlign?: "left" | "center" | "right";
-    /** 垂直对齐方式 */
-    verticalAlign?: "top" | "middle" | "bottom";
-    /** 位置 */
-    placement?: SpeechBalloonPlacement;
-};
 export type SyncOpt = {
     /** 同步间隔 */
     interval?: number;
@@ -169,6 +235,11 @@ export type SyncOpt = {
 export type CanvasOpt = {
     /** 画布上下文类型 */
     contextType: ECanvasContextType;
+};
+export type CdnOpt = {
+    /** 画布上下文类型 */
+    fullWorkerUrl: string;
+    subWorkerUrl: string;
 };
 export declare enum EmitEventType {
     /** 无 */
@@ -212,19 +283,17 @@ export declare enum EmitEventType {
     /** 设置是否锁定 */
     SetLock = "SetLock",
     /** 设置shape模型的配置项 */
-    SetShapeOpt = "SetShapeOpt"
+    SetShapeOpt = "SetShapeOpt",
+    /** 切换相机角度中 */
+    CameraChange = "CameraChange",
+    /** 激活方法动作 */
+    ActiveMethod = "ActiveMethod"
 }
 export declare enum InternalMsgEmitterType {
     DisplayState = "DisplayState",
-    FloatBar = "FloatBar",
-    CanvasSelector = "CanvasSelector",
     MainEngine = "MainEngine",
-    DisplayContainer = "DisplayContainer",
     Cursor = "Cursor",
-    TextEditor = "TextEditor",
-    BindMainView = "BindMainView",
-    MountMainView = "MountMainView",
-    MountAppView = "MountAppView"
+    BindMainView = "BindMainView"
 }
 export type InternalEventValue = {
     id: string;

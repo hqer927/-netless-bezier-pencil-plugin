@@ -8,6 +8,7 @@ export type CopyNodeEmtData = {
     viewId: string;
 };
 export declare class CopyNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
     collect(data: CopyNodeEmtData): void;
     copyText(param: {
@@ -24,6 +25,7 @@ export declare class CopyNodeMethod extends BaseMsgMethod {
         store: BaseCollectorReducerAction;
         bgCenter?: [number, number];
         textCenter?: [number, number];
+        undoTickerId?: number;
     }): void;
     copySelector(param: {
         viewId: string;
@@ -43,5 +45,6 @@ export declare class CopyNodeMethod extends BaseMsgMethod {
             offset: Point;
             cameraOpt: Pick<ICameraOpt, 'centerX' | 'centerY' | 'scale'>;
         };
+        undoTickerId?: number;
     }): void;
 }

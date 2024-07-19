@@ -8,14 +8,16 @@ export type ZIndexNodeEmtData = {
     viewId: string;
 };
 export declare class ZIndexNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
-    private min;
-    private max;
-    get minZIndex(): number;
-    get maxZIndex(): number;
-    set maxZIndex(max: number);
-    set minZIndex(min: number);
-    addMaxLayer(): void;
-    addMinLayer(): void;
+    private zIndexMap;
+    clearZIndex(viewId: string): void;
+    getMinZIndex(viewId: string): number;
+    getMaxZIndex(viewId: string): number;
+    setMaxZIndex(max: number, viewId: string): void;
+    setMinZIndex(min: number, viewId: string): void;
+    addMaxLayer(viewId: string): void;
+    addMinLayer(viewId: string): void;
+    correct(data: Array<[string, number]>): Array<[string, number]>;
     collect(data: ZIndexNodeEmtData): void;
 }

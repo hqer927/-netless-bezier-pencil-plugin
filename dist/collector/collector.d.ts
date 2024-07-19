@@ -1,6 +1,7 @@
 import { BaseCollectorReducerAction, Diff, ISerializableStorageData, ISerializableStorageViewData } from "./types";
 import { BaseCollector } from "./base";
-import type { TeachingAidsPluginLike } from "../plugin/types";
+import type { AppliancePluginLike } from "../plugin/types";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 /**
  * 服务端事件/状态同步收集器
  */
@@ -12,15 +13,15 @@ export declare class Collector extends BaseCollector<ISerializableStorageViewDat
     storage: ISerializableStorageViewData;
     private stateDisposer;
     private asyncClockState;
-    constructor(plugin: TeachingAidsPluginLike, syncInterval?: number);
+    constructor(control: BaseApplianceManager, plugin: AppliancePluginLike, syncInterval?: number);
     getViewIdBySecenPath(scenePath: string): string | undefined;
     getScenePathData(scenePath: string): ISerializableStorageData | undefined;
     getStorageData(viewId: string, scenePath: string): ISerializableStorageData | undefined;
     hasSelector(viewId: string, scenePath: string): boolean;
-    addStorageStateListener(callBack: (diff: Diff<ISerializableStorageData>) => void): void;
+    addStorageStateListener(callBack: (diff: Diff) => void): void;
     removeStorageStateListener(): void;
-    private diffFun;
-    private diffFunByscenePath;
+    private diffFunByView;
+    private diffFunByScenePath;
     private diffFunByKeys;
     transformKey(workId: number | string): string;
     isOwn(key: string): boolean;

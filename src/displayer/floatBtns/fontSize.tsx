@@ -6,7 +6,7 @@ import { MethodBuilderMain } from "../../core/msgEvent";
 import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { Storage_Selector_key } from "../../collector/const";
 import { FontSizeList } from "../const";
-import isBoolean from "lodash/isBoolean";
+import { isNumber, isBoolean } from "lodash";
 
 export type FontSizeProps = TextButProps
 
@@ -22,7 +22,9 @@ const SubBtns = (props:{
                 e.nativeEvent.stopImmediatePropagation()
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
             }}
@@ -43,7 +45,7 @@ const SubBtns = (props:{
 export const FontSizeBtn = (props:FontSizeProps) => {
     const ref = useRef<HTMLInputElement>(null);
     const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef} = props;
-    const { maranger, position } = useContext(DisplayerContext);
+    const { maranger, floatBarData } = useContext(DisplayerContext);
     const [size, setSize] = useState<number>(0);
     const [oldDisableDeviceInputs, setOldDisableDeviceInputs] = useState<boolean>();
     const length = FontSizeList.length-1;
@@ -56,14 +58,14 @@ export const FontSizeBtn = (props:FontSizeProps) => {
         }
     }, [textOpt?.fontSize]);
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 250) {
+        if (floatBarRef?.current && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 250) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 35;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 180){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData.y < 180){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 35;
@@ -71,7 +73,7 @@ export const FontSizeBtn = (props:FontSizeProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.y, maranger])
     function sendFontSize(size:number){
         setSize(size);
         if (size && size >= FontSizeList[0] && size<= FontSizeList[length]) {
@@ -83,16 +85,9 @@ export const FontSizeBtn = (props:FontSizeProps) => {
         }
     }
     const onClickHandler = (size:number) =>{
-        setSize(size);
-        setShowSubBtn(false);
         ref.current?.blur();
-        if (size && size >= FontSizeList[0] && size<= FontSizeList[length]) {
-            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, EmitEventType.SetFontStyle, {
-                workIds: workIds || [Storage_Selector_key],
-                fontSize: size,
-                viewId: maranger?.viewId
-            });
-        }
+        setShowSubBtn(false);
+        checkSize(size)
     }
     const SubBtnUI = useMemo(() => {
         if (showSubBtn) {
@@ -119,7 +114,9 @@ export const FontSizeBtn = (props:FontSizeProps) => {
                 e.nativeEvent.stopImmediatePropagation()
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
             }}
@@ -144,14 +141,17 @@ export const FontSizeBtn = (props:FontSizeProps) => {
                         const range = selection?.getRangeAt(0);
                         // 检查是否有选区文本，如果有则正常删除
                         if (range?.collapsed) {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             // 执行删除操作，这里可以根据具体需求调整删除逻辑
                             document.execCommand('delete', false);
                             return false;
                         }
                     }
+                    return false;
                 }}
-                onKeyUp={()=>{
+                onKeyUp={(e)=>{
                     if (ref.current) {
                         const value = ref.current.value;
                         const number = parseInt(value);
@@ -160,13 +160,11 @@ export const FontSizeBtn = (props:FontSizeProps) => {
                         } else {
                             ref.current.value = '0';
                         }
-                    }
-                }}
-                onChange={(e)=>{
-                    const value = e.target.value;
-                    const number = parseInt(value);
-                    if (number) {
-                        sendFontSize(number)
+                        if (number && e.key === 'Enter') {
+                            checkSize(number);
+                            ref.current?.blur();
+                            setShowSubBtn(false);
+                        }
                     }
                 }}
                 onFocus={()=>{
@@ -178,7 +176,6 @@ export const FontSizeBtn = (props:FontSizeProps) => {
                 onBlur={()=>{
                     if (maranger?.control.room && isBoolean(oldDisableDeviceInputs)) {
                         maranger.control.room.disableDeviceInputs = oldDisableDeviceInputs;
-                        // console.log('onBlur', oldDisableDeviceInputs)
                     }
                 }}
             />

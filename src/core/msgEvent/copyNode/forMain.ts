@@ -15,6 +15,7 @@ export type CopyNodeEmtData = {
     viewId: string;
 }
 export class CopyNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.CopyNode;
     collect(data: CopyNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
@@ -26,121 +27,8 @@ export class CopyNodeMethod extends BaseMsgMethod {
             return ;
         }
         const scenePath = view.focusScenePath;
-        // const keys = [...workIds];
-        // const store = this.serviceColloctor?.storage;
-        // const localMsgs: [IWorkerMessage,Partial<IWorkerMessage>][] = [];
-        // const serviceMsgs: BaseCollectorReducerAction[] = [];
-        // const random = Math.floor( Math.random() * 30 + 1);
-        // let translate:[number,number] = [random, random];
-        // const undoTickerId = Date.now();
-        // this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
-        // while (keys.length) {
-        //     const curKey = keys.pop();
-        //     if (!curKey) {
-        //         continue;
-        //     }
-        //     const curKeyStr = curKey.toString()
-        //     const isLocalId:boolean = this.serviceColloctor.isLocalId(curKeyStr);
-        //     const key = isLocalId ? this.serviceColloctor.transformKey(curKey) : curKeyStr;
-        //     let localWorkId:string | undefined = curKeyStr ;
-        //     if (!isLocalId && this.serviceColloctor.isOwn(localWorkId)) {
-        //         localWorkId = this.serviceColloctor.getLocalId(localWorkId);
-        //     }
-        //     const curStore = cloneDeep(store[viewId][scenePath][key]);
-        //     if (curStore && localWorkId === Storage_Selector_key) {
-        //         if (curStore.selectIds) {
-        //             const bgRect = view.displayer.canvasBgRef.current?.getBoundingClientRect();
-        //             const floatBarRect = view.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
-        //             const bgCenter:[number,number] | undefined = bgRect && [bgRect.x + bgRect.width/ 2, bgRect.y + bgRect.height/ 2];
-        //             const floatBarCenter:[number,number] | undefined = floatBarRect && [floatBarRect.x + floatBarRect.width/ 2, floatBarRect.y + floatBarRect.height/ 2];
-        //             const scale = view.cameraOpt?.scale || 1;
-        //             translate = bgCenter && floatBarCenter && [(bgCenter[0] - floatBarCenter[0] + random) / scale, (bgCenter[1] - floatBarCenter[1] + random) / scale] || [ random / scale, random / scale];
-        //             keys.push(...curStore.selectIds);
-        //         }
-        //         continue;
-        //     }
-        //     if (curStore && curStore.toolsType === EToolsKey.Text && curStore.opt && (curStore.opt as TextOptions).workState && (curStore.opt as TextOptions).workState !== EvevtWorkState.Done) {
-        //         const cameraOpt = view.cameraOpt;
-        //         const bgCenter:[number,number] | undefined = cameraOpt && [cameraOpt.centerX,cameraOpt.centerY];
-        //         const opt = curStore.opt as TextOptions;
-        //         const textCenter:[number,number] | undefined = opt.boxPoint && opt.boxSize && [opt.boxPoint[0] + opt.boxSize[0]/2, opt.boxPoint[1]+ opt.boxSize[1]/2];
-        //         const scale = cameraOpt?.scale || 1;
-        //         translate = bgCenter && textCenter && [bgCenter[0] - textCenter[0] + random, bgCenter[1] - textCenter[1] + random] || [ random / scale, random / scale];
-        //     }
-        //     if (curStore) {
-        //         const now = Date.now();
-        //         const copyNodeKey = (isLocalId ? curKey : this.serviceColloctor.getLocalId(curKey.toString())) + '-' + now;
-        //         const updateNodeOpt:IUpdateNodeOpt = {useAnimation:false};
-        //         if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
-        //             const opt = curStore.opt as TextOptions;
-        //             if ( opt && opt.boxPoint && opt.text) {
-        //                 opt.workState = EvevtWorkState.Done;
-        //                 const oldBoxPoint = opt.boxPoint;
-        //                 opt.boxPoint = [oldBoxPoint[0] + translate[0], oldBoxPoint[1] + translate[1]];
-        //                 opt.workState = EvevtWorkState.Done;
-        //                 const point:[number,number] = this.control.viewContainerManager.transformToOriginPoint(opt.boxPoint, viewId);
-        //                 this.control.textEditorManager.createTextForMasterController({
-        //                     workId: copyNodeKey,
-        //                     x: point[0],
-        //                     y: point[1],
-        //                     opt,
-        //                     scale: view.cameraOpt?.scale || 1,
-        //                     type: ETextEditorType.Text,
-        //                     isActive: false,
-        //                     viewId,
-        //                     scenePath
-        //                 });
-        //             }
-        //             continue;
-        //         }
-        //         if (curStore.toolsType === EToolsKey.Image) {
-        //             (curStore.opt as ImageOptions).uuid = copyNodeKey;
-        //             (curStore.opt as ImageOptions).centerX = (curStore.opt as ImageOptions).centerX + translate[0];
-        //             (curStore.opt as ImageOptions).centerY = (curStore.opt as ImageOptions).centerY + translate[1];
-        //             // continue;
-        //         }
-        //         if (curStore.ops) {
-        //             const op = (transformToNormalData(curStore.ops) as number[]).map((n,index)=>{
-        //                 const i = index % 3
-        //                 if ( i === 0) {
-        //                     return n + translate[0];
-        //                 } 
-        //                 if( i === 1) {
-        //                     return n + translate[1];
-        //                 }
-        //                 return n
-        //             })
-        //             const newOps = transformToSerializableData(op);
-        //             curStore.ops = newOps;
-        //         }
-        //         serviceMsgs.push({
-        //             ...curStore,
-        //             updateNodeOpt,
-        //             type: EPostMessageType.FullWork,
-        //             workId: copyNodeKey,
-        //             viewId,
-        //             scenePath
-        //         })
-        //         localMsgs.push([{
-        //             ...curStore,
-        //             updateNodeOpt,
-        //             workId: copyNodeKey,
-        //             msgType: EPostMessageType.FullWork,
-        //             dataType: EDataType.Local,
-        //             emitEventType: this.emitEventType,
-        //             willSyncService: false,
-        //             willRefresh: true,
-        //             viewId,
-        //             undoTickerId
-        //         },{workId: copyNodeKey, msgType: EPostMessageType.FullWork, emitEventType: this.emitEventType}])
-        //     }
-        // }
-        // if (localMsgs.length) {
-        //     this.collectForLocalWorker(localMsgs);
-        // }
-        // if (serviceMsgs.length) {
-        //     this.collectForServiceWorker(serviceMsgs);
-        // }
+        const undoTickerId = Date.now();
+        this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         for (const id of workIds) {
             const curKeyStr = id.toString()
             const isLocalId:boolean = this.serviceColloctor.isLocalId(curKeyStr);
@@ -156,6 +44,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                         ...pasteParam,
                         viewId,
                         scenePath,
+                        undoTickerId
                     })
                     break;
                 }
@@ -169,7 +58,8 @@ export class CopyNodeMethod extends BaseMsgMethod {
                         viewId,
                         scenePath,
                         key,
-                        store: curStore
+                        store: curStore,
+                        undoTickerId
                     })
                     break;
                 }
@@ -205,19 +95,18 @@ export class CopyNodeMethod extends BaseMsgMethod {
         store:BaseCollectorReducerAction;
         bgCenter?:[number,number];
         textCenter?:[number,number];
+        undoTickerId?:number;
     }){
-        const {bgCenter,textCenter, store, key, viewId, scenePath}= param;
+        const {bgCenter,textCenter, store, key, viewId, scenePath, undoTickerId}= param;
         const view = this.control.viewContainerManager.getView(viewId);
         if (!this.serviceColloctor || !view) {
             return;
         }
         const random = Math.floor( Math.random() * 30 + 1);
-        const now = Date.now();
         const scale = view.cameraOpt?.scale || 1;
         const translate = bgCenter && textCenter && [bgCenter[0] - textCenter[0] + random, bgCenter[1] - textCenter[1] + random] || [ random / scale, random / scale];
         const isLocalId:boolean = this.serviceColloctor.isLocalId(key);
-        const copyNodeKey = (isLocalId ? key : this.serviceColloctor.getLocalId(key.toString())) + '-' + now;
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', now, viewId);
+        const copyNodeKey = (isLocalId ? key : this.serviceColloctor.getLocalId(key.toString())) + '-' + undoTickerId;
         if (store.toolsType === EToolsKey.Text && store.opt) {
             const opt = store.opt as TextOptions;
             if ( opt && opt.boxPoint && opt.text) {
@@ -243,8 +132,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                     type: EPostMessageType.FullWork,
                     workId: copyNodeKey,
                     viewId,
-                    scenePath,
-                    undoTickerId:now
+                    scenePath
                 }]);
             }
         }
@@ -280,8 +168,8 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 scale: view.cameraOpt?.scale || 1,
             }
         }
-        const bgRect = view.displayer.canvasBgRef.current?.getBoundingClientRect();
-        const floatBarRect = view.displayer?.floatBarCanvasRef.current?.getBoundingClientRect();
+        const bgRect = this.control.hasOffscreenCanvas() && view.displayer.canvasBgRef.current?.getBoundingClientRect() || view.displayer.canvasContainerRef.current?.getBoundingClientRect();
+        const floatBarRect = view.displayer?.floatBarRef.current?.getBoundingClientRect();
         const screenBgCenter:[number,number] | undefined = bgRect && [bgRect.x + bgRect.width/ 2, bgRect.y + bgRect.height/ 2];
         const screenFloatBarCenter:[number,number] | undefined = floatBarRect && [floatBarRect.x + floatBarRect.width/ 2, floatBarRect.y + floatBarRect.height/ 2];
         const bgCenter = screenBgCenter && view.viewData && view.viewData.convertToPointInWorld({x:screenBgCenter[0], y:screenBgCenter[1]});
@@ -291,7 +179,6 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 x: bgCenter.x - floatBarCenter.x,
                 y: bgCenter.y - floatBarCenter.y,
             };
-            // console.log('translate---000', copyCoordInfo.offset, copyCoordInfo.cameraOpt)
         }
         for (const id of selectIds) {
             const curStore = this.serviceColloctor?.getStorageData(view.id,view.focusScenePath)?.[id];
@@ -309,9 +196,10 @@ export class CopyNodeMethod extends BaseMsgMethod {
         copyCoordInfo:{
             offset:Point;
             cameraOpt:Pick<ICameraOpt,'centerX'|'centerY'|'scale'>;
-        }
+        };
+        undoTickerId?:number;
     }){
-        const {copyStores, copyCoordInfo, viewId, scenePath} = param;
+        const {copyStores, copyCoordInfo, viewId, scenePath, undoTickerId} = param;
         const view = this.control.viewContainerManager.getView(viewId);
         if (!copyStores.size || !this.serviceColloctor || !view) {
             return;
@@ -320,14 +208,11 @@ export class CopyNodeMethod extends BaseMsgMethod {
         const { scale } = cameraOpt;
         const random = Math.floor( Math.random() * 30 + 1);
         const translate:[number,number] = [(offset.x + random), (offset.y + random)] || [ random / scale, random / scale];
-        // console.log('translate', translate, random)
-        const now = Date.now();
         const localMsgs: [IWorkerMessage,Partial<IWorkerMessage>][] = [];
         const serviceMsgs: BaseCollectorReducerAction[] = [];
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', now, viewId);
         for (const [key,curStore] of copyStores.entries()) {
             const isLocalId:boolean = this.serviceColloctor.isLocalId(key);
-            const copyNodeKey = (isLocalId ? key : this.serviceColloctor.getLocalId(key.toString())) + '-' + now;
+            const copyNodeKey = (isLocalId ? key : this.serviceColloctor.getLocalId(key.toString())) + '-' + undoTickerId;
             const updateNodeOpt:IUpdateNodeOpt = {useAnimation:false};
             if (curStore.toolsType === EToolsKey.Text && curStore.opt) {
                 const opt = curStore.opt as TextOptions;
@@ -355,8 +240,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                     type: EPostMessageType.FullWork,
                     workId: copyNodeKey,
                     viewId,
-                    scenePath,
-                    undoTickerId:now
+                    scenePath
                 })
                 continue;
             }
@@ -385,8 +269,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 type: EPostMessageType.FullWork,
                 workId: copyNodeKey,
                 viewId,
-                scenePath,
-                undoTickerId:now
+                scenePath
             })
             localMsgs.push([{
                 ...curStore,
@@ -397,8 +280,7 @@ export class CopyNodeMethod extends BaseMsgMethod {
                 emitEventType: EmitEventType.CopyNode,
                 willSyncService: false,
                 willRefresh: true,
-                viewId,
-                undoTickerId:now
+                viewId
             },{workId: copyNodeKey, msgType: EPostMessageType.FullWork, emitEventType: EmitEventType.CopyNode}])
         }
         if (localMsgs.length) {

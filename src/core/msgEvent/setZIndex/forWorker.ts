@@ -42,7 +42,6 @@ export class ZIndexNodeMethodForWorker extends BaseMsgMethodForWorker {
                 )
             }
         }
-        // console.log('updateSelector---0---0--ZIndexNode', render, sp)
         return {
             render,
             sp

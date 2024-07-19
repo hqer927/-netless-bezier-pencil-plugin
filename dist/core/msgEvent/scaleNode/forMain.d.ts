@@ -9,12 +9,15 @@ export type ScaleNodeEmtData = {
     box: IRectType;
     viewId: string;
     dir?: Direction;
+    reverseY?: boolean;
+    reverseX?: boolean;
 };
 export declare class ScaleNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: ScaleNodeEmtData;
     readonly emitEventType: EmitEventType;
-    private undoTickerId?;
     private targetBox;
     private targetText;
     private cacheTextInfo;
-    collect(data: ScaleNodeEmtData): Promise<void>;
+    private setTextStyle;
+    collect(data: ScaleNodeEmtData, isSync?: boolean): Promise<void>;
 }

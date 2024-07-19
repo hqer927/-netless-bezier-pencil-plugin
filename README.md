@@ -2,125 +2,168 @@
  
 [中文文档](https://github.com/hqer927/-netless-bezier-pencil-plugin/blob/main/READMA.zh-CN.md)
 
-The plug-in is attached to the plug-in mechanism of white-web-sdk, and encapsulates Bessel pencil drawing as a whiteboard custom invisible plug-in type. All status synchronization is synchronized by the attributes of the plug-in to realize status synchronization between users. 
  
-In the example folder, the plug-in is imported as a dependency. You can use the access method in the example folder to access the whiteboard. 
+The plug-in is attached to the plug-in mechanism of white-web-sdk to achieve a set of whiteboard teaching AIDS, state synchronization, playback, scene switching and other functions still rely on white-web-sdk or window-manager. 
  
 ## Introduction 
  
 A whiteboard pencil drawing plugin based on SpriteJS as a rendering engine. 
  
+The following two demos are implemented in the example folder for reference only. 
+| scenario | demo path | depends on | 
+| :-- | :----: | :-- | 
+| multi-window | example/src/multi.ts | @netless/window-manager, white-web-sdk | 
+| white-board | example/src/single.ts | white-web-sdk | 
+<!-- | fastboard | todo | todo | -->
+ 
 ## Principle 
  
-1. This plug-in is mainly implemented based on the Path class of SpriteJS. The function of drawing Bezier curve is realized through the Path class, and the transition animation of laser pointer is realized through the transition. 
-2. The plugin uses the dual worker+offscreenCanvas mechanism to process the drawing calculation + rendering logic in an independent worker thread. Achieved high performance optimization. 
+1. The plugin is mainly based on the 2D functionality of SpriteJS, supports webgl2 rendering, and is backward compatible with downgrades to webgl and canvas2d 
+2. The plugin uses the dual webWorker+offscreenCanvas mechanism to process the drawing calculation + rendering logic in a separate worker thread. Does not occupy cpu tasks of the main thread. 
  
 ## Plugin usage 
  
 ### Install 
  
 ```bash 
-npm install @hqer/bezier-pencil-plugin 
-```
+npm install @netless/appliance-plugin 
+``` 
  
 ### Sign up for plugins 
  
+Plug-ins can support two scenarios, their access plug-in names are different:
+- Multi-window 'ApplianceMultiPlugin' 
 ```js 
-import { WhiteWebSdk, DeviceType} from "white-web-sdk"; 
-import { BezierPencilPlugin, BezierPencilDisplayer, ECanvasContextType } from "@hqer/bezier-pencil-plugin"; 
-import '@hqer/bezier-pencil-plugin/dist/style.css' 
+import { ApplianceMultiPlugin } from '@netless/appliance-plugin'; 
+``` 
+- Single whiteboard 'ApplianceSinglePlugin' 
+```js 
+import { ApplianceSinglePlugin } from '@netless/appliance-plugin'; 
+``` 
  
-const whiteWebSdk = new WhiteWebSdk({ 
-    ... 
-    useMobXState: true, 
-} 
+> workerjs file cdn deployment
+> 
+> We used two-worker concurrency to improve drawing efficiency, which improved it by more than 40% over single-thread efficiency. However, the common dependencies on the two worker files are repeated, so building directly into the package will greatly increase the package size. So we allow the workerjs file cdn deployment by simply deploying the file under @netless/appliance-plugin/cdn into the cdn and then configuring the c of the last two workerjs via the second parameter of getInstance in the plug-in, options.cdn The dn address is fine. This solves the problem of excessive package size
+> 
+> - **The total package is about 300kB, and the two wokerjs are 600kB each** If you need to consider the size of the package you are building, select Configure cdn. 
+ 
+### Access mode reference 
+ 
+#### Multi-window mode (Interconnecting with window-manager) 
+```js 
+import '@netless/window-manager/dist/style.css'; 
+import '@netless/appliance-plugin/dist/style.css'; 
+import { WhiteWebSdk } from "white-web-sdk"; 
+import { WindowManager } from "@netless/window-manager"; 
+// All bundled
+import { ApplianceMultiPlugin } from '@netless/appliance-plugin'; 
+// cdn 
+// The following steps are optional. If you use cdn, you do not need to import from dist. If you import from dist, you need to import resources and configure them to options.cdn in bolb inline form. Such as? raw, this requires packaging support,vite default support? raw,webpack needs to be configured.
+import fullWorkerString from '@netless/appliance-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@netless/appliance-plugin/dist/subWorker.js?raw';
+const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+ 
+const whiteWebSdk = new WhiteWebSdk(...) 
 const room = await whiteWebSdk.joinRoom({ 
-    ... 
-    isWritable: true, 
-    invisiblePlugins: [BezierPencilPlugin], 
-    wrappedComponents: [BezierPencilDisplayer] 
+... 
+invisiblePlugins: [WindowManager, ApplianceMultiPlugin], 
+useMultiViews: true, 
 }) 
-const plugin = await BezierPencilPlugin.getInstance(room, 
-    {// Get plug-in instance, there should be only one plug-in instance globally, which must be called after joinRoom 
-        logger: {// Custom logs, optional. If not, use the console api 
-            info: console.log, 
-            error: console.error, 
-            warn: console.warn, 
-        }, 
-        options: { 
-            syncOpt: { 
-                /**Synchronization interval duration,ms, recommended for low performance terminals, not less than 500ms**/ 
-                interval: 500, 
-            }, 
-            canvasOpt: { 
-                /**Plugin supported rendering engine**/ 
-                contextType: ECanvasContextType.Canvas2d 
-            } 
-        } 
-    } 
+const manager = await WindowManager.mount({ room , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true}); 
+if (manager) { 
+await manager.switchMainViewToWriter(); 
+await ApplianceMultiPlugin.getInstance(manager,
+        {
+            options: {
+                cdn: {
+                    fullWorkerUrl,
+                    subWorkerUrl,
+                }
+            }
+        }
+    ); 
+} 
+``` 
+#### Single whiteboard (interconnection with white-web-sdk) 
+```js 
+import { WhiteWebSdk } from "white-web-sdk"; 
+// All bundled
+import { ApplianceSinglePlugin, ApplianceSigleWrapper } from '@netless/appliance-plugin'; 
+// The following steps are optional. If you use cdn, you do not need to import from dist. If you import from dist, you need to import resources and configure them to options.cdn in bolb inline form. Such as? raw, this requires packaging support,vite default support? raw,webpack needs to be configured.
+import fullWorkerString from '@netless/appliance-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@netless/appliance-plugin/dist/subWorker.js?raw';
+const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+ 
+const whiteWebSdk = new WhiteWebSdk(...) 
+const room = await whiteWebSdk.joinRoom({ 
+... 
+invisiblePlugins: [ApplianceSinglePlugin], 
+wrappedComponents: [ApplianceSigleWrapper] 
+}) 
+await ApplianceSinglePlugin.getInstance(room,
+    {
+        options: {
+            cdn: {
+                fullWorkerUrl,
+                subWorkerUrl,
+            }
+        }
+    }
 ); 
 ```
+#### About ’?raw‘ webpack configuration
+```js
+module: {
+    rules: [
+        // ...
+        {
+            test: /\.m?js$/,
+            resourceQuery: { not: [/raw/] },
+            use: [ ... ]
+        },
+        {
+            resourceQuery: /raw/,
+            type: 'asset/source',
+        }
+    ]
+},
+``` 
  
-### Use 
+### Call introduction 
+The plug-in re-implements some interfaces of the same name on room or window or manager. If you do not use the interface on the plug-in, you will not get the desired effect. But we can use injectMethodToObject to re-inject it back into the original object to get the plugin's intended effect. As follows: 
+1. Interface on room 
+- `setMemberState` 
+- `undo` 
+- `redo` 
+- `callbacks` 
+- `insertImage` 
+- `lockImage` 
+- `completeImageUpload` 
+- `getImagesInformation` 
+- `cleanCurrentScene` 
  
-#### 1. By extending the interface on room. 
-For example, ``room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true})`` will activate the new pencil drawing tool. It will also be possible to modify the opacity by using the ``strokeType, strokeOpacity, strokeColor, useLaserPen`` and other attributes. 
+2. windowmanager upper interface 
+- `cleanCurrentScene` 
  
-The specific effects are as follows: 
-
-**Turn on Pen Tip effect**: 
-```js 
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, useNewPencil:true, strokeType: EStrokeType.Stroke, strokeOpacity:1} as any); 
-```
-**Turn on Laser pointer effect**: 
-```js 
-room.setMemberState({currentApplianceName: ApplianceNames.pencil, useLaserPen: true, strokeType: EStrokeType.Normal} as any); 
-```
-#### 2. Invoke the interface on the plugin object of the plug-in instance. 
-```js 
-const plugin = await BezierPencilPlugin.getInstance(room,...) 
-```
+3. The mainview interface of windowmanager 
+- `setMemberState` 
+- `undo` 
+- `redo` 
+- `callbacks` 
+- `insertImage` 
+- `lockImage` 
+- `completeImageUpload` 
+- `getImagesInformation` 
+- `cleanCurrentScene` 
  
-Specific effects are as follows 
- 
-**Empty the canvas**: 
-```js 
-plugin.cleanCurrentScene(); 
-```
- 
-**Save notes as pictures**: 
-```js 
-const canvas = document.createElement("canvas"); 
-const context = canvas.getContext("2d"); 
-const { width, height, ... camera } = room.state.cameraState; 
-canvas.width = width; 
-canvas.height = height; 
-f (context) { 
-await plugin.screenshotToCanvasAsync(context, 
-room.state.sceneState.scenePath, 
-width, height, camera, window.devicePixelRatio); 
-canvas.toBlob(this.blobCallback("download"), "image/png"); 
-} 
-```
- 
-**Undo/Restore**
-```js 
-// Cancel 
-plugin.undo(); 
- 
- 
-// Restore 
-plugin.redo(); 
- 
- 
-// Listen for the onCanUndoStepsUpdate event 
-plugin.callbacks.on("onCanUndoStepsUpdate", (step: number): void => { 
-    console.log('onCanUndoStepsUpdate', step) 
-}); 
- 
- 
-// Listen for the onCanRedoStepsUpdate event 
-plugin.callbacks.on("onCanRedoStepsUpdate", (step: number): void => { 
-    console.log('onCanRedoStepsUpdate', step) 
-}); 
-```
+4. Customize 
+- `getBoundingRectAsync` 
+- `screenshotToCanvasAsync` 
+- `scenePreviewAsync` 
+- `destroy`

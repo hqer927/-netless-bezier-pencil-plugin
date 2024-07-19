@@ -1,11 +1,10 @@
-import { Group } from "spritejs";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { EScaleType, EToolsKey } from "../enum";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
 import { EStrokeType } from "../../plugin/types";
 import { ShapeNodes } from "./utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 export interface PencilOptions extends BaseShapeOptions {
     thickness: number;
     strokeColor: string;
@@ -30,19 +29,52 @@ export declare class PencilShape extends BaseShapeTool {
     consume(props: {
         data: IWorkerMessage;
         isFullWork?: boolean;
-        isClearAll?: boolean;
         isSubWorker?: boolean;
-    }): IMainMessage;
+        drawCount?: number;
+        isMainThread?: boolean;
+        replaceId?: string;
+    }): {
+        rect: IRectType | undefined;
+        type: EPostMessageType;
+        dataType: EDataType;
+    } | {
+        type: EPostMessageType;
+        dataType: EDataType;
+        rect: IRectType | undefined;
+        op: number[] | undefined;
+        index: number | undefined;
+        updateNodeOpt: {
+            useAnimation: boolean;
+        };
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+    };
     consumeAll(props: {
         data?: IWorkerMessage;
-    }): IMainMessage;
+    }): {
+        type: EPostMessageType;
+        removeIds: string[];
+        rect: IRectType | undefined;
+    } | {
+        rect: IRectType | undefined;
+        type: EPostMessageType;
+        dataType: EDataType;
+        ops: string;
+        updateNodeOpt: {
+            pos: [number, number];
+            useAnimation: boolean;
+        };
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        removeIds?: undefined;
+    };
     clearTmpPoints(): void;
     consumeService(params: {
         op: number[];
         isFullWork?: boolean;
         replaceId?: string;
-        isClearAll?: boolean;
-        isTemp?: boolean;
     }): IRectType | undefined;
     private transformDataAll;
     private draw;
@@ -65,5 +97,4 @@ export declare class PencilShape extends BaseShapeTool {
         vNodes: VNodeManager;
         willSerializeData?: boolean;
     }): IRectType | undefined;
-    static getRectFromLayer(layer: Group, name: string): IRectType | undefined;
 }

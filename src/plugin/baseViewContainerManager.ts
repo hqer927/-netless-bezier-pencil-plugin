@@ -1,17 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type EventEmitter2 from "eventemitter2";
 import { ICameraOpt, ILayerOptionType, IMainMessageRenderData, IOffscreenCanvasOptionType } from "../core/types";
-import { BaseSubWorkModuleProps, InternalMsgEmitterType, TeachingAidsManagerLike } from "./types";
+import { BaseSubWorkModuleProps, InternalMsgEmitterType, ApplianceManagerLike } from "./types";
 import type { CameraState, View } from "./types";
-import throttle from "lodash/throttle";
+import {throttle, isEqual, clone, isNumber} from "lodash";
 import { ECanvasContextType, ECanvasShowType, EToolsKey, EvevtWorkState } from "../core/enum";
 import { ShowFloatBarMsgValue } from "../displayer/types";
-import isEqual from "lodash/isEqual";
-import clone from "lodash/clone";
 import { UndoRedoMethod, UndoRedoMethodProps } from "../undo";
 import { BaseViewDisplayer } from "./displayerView";
-import isNumber from "lodash/isNumber";
 import { getPosition, isOnlyOneTouch } from "./utils";
+import { Main_View_Id } from "../core/const";
 
 export interface ViewInfo {
     id: string;
@@ -39,7 +37,7 @@ export abstract class ViewContainerManager {
         depth: false,
     }
     internalMsgEmitter: EventEmitter2;
-    control: TeachingAidsManagerLike;
+    control: ApplianceManagerLike;
     abstract focuedViewId?: string;
     abstract focuedView?: ViewInfo;
     mainView?: ViewInfo;
@@ -48,25 +46,13 @@ export abstract class ViewContainerManager {
         const {control, internalMsgEmitter} = props;
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
-        this.internalMsgEmitter.on('undoTickerStart',this.undoTickerStart.bind(this));
-        this.internalMsgEmitter.on('undoTickerEnd',this.undoTickerEnd.bind(this));
+        this.internalMsgEmitter.on('addUndoTicker',this.undoTickerStart.bind(this));
         this.internalMsgEmitter.on('excludeIds',this.addExcludeIds.bind(this));
     }
     undoTickerStart(id:number, viewId:string){
         const view = this.getView(viewId);
         if (view && view.displayer && view.focusScenePath) {
             view.displayer.commiter.undoTickerStart(id, view.focusScenePath);
-        }
-    }
-    undoTickerEnd(id:number, viewId:string, isSync?:boolean){
-        const view = this.getView(viewId);
-        if (view && view.displayer && view.focusScenePath) {
-            if (isSync) {
-                // console.log('undoTickerEnd---undoTickerEnd', id, viewId)
-                view.displayer.commiter.undoTickerEndSync(id, viewId, view.focusScenePath);
-                return;
-            }
-            view.displayer.commiter.undoTickerEnd(id, viewId, view.focusScenePath);
         }
     }
     addExcludeIds(ids:string[], viewId:string){
@@ -101,14 +87,10 @@ export abstract class ViewContainerManager {
             this.focuedView?.displayer.commiter.onChangeScene();
         }
         if (key === 'cameraOpt' && !isEqual(oldValue, newValue)) {
-            if (newValue.width !==  oldValue?.width || newValue.height !==  oldValue?.height) {
-                const view = this.getView(key);
-                view?.displayer.updateSize();
-            }
             this.control.internalCameraChange(target.id, newValue);
         }
     }
-    abstract mountView(viewIde:string): void;
+    abstract mountView(viewIde:string): Promise<void>;
     destroyAppView(viewId:string, justLocal:boolean = false) {
         const viewInfo = this.appViews.get(viewId);
         if(viewInfo){
@@ -142,10 +124,10 @@ export abstract class ViewContainerManager {
         this.appViews.set(viewId, appView)
     }
     isAppView(viewId:string){
-        return viewId !== MainViewDisplayerManager.viewId && this.appViews.has(viewId);
+        return viewId !== Main_View_Id && this.appViews.has(viewId);
     }
     getView(viewId:string){
-        if (viewId === MainViewDisplayerManager.viewId) {
+        if (viewId === Main_View_Id) {
             return this.mainView;
         } else {
             return this.appViews?.get(viewId);
@@ -161,7 +143,7 @@ export abstract class ViewContainerManager {
         return[ this.mainView, ...this.appViews.values()]
     }
     setViewScenePath(viewId:string, scenePath: string) {
-        if (viewId === MainViewDisplayerManager.viewId && this.mainView) {
+        if (viewId === Main_View_Id && this.mainView) {
             this.mainView.focusScenePath = scenePath;
         } else {
             const view = viewId && this.appViews?.get(viewId) || undefined;
@@ -171,7 +153,7 @@ export abstract class ViewContainerManager {
         }
     }
     setViewData(viewId:string, viewData: View) {
-        if (viewId === MainViewDisplayerManager.viewId && this.mainView) {
+        if (viewId === Main_View_Id && this.mainView) {
             this.mainView.viewData = viewData;
         } else {
             const view = viewId && this.appViews?.get(viewId) || undefined;
@@ -182,20 +164,19 @@ export abstract class ViewContainerManager {
     }
     setFocuedViewId(viewId:string) {
         this.focuedViewId = viewId;
-        if (viewId === MainViewDisplayerManager.viewId) {
+        if (viewId === Main_View_Id) {
             this.focuedView = this.mainView;
         } else {
             this.focuedView = viewId && this.appViews?.get(viewId) || undefined;
         }
         this.control.cursor.onFocusViewChange();
         if (this.focuedView) {
-            // console.log('commiter---0', this.focuedView.focusScenePath);
             this.focuedView.displayer.commiter.onFocusView();
         }
     }
     setViewFocusScenePath(viewId:string, scenePath:string){
         let info:ViewInfo|undefined;
-        if (viewId === MainViewDisplayerManager.viewId) {
+        if (viewId === Main_View_Id) {
             info = this.mainView;
         } else {
             info = this.appViews?.get(viewId);
@@ -206,17 +187,20 @@ export abstract class ViewContainerManager {
     }
     /** 销毁 */
     destroy(){
-        this.internalMsgEmitter.removeAllListeners('undoTickerStart');
-        this.internalMsgEmitter.removeAllListeners('undoTickerEnd');
+        this.internalMsgEmitter.removeAllListeners('addUndoTicker');
         this.internalMsgEmitter.removeAllListeners('excludeIds');
         this.mainView?.displayer.destroy();
         this.appViews.forEach(view => {
             this.destroyAppView(view.id, true);
+            this.control.worker.destroyViewWorker(view.id);
         });
     }
     setFocuedViewCameraOpt(cameraState: CameraState): void {
         if (this.focuedView) {
-            this.focuedView.cameraOpt = cameraState;
+            const oldValue = this.focuedView.cameraOpt;
+            if (!isEqual(oldValue, cameraState)) {
+                this.focuedView.cameraOpt = cameraState;
+            }
         }   
     }
     /** view中心点坐标转换成页面原始坐标 */
@@ -224,7 +208,6 @@ export abstract class ViewContainerManager {
         const view = this.getView(viewId);
         if (view?.viewData) {
             const _p = view.viewData.convertToPointOnScreen(p[0],p[1]);
-            // console.log('transformToOriginPoint',_p, p, this.mainView?.displayer.containerOffset)
             return [_p.x,_p.y];
         }
         return p
@@ -232,10 +215,8 @@ export abstract class ViewContainerManager {
     /** 页面坐标转换成view中心点坐标 */
     transformToScenePoint(p: [number, number], viewId: string): [number, number] {
         const view = this.getView(viewId);
-        // console.log('transformToScenePoint ---1', p, this.mainView?.displayer.containerOffset)
         if (view?.viewData) {
             const _p = view.viewData.convertToPointInWorld({x:p[0],y:p[1]});
-            // console.log('transformToScenePoint ---2',_p )
             return [_p.x,_p.y];
         }
         return p
@@ -243,58 +224,54 @@ export abstract class ViewContainerManager {
     /** 绘制view */
     render(renderData: IMainMessageRenderData[]): void {
         for (const data of renderData) {
-            const { rect, imageBitmap, isClear, isUnClose, drawCanvas, clearCanvas, offset, viewId} = data;
+            const { rect, imageBitmap, isClear, isUnClose, drawCanvas, clearCanvas, viewId} = data;
             const displayer = this.getView(viewId)?.displayer;
             if (displayer && rect) {
-                const {dpr,canvasBgRef,canvasFloatRef,floatBarCanvasRef, canvasServiceFloatRef} = displayer;
-                const w = rect.w * dpr;
-                const h = rect.h * dpr;
-                const x = rect.x * dpr;
-                const y = rect.y * dpr;
+                const {dpr,canvasBgRef,canvasFloatRef, canvasServiceFloatRef, canvasTopRef} = displayer;
+                const w = Math.floor(rect.w * dpr);
+                const h = Math.floor(rect.h * dpr);
+                const x = Math.ceil(rect.x * dpr);
+                const y = Math.ceil(rect.y * dpr);
                 if (isClear) {
                     switch (clearCanvas) {
-                        case ECanvasShowType.Selector:
-                            floatBarCanvasRef.current?.getContext('2d')?.clearRect(0, 0, w, h);
-                            break;
-                        case ECanvasShowType.ServiceFloat:
-                            canvasServiceFloatRef.current?.getContext('2d')?.clearRect(x, y, w, h);
+                        case ECanvasShowType.TopFloat:
+                            canvasTopRef.current?.getContext('2d')?.clearRect(x, y, w, h);
                             break;
                         case ECanvasShowType.Float:
                             canvasFloatRef.current?.getContext('2d')?.clearRect(x, y, w, h);
+                            break;                            
+                        case ECanvasShowType.ServiceFloat:
+                            canvasServiceFloatRef.current?.getContext('2d')?.clearRect(x, y, w, h);
                             break;
                         case ECanvasShowType.Bg:
+                            // console.log('render-clear', x, y, w, h)
                             canvasBgRef.current?.getContext('2d')?.clearRect(x, y, w, h);
                             break;
-                        default:
-                            break;
                     }
+                    continue;
                 }
                 if (drawCanvas && imageBitmap) {
                     switch (drawCanvas) {
-                        case ECanvasShowType.Selector: {
-                            const cx = (offset?.x || 0) * dpr;
-                            const cy = (offset?.y || 0) * dpr;
-                            floatBarCanvasRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, cx, cy, w, h);
+                        case ECanvasShowType.TopFloat:
+                            canvasTopRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
                             break;
-                        }
+                        case ECanvasShowType.Float: {
+                            canvasFloatRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
+                            break;
+                        }                            
                         case ECanvasShowType.ServiceFloat: {
                             canvasServiceFloatRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
                             break;
                         }
-                        case ECanvasShowType.Float: {
-                            canvasFloatRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
-                            break;
-                        }
                         case ECanvasShowType.Bg: {
+                            // console.log('render-render', x, y, w, h)
                             canvasBgRef.current?.getContext('2d')?.drawImage(imageBitmap, 0, 0, w, h, x, y, w, h);
                             break;
                         }
-                        default:
-                            break;
                     }
                 }
                 if (isUnClose) {
-                    return;
+                    continue;
                 }
                 imageBitmap?.close();
             }
@@ -310,26 +287,25 @@ export abstract class ViewContainerManager {
         }
     }
     /** 激活浮动选框 */
-    activeFloatBar(viewId:string){
-        const displayer = this.getView(viewId)?.displayer;
-        if(displayer?.vDom){
-            displayer.vDom.setFloatZIndex(2);
-        }
-    }
+    // activeFloatBar(viewId:string){
+    //     const displayer = this.getView(viewId)?.displayer;
+    //     if(displayer?.vDom){
+    //         displayer.vDom.setFloatZIndex(2);
+    //     }
+    // }
     /** 销毁浮动选框 */
-    unActiveFloatBar(viewId:string){
-        const view = this.getView(viewId);
-        const vDom = view?.displayer.vDom;
-        if(vDom){
-            vDom.setFloatZIndex(-1);
-        }
-    }
+    // unActiveFloatBar(viewId:string){
+    //     const view = this.getView(viewId);
+    //     const vDom = view?.displayer.vDom;
+    //     if(vDom){
+    //         vDom.setFloatZIndex(-1);
+    //     }
+    // }
     // /** 激活刷新指针 */
     // setActiveCursor(viewId:string, cursorInfo: { x?: number; y?: number, roomMember?: RoomMember}) {
     //     const view = this.getView(viewId);
     //     const vDom = view?.displayer.vDom;
     //     if (vDom) {
-    //         console.log('setActiveCursor', cursorInfo.roomMember?.memberId)
     //         this.internalMsgEmitter.emit([InternalMsgEmitterType.Cursor,viewId], cursorInfo);
     //     }
     // }
@@ -348,21 +324,22 @@ export abstract class AppViewDisplayerManager {
     abstract dpr:number;
     abstract width:number;
     abstract height:number;
-    readonly control: TeachingAidsManagerLike;
+    readonly control: ApplianceManagerLike;
     readonly internalMsgEmitter: EventEmitter2;
     readonly commiter: UndoRedoMethod;
     abstract vDom?: BaseViewDisplayer; 
     abstract eventTragetElement?: HTMLDivElement;
+    abstract canvasContainerRef: React.RefObject<HTMLDivElement>;
+    abstract canvasTopRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
-    abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: { x: number; y: number };
     private cachePoint?:[number,number];
     private cacheCursorPoint?:[number|undefined,number|undefined];
     private active:boolean = true;
-    constructor(viewId:string, control: TeachingAidsManagerLike, internalMsgEmitter:EventEmitter2) {
+    constructor(viewId:string, control: ApplianceManagerLike, internalMsgEmitter:EventEmitter2) {
         this.viewId = viewId;
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
@@ -414,8 +391,8 @@ export abstract class AppViewDisplayerManager {
             this.removeDisplayerEvent(this.eventTragetElement)
         }
         this.vDom = undefined;
+        this.control.cursor.clearViewCursor(this.viewId);
         this.internalMsgEmitter.removeAllListeners([InternalMsgEmitterType.Cursor,this.viewId]);
-        // console.log('CursorManager---off', this.viewId, this.internalMsgEmitter)
     }
     getPoint(e:any):[number,number]|undefined{
         const point:{x:number,y:number} = getPosition(e);
@@ -453,6 +430,7 @@ export abstract class AppViewDisplayerManager {
     protected mousedown = (e:MouseEvent) =>{
         if(!this.active) return;
         if (e.button === 0 && this.viewId) {
+            this.control.worker.checkDrawingWork(this.viewId);
             this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
@@ -478,9 +456,16 @@ export abstract class AppViewDisplayerManager {
     protected touchstart = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
+            this.control.worker.unWritable();
+            this.viewId && this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
         if (this.viewId) {
+            if(!this.control.worker.isAbled()){
+                const toolsType = this.control.worker.getCurrentToolsData()?.toolsType;
+                toolsType && this.control.effectViewContainer(toolsType);
+            }
+            this.control.worker.checkDrawingWork(this.viewId);
             this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
@@ -491,8 +476,7 @@ export abstract class AppViewDisplayerManager {
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
             this.control.worker.unWritable();
-            // console.log('clearLocalPointsBatchData---1')
-            this.control.worker.clearLocalPointsBatchData();
+            this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
         if (this.viewId) {
@@ -504,8 +488,8 @@ export abstract class AppViewDisplayerManager {
     protected touchend = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e) || !this.control.worker.isAbled()){
-            // console.log('clearLocalPointsBatchData---0')
-            this.control.worker.clearLocalPointsBatchData();
+            this.control.worker.unWritable();
+            this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
         if (this.viewId) {
@@ -533,14 +517,26 @@ export abstract class AppViewDisplayerManager {
     }
     protected bindDisplayerEvent(div:HTMLDivElement) {
         div.addEventListener('mousedown',this.mousedown, false);
-        div.addEventListener('touchstart',this.touchstart, false);
+        div.addEventListener('touchstart',this.touchstart, {
+            capture: true,
+            passive: false
+        });
 
         window.addEventListener('mouseleave',this.mouseup, false);
-        window.addEventListener('mousemove',this.mousemove, false);
+        window.addEventListener('mousemove',this.mousemove, {
+            capture: true,
+            passive: false
+        });
         window.addEventListener('mouseup',this.mouseup, false);
 
-        window.addEventListener('touchmove',this.touchmove, false);
-        window.addEventListener('touchend',this.touchend, false);
+        window.addEventListener('touchmove',this.touchmove, {
+            capture: true,
+            passive: false
+        });
+        window.addEventListener('touchend',this.touchend, {
+            capture: true,
+            passive: false
+        });
 
         div.addEventListener('mousemove',this.cursorMouseMove, false);
         div.addEventListener('mouseleave',this.cursorMouseLeave, false);
@@ -566,9 +562,8 @@ export abstract class AppViewDisplayerManager {
 }
 /** 主容器管理器抽象 */
 export abstract class MainViewDisplayerManager {
-    static readonly viewId:string = 'mainView';
-    readonly viewId:string = 'mainView';
-    readonly control: TeachingAidsManagerLike;
+    readonly viewId:string = Main_View_Id;
+    readonly control: ApplianceManagerLike;
     readonly internalMsgEmitter: EventEmitter2;
     readonly commiter: UndoRedoMethod;
     abstract dpr:number;
@@ -576,16 +571,18 @@ export abstract class MainViewDisplayerManager {
     abstract height:number;
     abstract vDom?: BaseViewDisplayer; 
     abstract eventTragetElement?: HTMLDivElement;
+    abstract snapshotContainerRef?: React.RefObject<HTMLDivElement>;
+    abstract canvasContainerRef: React.RefObject<HTMLDivElement>;
+    abstract canvasTopRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
-    abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: { x: number; y: number };
     private cachePoint?:[number,number];
     private cacheCursorPoint?:[number|undefined,number|undefined];
     private active:boolean = true;
-    constructor(control: TeachingAidsManagerLike, internalMsgEmitter:EventEmitter2) {
+    constructor(control: ApplianceManagerLike, internalMsgEmitter:EventEmitter2) {
         this.control = control;
         this.internalMsgEmitter = internalMsgEmitter;
         const props:UndoRedoMethodProps = {
@@ -617,7 +614,6 @@ export abstract class MainViewDisplayerManager {
     }
     mountView(): void {
         this.setCanvassStyle();
-        // console.log('mountView --- 1')
         this.control.viewContainerManager.mountView(this.viewId);
     }
     updateSize(){
@@ -633,8 +629,8 @@ export abstract class MainViewDisplayerManager {
             this.removeDisplayerEvent(this.eventTragetElement)
         }
         this.vDom = undefined;
+        this.control.cursor.destroy();
         this.internalMsgEmitter.removeAllListeners([InternalMsgEmitterType.Cursor,this.viewId]);
-        // console.log('CursorManager---off', this.viewId, this.internalMsgEmitter)
     }
     getPoint(e:any):[number,number]|undefined{
         const point:{x:number,y:number} = getPosition(e);
@@ -672,6 +668,7 @@ export abstract class MainViewDisplayerManager {
     protected mousedown = (e:MouseEvent) =>{
         if(!this.active) return;
         if (e.button === 0) {
+            this.control.worker.checkDrawingWork(this.viewId);
             this.reflashContainerOffset();
             const point = this.getPoint(e);
             this.cachePoint = point;
@@ -695,8 +692,15 @@ export abstract class MainViewDisplayerManager {
     protected touchstart = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
+            this.control.worker.unWritable();
+            this.viewId && this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
+        if(!this.control.worker.isAbled()){
+            const toolsType = this.control.worker.getCurrentToolsData()?.toolsType;
+            toolsType && this.control.effectViewContainer(toolsType);
+        }
+        this.control.worker.checkDrawingWork(this.viewId);
         this.reflashContainerOffset();
         const point = this.getPoint(e);
         this.cachePoint = point;
@@ -705,9 +709,8 @@ export abstract class MainViewDisplayerManager {
     protected touchmove = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e)){
-            // console.log('clearLocalPointsBatchData---2')
-            this.control.worker.clearLocalPointsBatchData();
             this.control.worker.unWritable();
+            this.viewId && this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
         const point = this.getPoint(e);
@@ -717,8 +720,7 @@ export abstract class MainViewDisplayerManager {
     protected touchend = (e:TouchEvent) =>{
         if(!this.active) return;
         if(!isOnlyOneTouch(e) || !this.control.worker.isAbled()){
-            // console.log('clearLocalPointsBatchData---3')
-            this.control.worker.clearLocalPointsBatchData();
+            this.control.worker.removeDrawingWork(this.viewId);
             return;
         }
         const point = this.getPoint(e) || this.cachePoint;
@@ -742,19 +744,29 @@ export abstract class MainViewDisplayerManager {
     }
     protected bindDisplayerEvent(div:HTMLDivElement) {
         div.addEventListener('mousedown',this.mousedown, false);
-        div.addEventListener('touchstart',this.touchstart, false);
-
         window.addEventListener('mouseleave',this.mouseup, false);
-        window.addEventListener('mousemove',this.mousemove, false);
+        window.addEventListener('mousemove',this.mousemove, {
+            capture: false,
+            passive: false
+        });
         window.addEventListener('mouseup',this.mouseup, false);
+        div.addEventListener('touchstart',this.touchstart, {
+            capture: true,
+            passive: false
+        });
+        window.addEventListener('touchmove',this.touchmove, {
+            capture: true,
+            passive: false
+        });
+        window.addEventListener('touchend',this.touchend, {
+            capture: true,
+            passive: false
+        });
 
-        window.addEventListener('touchmove',this.touchmove, false);
-        window.addEventListener('touchend',this.touchend, false);
+        div.addEventListener('mousemove',this.cursorMouseMove, true);
+        div.addEventListener('mouseleave',this.cursorMouseLeave, true);
 
-        div.addEventListener('mousemove',this.cursorMouseMove, false);
-        div.addEventListener('mouseleave',this.cursorMouseLeave, false);
-
-        div.addEventListener('keydown', this.keydown,true);
+        div.addEventListener('keydown', this.keydown, true);
     }
     protected removeDisplayerEvent(div:HTMLDivElement) {
         div.removeEventListener('mousedown',this.mousedown);

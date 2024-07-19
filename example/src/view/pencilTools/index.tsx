@@ -1,16 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import styles from './index.module.less';
-import {useContext, useMemo, useState, useEffect} from 'react';
+import React, {useContext, useMemo, useState, useEffect} from 'react';
 // import {
 //     EditOutlined,
 //     DeleteOutlined
 // } from '@ant-design/icons';
 import { StrokePencilIcon, NormPencilIcon, DottedPencilIcon, DottedPencilLongIcon } from '../../assets/svg';
-import { ColorPicker, Divider, Popover, Button, Slider, Switch } from 'antd';
+import { ColorPicker, Divider, Popover, Button, Slider } from 'antd';
 import type { Color } from 'antd/es/color-picker';
 import { AppContext } from "../../App";
-import { EToolsKey } from '@hqer/bezier-pencil-plugin/src/core';
-import { EStrokeType } from '@hqer/bezier-pencil-plugin/src/plugin/types';
+import { EStrokeType, EToolsKey } from '@hqer/bezier-pencil-plugin';
 export const PencilTools = () => {
     const {toolsKey} = useContext(AppContext);
     const [strokeType, setStrokeType] = useState<EStrokeType>(EStrokeType.Stroke);

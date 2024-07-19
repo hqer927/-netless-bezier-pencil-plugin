@@ -7,21 +7,10 @@ import { SelectorShape } from "../../tools";
 export class SetColorNodeMethodForWorker extends BaseMsgMethodForWorker {
     readonly emitEventType: EmitEventType = EmitEventType.SetColorNode;
     consume(data: IWorkerMessage): boolean | undefined {
-        const {msgType, dataType, emitEventType, undoTickerId} = data;
+        const {msgType, dataType, emitEventType} = data;
         if (msgType !== EPostMessageType.UpdateNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data).finally(()=>{
-                if (undoTickerId) {
-                    setTimeout(()=>{
-                        this.localWork?._post({
-                            sp:[{
-                                type: EPostMessageType.None,
-                                undoTickerId,
-                            }]
-                        })
-                    },0)
-                }
-            })
+            this.consumeForLocalWorker(data);
             return true;
         }        
     }
@@ -62,7 +51,6 @@ export class SetColorNodeMethodForWorker extends BaseMsgMethodForWorker {
                 }
             }
         }
-        // console.log('updateSelector---0---0--SetColor', render, sp)
         return {
             render,
             sp

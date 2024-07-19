@@ -1,69 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useContext, useMemo, useRef, useState } from "react"
+import styles from '../../plugin/index.module.less';
+import React, { useContext, useMemo } from "react"
 import { DisplayerContext } from "../../plugin/displayerView";
-import throttle from "lodash/throttle";
-import { EScaleType, EvevtWorkState } from "../../core";
-import Draggable from 'react-draggable'; 
-import type { DraggableData, DraggableEvent } from "react-draggable";
+import { EScaleType } from "../../core";
 import { FloatBtns } from "../floatBtns";
-import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
-import { MethodBuilderMain } from "../../core/msgEvent";
-import { HighlightBox, HighlightTwoBox, HighlightFourBox, LockedBox } from "../highlightBox";
-import { Storage_Selector_key } from "../../collector";
+import { EmitEventType } from "../../plugin/types";
+import { HighlightBox, HighlightTwoBox, HighlightFourBox, LockedBox } from "./highlightBox";
 import { TextViewInSelector } from "../../component/textEditor/view";
 import { TextEditorInfo } from "../../component/textEditor";
-import isEqual from "lodash/isEqual";
+import { RotateBtn } from "./rotate";
+import { DraggableBox } from "./dragBox";
+import { ResizableBox, ResizableTwoBox } from './resizable';
+import { isNumber, isEqual } from 'lodash';
 
 const FloatBarComponent = React.forwardRef((props:{
-    className: string,
-    editors?: Map<string, TextEditorInfo>,
-    activeTextId?: string,
-}, ref: React.Ref<HTMLCanvasElement>) => {
-    const {floatBarData, zIndex, position, angle, operationType, setPosition, setOperationType, maranger} = useContext(DisplayerContext);
-    const {className, editors, activeTextId} = props;
-    const textRef = useRef<HTMLDivElement>(null);
-    const [workState,setWorkState] = useState<EvevtWorkState>(EvevtWorkState.Pending);
-    const [cachePoint, setCachePoint] = useState<{x:number,y:number}>();
-    const onDragStartHandler = (e: DraggableEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        setOperationType(EmitEventType.TranslateNode);
-        setWorkState(EvevtWorkState.Start);
-        setCachePoint(position)
-        if (maranger?.control.room) {
-            maranger.control.room.disableDeviceInputs = true;
-        }
-        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position, workState: EvevtWorkState.Start, viewId:maranger?.viewId})
-    }
-    const onDragEndHandler = throttle((e: DraggableEvent,
-        pos: DraggableData) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const p = {x:pos.x, y:pos.y};
-        setPosition(p)
-        setOperationType(EmitEventType.None);
-        setWorkState(EvevtWorkState.Done);
-        if (maranger?.control.room) {
-            maranger.control.room.disableDeviceInputs = false;
-        }
-        console.log('onDragEndHandler')
-        MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-            EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Done, viewId:maranger?.viewId})
-    }, 100, {'leading':false})
-    const onDragHandler = throttle((e, pos) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const p = {x:pos.x, y:pos.y};
-        if (pos.x !== position?.x || pos.y!== position?.y) {
-            setPosition(p);
-            setWorkState(EvevtWorkState.Doing);
-            MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                EmitEventType.TranslateNode, {workIds: [Storage_Selector_key], position:p, workState: EvevtWorkState.Doing, viewId:maranger?.viewId})
-        }
-    }, 100, {'leading':false})
+    children: JSX.Element | null;
+}, ref: React.ForwardedRef<HTMLDivElement>) => {
+    const {floatBarData, operationType} = useContext(DisplayerContext);
     const HighLightUI = useMemo(()=>{
         if ( 
             floatBarData?.scaleType !== EScaleType.all ||
@@ -97,118 +49,124 @@ const FloatBarComponent = React.forwardRef((props:{
         }
         return null
     },[floatBarData])
+    return (
+        <div ref={ref} 
+            style= { floatBarData ? {
+                transform: `translate(${floatBarData.x}px,${floatBarData.y}px)`,
+                width: floatBarData.w,
+                height: floatBarData.h,
+                pointerEvents: 'none',
+            } : undefined
+        }>
+            { LockedUI }
+            { HighLightUI }
+            { HighLightTwoUI }
+            { HighLightFourUI }
+            { props.children}
+        </div>
+    )
+})
+const FloatBarContext = React.forwardRef((props:{
+    editors?: Map<string, TextEditorInfo>,
+    activeTextId?: string,
+},ref: React.ForwardedRef<HTMLDivElement>) => {
+    const {floatBarData, operationType, maranger} = useContext(DisplayerContext);
+    const {editors, activeTextId} = props;
+
+    const RotateBtnUI = useMemo(()=>{
+        if(floatBarData?.canRotate && floatBarData?.selectIds?.length === 1 && 
+            (operationType === EmitEventType.None || operationType === EmitEventType.RotateNode)){
+                return <RotateBtn className={styles['RotateBtn']}  />
+        }
+        return null;
+    },[floatBarData?.canRotate, floatBarData?.selectIds?.length, operationType])
+
+    const ResizableBoxUI = useMemo(()=>{
+        if((floatBarData?.scaleType === EScaleType.all || floatBarData?.scaleType === EScaleType.proportional) && 
+            (operationType === EmitEventType.None || operationType === EmitEventType.ScaleNode) && 
+            isNumber(floatBarData?.x) && isNumber(floatBarData?.y)){
+                return <ResizableBox className={styles['ResizeBtn']} />
+        }
+        return null;
+    },[floatBarData?.scaleType, operationType, floatBarData?.x, floatBarData?.y])
+
+    const ResizableTwoBoxUI = useMemo(()=>{
+        if(floatBarData?.scaleType === EScaleType.both && 
+            (operationType === EmitEventType.None || operationType === EmitEventType.SetPoint)){
+                return <ResizableTwoBox className={styles['ResizeTowBox']} />
+        }
+        return null;
+    },[floatBarData?.scaleType, operationType])
+
     const TextViewInSelectorUI = useMemo(()=>{
         const selectIds = floatBarData?.selectIds || [];
-        if (editors && maranger && selectIds ) {
-            // console.log('TextViewInSelectorUI', position, selectIds)
-            return <TextViewInSelector
-                manager={maranger}
-                textRef={textRef}
-                selectIds={selectIds}
-                position={position}
-                activeTextId={activeTextId}
-                editors={editors}
-            />
+        if (editors && maranger && selectIds && isNumber(floatBarData?.x) && isNumber(floatBarData?.y) && isNumber(floatBarData?.w) && isNumber(floatBarData?.h)  ) {
+                return <TextViewInSelector
+                    box={{
+                        x:floatBarData?.x,
+                        y:floatBarData?.y,
+                        w:floatBarData?.w,
+                        h:floatBarData?.h
+                    }}
+                    manager={maranger}
+                    selectIds={selectIds}
+                    activeTextId={activeTextId}
+                    editors={editors}
+                />
         }
         return null
-    },[floatBarData?.selectIds, editors, maranger, activeTextId])
-    return (
-        <Draggable
-            disabled={!!floatBarData?.isLocked}
-            position={position}
-            onStart={onDragStartHandler}
-            onDrag={onDragHandler}
-            onStop={onDragEndHandler}
-            handle="canvas"
-        >
-            <div className={`${className}`}
-                style= { floatBarData ? {
+    },[floatBarData?.selectIds, floatBarData?.x, floatBarData?.y, floatBarData?.w, floatBarData?.h, editors, maranger, activeTextId])
+    const FloatBarBtnUI = useMemo(()=>{
+        if (operationType === EmitEventType.None && isNumber(floatBarData?.x) && isNumber(floatBarData?.y) && isNumber(floatBarData?.w) && isNumber(floatBarData?.h)) {
+            return (
+                <div className={styles['FloatBarBtn']}
+                    style= {{
+                        left: floatBarData?.x,
+                        top: floatBarData?.y,
                         width: floatBarData.w,
                         height: floatBarData.h,
-                        zIndex,
-                        pointerEvents: zIndex < 2 ? 'none' : LockedUI ? 'none' : 'auto',
-                    } : undefined
-                }
-                // onMouseMove={(e)=>{
-                //     e.stopPropagation();
-                //     e.preventDefault();
-                // }}
-                onClick={throttle((e:any)=>{
-                    e.stopPropagation();
-                    e.preventDefault();
-                    // console.log('computeTextActive')
-                    if (maranger && editors?.size && textRef.current && isEqual(cachePoint,position)) {
-                        const point = maranger.getPoint(e.nativeEvent);
-                        point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
-                    }
-                    return false
-                }, 100, {'leading':false})}
-                onTouchEndCapture={throttle((e:any)=>{
-                    e.stopPropagation();
-                    e.preventDefault();
-                    // console.log('computeTextActive--1')
-                    if (maranger && editors?.size && textRef.current && workState !== EvevtWorkState.Doing) {
-                        const point = maranger.getPoint(e.nativeEvent);
-                        point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
-        
-                    }
-                    return false
-                }, 100, {'leading':false})}
-            >
-                <div className="bezier-pencil-plugin-floatCanvas-box" 
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        transform: `rotate(${angle}deg)`
                     }}
                 >
-                    <canvas ref={ref} className="bezier-pencil-plugin-floatCanvas"/>
+                    <FloatBtns position={{x:floatBarData.x,y:floatBarData.y}} textOpt={floatBarData?.textOpt} noLayer={floatBarData?.isLocked}/>
                 </div>
-                { LockedUI }
-                { HighLightUI }
-                { HighLightTwoUI }
-                { HighLightFourUI }
-                { TextViewInSelectorUI }
-            </div>
-        </Draggable>
+            )
+        }
+        return null;
+    },[floatBarData?.x,floatBarData?.y, floatBarData?.w, floatBarData?.h, floatBarData?.textOpt, floatBarData?.isLocked, operationType])
+    return (
+        <div className={styles['FloatBar']}
+            onMouseOver={()=>{
+                console.log('onMouseOver')
+                maranger?.control.worker.blurCursor(maranger.viewId);
+            }}
+        >
+            <FloatBarComponent ref={ref} >
+                <>
+                    { TextViewInSelectorUI }
+                </>
+            </FloatBarComponent>
+            <DraggableBox onClickHandle={(e)=>{
+                if (maranger && editors?.size) {
+                    const point = maranger.getPoint(e.nativeEvent);
+                    point && maranger.control.textEditorManager.computeTextActive(point, maranger.viewId)
+                }
+            }} />
+            { RotateBtnUI }
+            { ResizableBoxUI }
+            { ResizableTwoBoxUI }
+            { FloatBarBtnUI }
+        </div>
     )
 });
-
-export const FloatBar = React.memo(FloatBarComponent,(props:{
-    className: string,
+export const FloatBar = React.memo(FloatBarContext,(props:{
     editors?: Map<string, TextEditorInfo>,
     activeTextId?: string,
 }, nextProps:{
-    className: string,
     editors?: Map<string, TextEditorInfo>,
     activeTextId?: string,
 })=>{
     if (!isEqual(props,nextProps)) {
-        console.log('FloatBar-----isEqual', false)
         return false
     }
     return true;
 })
-
-export const FloatBarBtn = (props:{
-    className: string
-}) => {
-    const {floatBarData, position, operationType } = useContext(DisplayerContext);
-    const {className} = props;
-    if (operationType === EmitEventType.None) {
-        return (
-            <div className={`${className}`}
-                style= { floatBarData ? {
-                        left: position?.x,
-                        top: position?.y,
-                        width: floatBarData.w,
-                        height: floatBarData.h,
-                    } : undefined
-                }
-            >
-                <FloatBtns textOpt={floatBarData?.textOpt} position={position} noLayer={floatBarData?.isLocked}/>
-            </div>
-        )
-    }
-    return null;
-}

@@ -1,5 +1,4 @@
 import { EmitEventType, InternalMsgEmitterType } from '../../plugin/types';
-import { ZIndexActiveMethod } from './activeZIndex/forMain';
 import { BaseMsgMethod } from './base';
 import { CopyNodeMethod } from './copyNode/forMain';
 import { SetColorNodeMethod } from './setColor/forMain';
@@ -8,7 +7,7 @@ import { TranslateNodeMethod } from './translateNode/forMain';
 import { DeleteNodeMethod } from './deleteNode/forMain';
 import { ScaleNodeMethod } from './scaleNode/forMain';
 import { RotateNodeMethod } from './rotateNode/forMain';
-import { BaseTeachingAidsManager } from '../../plugin/baseTeachingAidsManager';
+import { BaseApplianceManager } from '../../plugin/baseApplianceManager';
 import { SetFontStyleMethod } from './setFont/forMain';
 import { SetPointMethod } from './setPoint/forMain';
 import { SetLockMethod } from './setLock/forMain';
@@ -27,8 +26,6 @@ export class MethodBuilderMain {
                 return new TranslateNodeMethod();
             case EmitEventType.ZIndexNode:
                 return new ZIndexNodeMethod();
-            case EmitEventType.ZIndexActive:
-                return new ZIndexActiveMethod();
             case EmitEventType.CopyNode:
                 return new CopyNodeMethod();
             case EmitEventType.SetColorNode:
@@ -53,7 +50,7 @@ export class MethodBuilderMain {
     getBuilder(type:EmitEventType){
         return this.builders.get(type);
     }
-    registerForMainEngine(emtType: InternalMsgEmitterType, control:BaseTeachingAidsManager){
+    registerForMainEngine(emtType: InternalMsgEmitterType, control:BaseApplianceManager){
         this.builders.forEach(builder=>{
             if (builder) {
                 builder.registerForMainEngine(emtType, control)
@@ -67,9 +64,32 @@ export class MethodBuilderMain {
                 builder.destroy();
             }
         })
+        this.builders.clear();
+    }
+    pause(){
+        this.builders.forEach(builder=>{
+            if (builder) {
+                builder.pause();
+            }
+        })
+        return this;
+    }
+    recover(){
+        this.builders.forEach(builder=>{
+            if (builder) {
+                builder.recover();
+            }
+        })
+        return this;
     }
     static emitMethod(emtType: InternalMsgEmitterType, type: EmitEventType, data: unknown) {
-        BaseMsgMethod.dispatch(emtType, type, data)
+        BaseMsgMethod.dispatch(emtType, type, data);
         return undefined
+    }
+    static activeListener(callback:(isActive:boolean)=>void) {
+        BaseApplianceManager.InternalMsgEmitter.on(EmitEventType.ActiveMethod, callback);
+    }
+    static unmountActiveListener(callback:(isActive:boolean)=>void) {
+        BaseApplianceManager.InternalMsgEmitter.off(EmitEventType.ActiveMethod, callback);
     }
 }

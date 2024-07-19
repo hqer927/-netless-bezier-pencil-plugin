@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Group, Path, Polyline } from "spritejs";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints, getWHRatio } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 
 export interface StarOptions extends BaseShapeOptions {
@@ -32,19 +32,21 @@ export class StarShape extends BaseShapeTool{
         this.syncTimestamp = 0;
         this.syncUnitTime = 50;
     }
-    consume(props: { data: IWorkerMessage; isFullWork?: boolean | undefined; isClearAll?: boolean | undefined; isSubWorker?: boolean | undefined; }): IMainMessage {
-        const {data, isFullWork, isSubWorker}= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return { type: EPostMessageType.None}
-        }
-        const {op, workState} = data;
+    consume(props: { 
+        data: IWorkerMessage; 
+        isFullWork?: boolean; 
+        isSubWorker?: boolean;
+        isMainThread?: boolean;
+    }) {
+        const {data, isFullWork, isSubWorker, isMainThread}= props;
+        const workId = this.workId;
+        const {op} = data;
         const opl = op?.length;
         if(!opl || opl < 2){
           return { type: EPostMessageType.None}
         }
         let bol:boolean;
-        if (workState === EvevtWorkState.Start) {
+        if (this.tmpPoints.length === 0) {
             this.tmpPoints = [new Point2d(op[0],op[1])];
             bol = false
         } else {
@@ -53,6 +55,11 @@ export class StarShape extends BaseShapeTool{
         if (!bol) {
             return { type: EPostMessageType.None}
         }
+        let r: IRectType | undefined;
+        if (isSubWorker || isMainThread) {
+            const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+            r = this.draw({workId, layer, isDrawing:true});
+        }
         if (!isSubWorker) {
             const now = Date.now();
             if (now - this.syncTimestamp > this.syncUnitTime) {
@@ -60,32 +67,25 @@ export class StarShape extends BaseShapeTool{
                 return {
                     type: EPostMessageType.DrawWork,
                     dataType: EDataType.Local,
-                    workId,
                     op: this.tmpPoints.map(c=>([...c.XY,0])).flat(1),
                     isSync: true,
-                    index: 0
+                    index: 0,
+                    ...this.baseConsumeResult
                 }
             }
             return { type: EPostMessageType.None};
         }
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const rect: IRectType | undefined = this.draw({workId, layer, isDrawing:true});
-        const r = computRect(rect, this.oldRect);
-        this.oldRect = rect;
+        const rect = computRect(r, this.oldRect);
+        this.oldRect = r;
         return {
-            rect: r,
+            rect,
             type: EPostMessageType.DrawWork,
             dataType: EDataType.Local,
-            workId,
-            // op: this.tmpPoints.map(c=>[...c.XY,0]).flat(1)
+            ...this.baseConsumeResult
         }
     }
-    consumeAll(props: { data?: IWorkerMessage | undefined}): IMainMessage {
-        const { data }= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return {type: EPostMessageType.None}
-        }
+    consumeAll() {
+        const workId = this.workId;
         if (this.tmpPoints.length < 2) {
             return { 
                 type: EPostMessageType.RemoveNode,
@@ -97,7 +97,7 @@ export class StarShape extends BaseShapeTool{
         this.oldRect = rect;
         const op = this.tmpPoints.map(c=>[...c.XY,0]).flat(1);
         const ops = transformToSerializableData(op);
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,
@@ -110,10 +110,9 @@ export class StarShape extends BaseShapeTool{
             rect,
             type: EPostMessageType.FullWork,
             dataType: EDataType.Local,
-            workId,
             ops,
             isSync: true,
-            opt: this.workOptions
+            ...this.baseConsumeResult
         }
     }
 
@@ -123,49 +122,38 @@ export class StarShape extends BaseShapeTool{
         isDrawing: boolean;
     }){
         const {workId, layer, isDrawing} = props;
-        this.fullLayer.getElementsByName(workId).map(o=>o.remove());
-        this.drawLayer?.getElementsByName(workId).map(o=>o.remove());
         const {strokeColor, fillColor, thickness, zIndex, vertices, innerVerticeStep, innerRatio, scale, rotate, translate} = this.workOptions;
-        const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
         const {rect, pos, points} = this.computDrawPoints(thickness, vertices, innerVerticeStep, innerRatio);
         const attr:any = {
-            pos,
             close:true,
-            name: workId,
-            id: workId,
             points,
             lineWidth: thickness,
             fillColor: fillColor !== 'transparent' && fillColor || undefined, 
             strokeColor,
-            className: `${pos[0]},${pos[1]}`,
             normalize: true,
-            zIndex,
             lineJoin: 'round'
         };
-        const r: IRectType | undefined = {
-            x: Math.floor(rect.x * worldScaling[0] + worldPosition[0] - BaseShapeTool.SafeBorderPadding * worldScaling[0]),
-            y: Math.floor(rect.y * worldScaling[1] + worldPosition[1] - BaseShapeTool.SafeBorderPadding * worldScaling[1]),
-            w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding * worldScaling[0]),
-            h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding * worldScaling[1])
+        const groupAttr:any = {
+            name: workId,
+            id: workId,
+            zIndex, 
+            pos,
+            anchor: [0.5, 0.5],
+            size: [rect.w, rect.h],
+            className: `${pos[0]},${pos[1]}`,
         };
+        if (scale) {
+            groupAttr.scale = scale;
+        }
+        if (rotate) {
+            groupAttr.rotate = rotate;
+        }
+        if (translate) {
+            groupAttr.translate = translate;
+        }
+        const group = new Group(groupAttr);
         if (isDrawing) {
-            const {name, id, zIndex, strokeColor} = attr;
-            const centerPos = [
-                ((r.x + r.w / 2) - worldPosition[0]) / worldScaling[0],
-                ((r.y + r.h / 2) - worldPosition[1]) / worldScaling[1]
-            ]
-            const group = new Group({
-                name, id, zIndex, 
-                pos: centerPos,
-                anchor: [0.5, 0.5],
-                size: [r.w, r.h]
-            });
-            // console.log('attr', attr)
-            const node = new Polyline({
-                ...attr,
-                pos:[0, 0]
-            });
             const anchorCross = new Path({
                 d:'M-4,0H4M0,-4V4',
                 normalize: true,
@@ -174,31 +162,21 @@ export class StarShape extends BaseShapeTool{
                 lineWidth: 1,
                 scale:[1 / worldScaling[0], 1 / worldScaling[1]]
             });
-            group.append(node, anchorCross);
-            layer.append(group);
-            return r;
+            group.append(anchorCross);
         }
-        if (scale) {
-            attr.scale = scale;
+        const node = new Polyline({
+            ...attr,
+            pos:[0, 0]
+        });
+        group.append(node);
+        this.replace(layer,workId, group);
+        const r = group.getBoundingClientRect();
+        return {
+            x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
+            y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
+            w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
+            h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
         }
-        if (rotate) {
-            attr.rotate = rotate;
-        }
-        if (translate) {
-            attr.translate = translate;
-        }
-        const node = new Polyline(attr);
-        layer.append(node);
-        if (scale || rotate || translate) {
-            const r = node.getBoundingClientRect();
-            return {
-                x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
-                y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
-                w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
-                h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
-            }
-        }
-        return r;
     }
     private computDrawPoints(thickness:number, vertices:number, innerVerticeStep:number, innerRatio:number):{pos: [number,number], rect: IRectType, points:number[]} {
         const r = getRectFromPoints(this.tmpPoints);
@@ -262,7 +240,7 @@ export class StarShape extends BaseShapeTool{
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const rect: IRectType | undefined = this.draw({workId, layer, isDrawing: false});
         this.oldRect = rect;
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

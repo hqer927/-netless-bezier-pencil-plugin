@@ -2,8 +2,9 @@
 import { WhiteWebSdk, DeviceType, RenderEngine} from "white-web-sdk";
 import polly from "polly-js";
 import { CursorTool } from '@netless/cursor-tool';
-import { TeachingSingleAidsPlugin, ECanvasContextType, TeachingAidsSigleWrapper } from '@hqer/bezier-pencil-plugin';
-
+import { ApplianceSinglePlugin, ApplianceSigleWrapper } from '@hqer/bezier-pencil-plugin';
+import fullWorkerString from '@hqer/bezier-pencil-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@hqer/bezier-pencil-plugin/dist/subWorker.js?raw';
 export enum Identity {
     Creator = "creator",
     Joiner = "joiner",
@@ -48,8 +49,8 @@ export async function createReplaySingleWhiteWebSdk(params:{
             room: uuid,
             roomToken,
             cursorAdapter,
-            invisiblePlugins: [TeachingSingleAidsPlugin],
-            wrappedComponents: [TeachingAidsSigleWrapper]
+            invisiblePlugins: [ApplianceSinglePlugin],
+            wrappedComponents: [ApplianceSigleWrapper]
         }, {
             onPhaseChanged: (phase) => {
                 console.log('onPhaseChanged === 1', phase)
@@ -57,15 +58,17 @@ export async function createReplaySingleWhiteWebSdk(params:{
         },
     );
     cursorAdapter.setPlayer(player);
-    await TeachingSingleAidsPlugin.getInstance(player,
+    const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+    const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+    const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+    const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+    await ApplianceSinglePlugin.getInstance(player,
         {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
             options: {
-                syncOpt: {
-                    interval: 300,
-                },
-                canvasOpt: {
-                    contextType: ECanvasContextType.Canvas2d
-                },
+                cdn:{
+                    fullWorkerUrl,
+                    subWorkerUrl
+                }
             },
             cursorAdapter
         }

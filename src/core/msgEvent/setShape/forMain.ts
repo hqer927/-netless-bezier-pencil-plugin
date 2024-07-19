@@ -16,6 +16,7 @@ export type SetShapeEmtData = {
     placement?: SpeechBalloonPlacement;
 }
 export class SetShapeOptMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.SetShapeOpt;
     collect(data: SetShapeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
@@ -30,7 +31,7 @@ export class SetShapeOptMethod extends BaseMsgMethod {
         const keys = [...workIds];
         const store = this.serviceColloctor.storage;
         const localMsgs: [IWorkerMessage,IqueryTask][] = [];
-        // const undoTickerId = Date.now();
+        const undoTickerId = Date.now();
         while (keys.length) {
             const curKey = keys.pop();
             if (!curKey) {
@@ -60,8 +61,7 @@ export class SetShapeOptMethod extends BaseMsgMethod {
                         willRefresh: true,
                         willRefreshSelector: true,
                         willSyncService: true,
-                        viewId,
-                        // undoTickerId
+                        viewId
                     };
                     localMsgs.push([taskData,{
                         workId: localWorkId,
@@ -72,7 +72,7 @@ export class SetShapeOptMethod extends BaseMsgMethod {
             }
         }
         if (localMsgs.length) {
-            // this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
             this.collectForLocalWorker(localMsgs);
         }
     }

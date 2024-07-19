@@ -47,55 +47,55 @@ export enum EvevtWorkState {
     Start,
     Doing,
     Done,
-    /** 冻结,不能本地输入事件,camera、clear等任务还是可以执行 */
-    Freeze,
     /** 只读状态 */
     Unwritable
 }
 /**
- * 消息变化顺序: init => Scene事件 => work事件 => node事件
- * 本地数据: Init、Transform、UpdateTools
- * 服务端数据:
+ * 事件消息类型
  */
 export enum EPostMessageType {
     /** 什么也不需要做 */
-    None,
+    None = 0,
     /** 初始化,仅用于本地 */
-    Init,
+    Init = 1,
     /** 本地视口切换,仅用于本地 */
-    UpdateCamera,
+    UpdateCamera = 2,
     /** 更新tool配置数据,仅用于本地 */
-    UpdateTools,
+    UpdateTools = 3,
     /** 创建一次work */
-    CreateWork,
+    CreateWork = 4,
     /** 绘制当次work（高频） */
-    DrawWork,
+    DrawWork = 5,
     /** 完成完整的一次work */
-    FullWork,
+    FullWork = 6,
     /** 更新已有node */
-    UpdateNode,
+    UpdateNode = 7,
     /** 删除node */
-    RemoveNode,
+    RemoveNode = 8,
     /** 清空 */
-    Clear,
+    Clear = 9,
     /** 选中 */
-    Select,
+    Select = 10,
     /** 销毁 */
-    Destroy,
+    Destroy = 11,
     /** 获取指定场景快照 */
-    Snapshot,
+    Snapshot = 12,
     /** 获取指定场所有元素的的包围盒 */
-    BoundingBox,
+    BoundingBox = 13,
     /** 指针事件 */
-    Cursor,
+    Cursor = 14,
     /** 更新文本 */
-    TextUpdate,
-    /** 获取获奖的文本信息 */
-    GetTextActive,
+    TextUpdate = 15,
+    /** 获取获焦的文本信息 */
+    GetTextActive = 16,
     /** 批量队列化处理 */
-    TasksQueue,
+    TasksQueue = 17,
     /** 指针hover元素事件 */
-    CursorHover
+    CursorHover = 18,
+    /** 丢失焦点事件 */
+    CursorBlur = 19,
+    /** 前端日志 */
+    Console = 20,
 }
 export enum ECanvasContextType {
     Webgl2 = 'webgl2',
@@ -103,15 +103,15 @@ export enum ECanvasContextType {
     Canvas2d = '2d',
 }
 export enum ECanvasShowType {
-    /** 本地前置画布 */
-    Float = 1,
+    None = 0,
     /** 背景画布 */
     Bg,
-    /** 选择框中的画布 */
-    Selector,
     /** 服务端前置画布 */
     ServiceFloat,
-    None
+    /** 本地前置画布 */
+    Float,
+    /** 绝对最顶层 */
+    TopFloat,
 }
 
 export enum EventMessageType {
@@ -135,4 +135,19 @@ export enum EScaleType {
     both,
     /** 等比例 */
     proportional
+}
+
+export enum EvevtWorkType {
+    Pending,
+    Start,
+    Doing,
+    Done,
+    /** 只读状态 */
+    Unwritable
+}
+
+export enum EMatrixrRelationType {
+    inside,
+    outside,
+    intersect
 }

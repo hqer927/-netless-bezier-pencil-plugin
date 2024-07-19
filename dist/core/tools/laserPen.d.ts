@@ -1,6 +1,6 @@
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { EScaleType, EToolsKey } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IRectType } from "../types";
 import { EStrokeType } from "../../plugin/types";
 import { Point2d } from "../utils/primitives/Point2d";
 export interface LaserPenOptions extends BaseShapeOptions {
@@ -25,8 +25,38 @@ export declare class LaserPenShape extends BaseShapeTool {
         data: IWorkerMessage;
         isFullWork: boolean;
         isSubWorker?: boolean;
-    }): IMainMessage;
-    consumeAll(): IMainMessage;
+    }): {
+        type: EPostMessageType;
+    } | {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+        };
+        type: EPostMessageType;
+        dataType: EDataType;
+        op: number[] | undefined;
+        index: number | undefined;
+    };
+    consumeAll(): {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+        } | undefined;
+        type: EPostMessageType;
+        dataType: EDataType;
+        ops: string;
+        index: number;
+    };
     clearTmpPoints(): void;
     consumeService(props: {
         op: number[];

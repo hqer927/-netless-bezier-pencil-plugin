@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Room, TeachingAidsPluginLike } from "../plugin/types";
+import type { Room, AppliancePluginLike } from "../plugin/types";
 import { toJS } from "../plugin/external";
 import { IworkId } from "../core";
 import { Storage_Selector_key, Storage_Splitter } from "./const";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 
 export abstract class BaseCollector<T> {
-    public plugin: TeachingAidsPluginLike;
+    public plugin: AppliancePluginLike;
     public uid:string;
     public abstract serviceStorage: T;
     public abstract storage: T;
     protected abstract namespace: string;
-    constructor(plugin: TeachingAidsPluginLike){
+    readonly control: BaseApplianceManager;
+    constructor(control:BaseApplianceManager, plugin: AppliancePluginLike){
+        this.control = control;
         this.plugin = plugin;
         this.uid = (plugin.displayer as Room).uid;
     }

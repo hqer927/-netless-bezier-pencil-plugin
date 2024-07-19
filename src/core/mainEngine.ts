@@ -1,36 +1,37 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-case-declarations */
 import EventEmitter2 from "eventemitter2";
-import { BaseCollectorReducerAction, DiffOne, Storage_Selector_key, Storage_ViewId_ALL } from "../collector";
-import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
+import { BaseCollectorReducerAction, DiffOneData, ISerializableStorageData, Storage_Selector_key, Storage_ViewId_ALL } from "../collector";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 import { IActiveToolsDataType, IActiveWorkDataType, IBatchMainMessage, ICameraOpt, IMainMessage, IMainMessageRenderData, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps, EmitEventType, InternalMsgEmitterType } from "../plugin/types";
 import type { ImageInformation } from "../plugin/types";
-import FullWorker from './worker/fullWorker.ts?worker&inline';
-import SubWorker from './worker/subWorker.ts?worker&inline';
 import { MethodBuilderMain, ZIndexNodeMethod } from "./msgEvent";
 import { EDataType, EPostMessageType, EToolsKey, EvevtWorkState } from "./enum";
 import { ShowFloatBarMsgValue } from "../displayer/types";
-import { requestAsyncCallBack } from "./utils";
+import { isIntersectForPoint, requestAsyncCallBack } from "./utils";
 import { ETextEditorType, TextOptions } from "../component/textEditor/types";
 import { BaseShapeOptions, ImageOptions } from "./tools";
-import cloneDeep from "lodash/cloneDeep";
-import isBoolean from "lodash/isBoolean";
-
+import {isNumber, isBoolean, cloneDeep} from "lodash";
+import type { MainThreadManager } from "./mainThread";
+import { DefaultAppliancePluginOptions } from "../plugin/const";
 export abstract class MasterController {
     /** 异步同步时间间隔 */
-    maxLastSyncTime = 500;
+    maxLastSyncTime = DefaultAppliancePluginOptions.syncOpt.interval;
     /** 插件管理器 */
-    readonly abstract control: BaseTeachingAidsManager;
+    readonly abstract control: BaseApplianceManager;
     readonly abstract internalMsgEmitter: EventEmitter2;
     /** worker线程管理器 */
     // protected abstract threadEngine?: WorkerManager;
     /** 本地原始点数据批任务数据池 */
-    protected abstract localPointsBatchData: number[];
+    protected abstract localPointsBatchData: Map<IworkId, {
+        state: EvevtWorkState, 
+        points: number[],
+        isFullWork: boolean,
+        viewId: string,
+    }>;
     /** 事件任务处理批量池 */
     abstract taskBatchData: Set<IWorkerMessage>;
-    /** 设备像素比 */
-    protected abstract dpr: number;
     /** 主线程和工作线程通信机 */
     protected abstract fullWorker: Worker;
     /** 子线程和工作线程通信机 */
@@ -43,6 +44,9 @@ export abstract class MasterController {
     /** 设置当前选中的工具配置数据 */
     setCurrentToolsData(currentToolsData: IActiveToolsDataType) {
         this.currentToolsData = currentToolsData;
+    }
+    getCurrentToolsData() {
+        return this.currentToolsData;
     }
     /** 设置当前绘制任务数据 */
     protected setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType) {
@@ -57,7 +61,7 @@ export abstract class MasterController {
         return this.currentLocalWorkData.workState;
     }
     /** 用于接收服务端同步的数据 */
-    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>):void;
+    abstract onServiceDerive(key: string, data:DiffOneData<BaseCollectorReducerAction | undefined>):void;
     /** 消费批处理池数据 */
     abstract consume():void;
     /** 运行异步动画逻辑 */
@@ -71,7 +75,10 @@ export abstract class MasterController {
     /** 销毁 */
     abstract destroy():void;
     /** 服务端拉取数据初始化 */
-    abstract pullServiceData(viewId:string, scenePath:string):void;
+    abstract pullServiceData(viewId:string, scenePath:string, options:{
+        isAsync?:boolean;
+        useAnimation?:boolean;
+    }):void;
     /** 主线程和工作线程通信,推送 */
     abstract post(msg: Set<IWorkerMessage>):void;
     /** 主线程和工作线程通信,接收 */
@@ -95,50 +102,83 @@ export abstract class MasterController {
     abstract lockImage(uuid: string, locked: boolean): void;
     abstract completeImageUpload(uuid: string, src: string): void;
     abstract getImagesInformation(scenePath: string): ImageInformation[];
+    /** 移除正在绘制的流程 */
+    abstract removeDrawingWork(viewId:string):void;
+    /** 修正绘制异常任务 */
+    abstract checkDrawingWork(viewId:string):void;
 }
 export class MasterControlForWorker extends MasterController{
     isActive:boolean = false;
     currentToolsData?: IActiveToolsDataType;
     protected currentLocalWorkData: IActiveWorkDataType;
-    control: BaseTeachingAidsManager;
+    control: BaseApplianceManager;
     internalMsgEmitter: EventEmitter2;
-    // protected threadEngine?: WorkerManager | undefined;
     taskBatchData: Set<IWorkerMessage> = new Set();
-    protected dpr: number = 1;
     protected fullWorker!: Worker;
     protected subWorker!: Worker;
+    private fullWorkerUrl: string;
+    private subWorkerUrl: string;
     methodBuilder?: MethodBuilderMain;
     private zIndexNodeMethod?: ZIndexNodeMethod;
     /** master\fullwoker\subworker 三者高频绘制时队列化参数 */
     private subWorkerDrawCount: number = 0;
     private wokerDrawCount: number = 0;
     private maxDrawCount: number = 0;
-    private cacheDrawCount: number = 0;
     private reRenders: Array<IMainMessageRenderData> = [];
     private localWorkViewId?:string;
-    protected localPointsBatchData: number[] = [];
+    protected localPointsBatchData: Map<IworkId, {
+        state: EvevtWorkState, 
+        points: number[],
+        /** 完整的绘制 */
+        isFullWork: boolean,
+        viewId: string,
+        opt?: BaseShapeOptions;
+    }> = new Map();
     /** end */
     /** 是否任务队列化参数 */
     private tasksqueue:Map<string,IWorkerMessage> = new Map();
     private useTasksqueue: boolean = false;
     private useTasksClockId?: number;
-    private mianTasksqueueCount?: number;
+    private mainTasksqueueCount?: number;
     private workerTasksqueueCount?: number;
     /** end */
     private snapshotMap:Map<string, (value: ImageBitmap) => void> = new Map();
     private boundingRectMap:Map<string, (value: IRectType) => void> = new Map();
-    private clearAllResolve?: (viewId:string) => void;
-    private delayWorkStateToDone?: number;
+    private clearAllResolveMap:Map<string, {
+        timer?: number;
+        resolve?: (viewId:string) =>void;
+    }> = new Map();
     private delayWorkStateToDoneResolve?: (bol:boolean) => void;
-    private undoTickerId?: number;
     private animationId: number|undefined;
+    private tmpImageConfigMap:Map<string, ImageInformation> = new Map();
+    private mainThread?: MainThreadManager;
+    private willSelectorWorkId?: string;
+    private isLockSentEventCursor:boolean = false;
     constructor(props:BaseSubWorkModuleProps){
         super();
         const {control, internalMsgEmitter} = props;
         this.control = control;
-        this.maxLastSyncTime = (this.control.pluginOptions?.syncOpt?.interval || this.maxLastSyncTime ) * 0.5;
+        this.maxLastSyncTime = this.control.pluginOptions?.syncOpt?.interval || this.maxLastSyncTime;
+        this.fullWorkerUrl = this.control.pluginOptions.cdn.fullWorkerUrl;
+        this.subWorkerUrl = this.control.pluginOptions.cdn.subWorkerUrl;
         this.internalMsgEmitter = internalMsgEmitter;
         this.currentLocalWorkData = {workState:EvevtWorkState.Pending};
+    }
+    destroy(): void {
+        this.methodBuilder?.destroy()
+        this.unWritable();
+        this.taskBatchData.clear();
+        this.tasksqueue.clear();
+        this.tmpImageConfigMap.clear();
+        this.localPointsBatchData.clear();
+        this.fullWorker.terminate();
+        this.subWorker.terminate();
+        this.isActive = false;
+        this.clearAllResolveMap.clear();
+        this.snapshotMap.clear();
+        this.boundingRectMap.clear();
+        this.fullWorker.terminate();
+        this.subWorker.terminate();
     }
     private get viewContainerManager() {
         return this.control.viewContainerManager;
@@ -239,24 +279,40 @@ export class MasterControlForWorker extends MasterController{
         }
         return false
     }
-    init(){
-        this.on();
+    private get isCanStartEventConsum():boolean {
+        const toolsType = this.currentToolsData?.toolsType;
+        if (
+            toolsType === EToolsKey.Selector || 
+            toolsType === EToolsKey.Eraser
+        ) {
+            return true;
+        }
+        return false
+    }
+    async init(){
+        await this.on();
         this.internalMsgEmitterListener();
         this.isActive = true;
     }
-    on(): void {
-        this.fullWorker = new FullWorker();
-        this.subWorker = new SubWorker();
+    async on() {
+        if (!this.control.hasOffscreenCanvas()) {
+            console.info('no OffscreenCanvas')
+            const {MainThreadManagerImpl} = await import("./mainThread");
+            this.mainThread = new MainThreadManagerImpl(this);
+            return;
+        }
+        if (!this.fullWorkerUrl || !this.subWorkerUrl) {
+            console.error('no worker url config')
+            return;
+        }
+        this.fullWorker = new Worker(this.fullWorkerUrl, {type: 'classic'});
+        this.subWorker = new Worker(this.subWorkerUrl, {type: 'classic'});
         this.fullWorker.onmessage = (e: MessageEvent<IBatchMainMessage>) => {
             if (e.data) {
                 const {render, sp, drawCount, workerTasksqueueCount} = e.data;
-                if (workerTasksqueueCount) {
-                    this.workerTasksqueueCount = workerTasksqueueCount;
+                if (this.isBusy && workerTasksqueueCount) {
+                    this.setWorkerTasksqueueCount(workerTasksqueueCount);
                 }
-                // console.log('selector - render', render, sp, workerTasksqueueCount)
-                // if (render?.length) {
-                //     console.log('selector - fullWorker - render', render.map((r)=>(r.isFullWork?({r:r.rect, w: r.imageBitmap?.width, h: r.imageBitmap?.height, node:r}):null)))
-                // }
                 if (sp?.length) {
                     this.collectorSyncData(sp);
                 }
@@ -270,14 +326,13 @@ export class MasterControlForWorker extends MasterController{
                         this.maxDrawCount = Math.max(this.maxDrawCount, this.wokerDrawCount);
                     } else {
                         this.maxDrawCount = 0;
+                        this.clearReRenders();
                     }
                     if (render?.length) {
                         this.viewContainerManager.render(render);
-                        if (this.wokerDrawCount < this.subWorkerDrawCount) {
-                            this.reRenders.forEach(r=>{
-                                r.isUnClose = false;
-                            })
-                            this.viewContainerManager.render(this.reRenders);
+                        if (this.wokerDrawCount <= this.subWorkerDrawCount && this.reRenders.length) {
+                            // console.log('fullWorker-render', this.reRenders.length)
+                            this.viewContainerManager.render(this.reRenders.map(r=>({...r,isUnClose:false})));
                             this.reRenders.length = 0;
                         }
                     }
@@ -301,8 +356,14 @@ export class MasterControlForWorker extends MasterController{
                     }
                     if (render?.length) {
                         if (this.subWorkerDrawCount > this.wokerDrawCount) {
-                            render.forEach(r=>r.isUnClose=true)
-                            this.reRenders.push(...render)
+                            render.forEach(r=>{
+                                if (r.imageBitmap) {
+                                    r.isUnClose = true;
+                                    this.reRenders.push(r);
+                                }
+                            })
+                        } else if (this.reRenders.length) {
+                            this.clearReRenders();
                         }
                         if (this.wokerDrawCount < Infinity) {
                             this.viewContainerManager.render(render);
@@ -312,15 +373,43 @@ export class MasterControlForWorker extends MasterController{
             }
         }
     }
-    private collectorSyncData(sp: IMainMessage[]){
+    private clearReRenders(){
+        if (this.reRenders.length) {
+            this.reRenders.forEach(reRender => {
+                if (reRender.imageBitmap) {
+                    reRender.imageBitmap?.close();
+                }
+            });
+            this.reRenders.length = 0
+        }
+    }
+    get isBusy():boolean {
+        return this.getTasksqueueState() === EvevtWorkState.Doing;
+    }
+    getLockSentEventCursor(){
+        return this.isLockSentEventCursor;
+    }
+    setLockSentEventCursor(bol:boolean){
+        this.isLockSentEventCursor = bol;
+    }
+    getTasksqueueState(){
+        return this.useTasksqueue && EvevtWorkState.Doing || EvevtWorkState.Done;
+    }
+    setMaxDrawCount(num:number){
+        this.maxDrawCount = num;
+    }
+    setWorkerTasksqueueCount(num:number){
+        const workerTasksqueueCount = Math.max(this.workerTasksqueueCount || 0, num)
+        this.workerTasksqueueCount = workerTasksqueueCount;
+    }
+    collectorSyncData(sp: IMainMessage[]){
         let isHasOther = false;
         for (const data of sp) {
             const { type, selectIds, opt, selectRect, strokeColor, fillColor, willSyncService, isSync, 
-                undoTickerId, imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points,
+                imageBitmap, canvasHeight, canvasWidth, rect, op, canTextEdit, points,
                 selectorColor, canRotate, scaleType, textOpt, toolsType, workId, viewId, dataType, 
                 canLock, isLocked, shapeOpt, toolsTypes } = data;
             if (!viewId) {
-                console.error('collectorSyncData', data)
                 return ;
             }
             const scenePath = data.scenePath || this.viewContainerManager.getCurScenePath(viewId);
@@ -362,14 +451,12 @@ export class MasterControlForWorker extends MasterController{
                     }
                     if (value && shapeOpt) {
                         value.shapeOpt = shapeOpt;
-                        // console.log('shapeOpt', shapeOpt)
                     }
                     if (value && toolsTypes) {
                         value.toolsTypes = toolsTypes;
                     }
                     viewId && this.viewContainerManager.showFloatBar(viewId, !!value, value);
                     if (willSyncService) {
-                        // console.log('dispatch---000', selectIds, isSync)
                         this.collector?.dispatch({type, selectIds, opt, isSync, viewId, scenePath });
                     }
                     break; 
@@ -396,8 +483,11 @@ export class MasterControlForWorker extends MasterController{
                     }
                     break;
                 case EPostMessageType.Clear:
-                    viewId && this.viewContainerManager.showFloatBar(viewId, false);
-                    viewId && this.clearAllResolve && this.clearAllResolve(viewId);
+                    if (viewId) {
+                        this.viewContainerManager.showFloatBar(viewId, false);
+                        const resolve = this.clearAllResolveMap.get(viewId)?.resolve;
+                        resolve && resolve(viewId);
+                    }
                     break;
                 case EPostMessageType.TextUpdate:
                     if (toolsType === EToolsKey.Text && workId && viewId) {
@@ -439,9 +529,6 @@ export class MasterControlForWorker extends MasterController{
                     isHasOther = true;
                     break;
             }
-            if (!isHasOther && undoTickerId) {
-                this.internalMsgEmitter.emit('undoTickerEnd', undoTickerId, viewId);
-            }
         }
         if (isHasOther) {
             requestAsyncCallBack(()=>{
@@ -451,7 +538,7 @@ export class MasterControlForWorker extends MasterController{
     }
     private collectorAsyncData(sp: IMainMessage[]){
         for (const data of sp) {
-            const {type, op, workId, index, removeIds, ops, opt, updateNodeOpt, toolsType, isSync, undoTickerId, viewId} = data;
+            const {type, op, workId, index, removeIds, ops, opt, updateNodeOpt, toolsType, isSync, viewId, isLockSentEventCursor} = data;
             if (!viewId) {
                 console.error('collectorAsyncData', data)
                 return ;
@@ -462,16 +549,18 @@ export class MasterControlForWorker extends MasterController{
                     this.collector?.dispatch({
                         type,
                         op,
+                        opt, 
+                        toolsType, 
                         workId,
                         index,
                         isSync,
                         viewId,
-                        scenePath
+                        scenePath,
+                        updateNodeOpt
                     })
                     break
                 } 
                 case EPostMessageType.FullWork:{
-                    // console.log('scenePath---1', scenePath)
                     this.collector?.dispatch({
                         type, 
                         ops, 
@@ -483,6 +572,17 @@ export class MasterControlForWorker extends MasterController{
                         viewId,
                         scenePath
                     });
+                    if (this.willSelectorWorkId && workId && workId.toString() === this.willSelectorWorkId) {
+                        this.control.runEffectWork(()=>{
+                            this.setShapeSelectorByWorkId(this.willSelectorWorkId as string, viewId);
+                            this.willSelectorWorkId = undefined;
+                        });
+                    }
+                    if (isLockSentEventCursor) {
+                        requestAsyncCallBack(()=>{
+                            this.setLockSentEventCursor(false);
+                        }, this.maxLastSyncTime);
+                    }
                     break;
                 }
                 case EPostMessageType.UpdateNode:{
@@ -492,140 +592,215 @@ export class MasterControlForWorker extends MasterController{
                 case EPostMessageType.RemoveNode:{
                     removeIds && this.control.textEditorManager.deleteBatch(removeIds, false, false);
                     this.collector?.dispatch({type, removeIds, isSync, viewId, scenePath});
+                    if (this.willSelectorWorkId && removeIds?.includes(this.willSelectorWorkId)) {
+                        this.willSelectorWorkId = undefined;
+                    }
                     break;
                 }
                 default:
                     break;
             }
-            if (undoTickerId) {
-                this.internalMsgEmitter.emit('undoTickerEnd', undoTickerId, viewId);
-            }
         }
     }
     private async onLocalEventEnd(point: [number, number], viewId: string): Promise<void> {
-        const workState = this.currentLocalWorkData.workState;
         const view = this.viewContainerManager.getView(viewId);
         if (!view) {
             return;
         }
         const {focusScenePath, cameraOpt} = view;
-        if (workState === EvevtWorkState.Start || workState === EvevtWorkState.Doing) {
-            const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
-            this.pushPoint(_point);
-            this.setCurrentLocalWorkData({...this.currentLocalWorkData, workState: EvevtWorkState.Done});
-            // console.log('mouseup----0000----002---001', this.localPointsBatchData.length);
-            await new Promise<boolean>((resolve)=>{
-                this.delayWorkStateToDone = setTimeout(()=>{
-                    this.delayWorkStateToDone = undefined;
-                    this.runAnimation();
-                    const workId = this.currentLocalWorkData.workId?.toString();
-                    if (workId && focusScenePath) {
-                        this.control.runEffectWork(()=>{
-                            this.setShapeSelectorByWorkId(workId, viewId);
-                            if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
-                                this.viewContainerManager.activeFloatBar(viewId);
-                            }
-                        });
-                    }
-                    this.delayWorkStateToDoneResolve = resolve;
-                    if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
-                        this.viewContainerManager.activeFloatBar(viewId);
-                    }
-                }, 0) as unknown as number;
-            }).then(()=>{
-                this.delayWorkStateToDoneResolve = undefined;
-            })
-        } else if (this.currentToolsData?.toolsType === EToolsKey.Text) {
-            const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
-            if (this.localPointsBatchData[0] === _point[0] && this.localPointsBatchData[1] === _point[1]) {
-                const opt = this.currentToolsData.toolsOpt as TextOptions;
-                opt.workState = EvevtWorkState.Doing;
-                opt.boxPoint = _point;
-                opt.boxSize = [opt.fontSize, opt.fontSize];
-                this.control.textEditorManager.checkEmptyTextBlur();
-                this.control.textEditorManager.createTextForMasterController({
-                    workId: Date.now().toString(),
-                    x: point[0],
-                    y: point[1],
-                    scale: cameraOpt?.scale || 1,
-                    opt,
-                    type: ETextEditorType.Text,
-                    isActive: true,
-                    viewId,
-                    scenePath: focusScenePath
-                }, Date.now());
+        const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
+        const willConsumeWorkIds:IworkId[] = [];
+        for (const workId of this.localPointsBatchData.keys()) {
+            if (this.currentToolsData?.toolsType === EToolsKey.Text) {
+                const oldPoints = this.getLocalPointInfo(workId);
+                const localState = oldPoints?.state;
+                if (localState && localState === EvevtWorkState.Start) {
+                    const opt = this.currentLocalWorkData.toolsOpt as TextOptions;
+                    opt.workState = EvevtWorkState.Doing;
+                    opt.boxPoint = _point;
+                    opt.boxSize = [opt.fontSize, opt.fontSize];
+                    this.control.textEditorManager.checkEmptyTextBlur();
+                    this.control.textEditorManager.createTextForMasterController({
+                        workId: Date.now().toString(),
+                        x: point[0],
+                        y: point[1],
+                        scale: cameraOpt?.scale || 1,
+                        opt,
+                        type: ETextEditorType.Text,
+                        isActive: true,
+                        viewId,
+                        scenePath: focusScenePath
+                    }, Date.now());
+                }
+                this.deleteLocalPoint(workId);
+                continue;
+            } else {
+                this.pushLocalPoint(workId, _point, EvevtWorkState.Done, viewId);
+                willConsumeWorkIds.push(workId);
             }
-            this.clearLocalPointsBatchData();
+        }
+        if (willConsumeWorkIds.length) {
+            try {
+                const r = await new Promise<boolean>((resolve)=>{
+                    setTimeout(async ()=>{
+                        willConsumeWorkIds.forEach(workId=>{
+                            this.setLocalPointIsFullWork(workId)
+                        })
+                        this.delayWorkStateToDoneResolve = resolve;
+                        this.consume();
+                    }, 0) as unknown as number;
+                })
+                if (r) {
+                    if (willConsumeWorkIds[0]) {
+                        const workId = willConsumeWorkIds[0];
+                        willConsumeWorkIds.forEach(workId=>{
+                            this.deleteLocalPoint(workId)
+                        })
+                        this.willSelectorWorkId = workId.toString();
+                    }
+                }
+            } catch (error) {
+                console.log('error', error);
+            }
+            this.delayWorkStateToDoneResolve = undefined;
+            willConsumeWorkIds.length = 0;
         }
     }
     private onLocalEventDoing(point: [number, number], viewId: string): void {
-        const workState = this.currentLocalWorkData.workState;
-        if (workState === EvevtWorkState.Start) {
+        if (this.currentToolsData?.toolsType === EToolsKey.Text) {
+            return ;
+        }
+        if ( this.currentLocalWorkData.workState === EvevtWorkState.Start) {
             this.setCurrentLocalWorkData({...this.currentLocalWorkData, workState: EvevtWorkState.Doing})
         }
-        if (this.delayWorkStateToDone) {
-            // console.log('mouseup----0000----002---002222', this.delayWorkStateToDone)
-        }
-        if (workState === EvevtWorkState.Doing || this.delayWorkStateToDone) {
-            const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
-            this.pushPoint(_point);
-            if (this.delayWorkStateToDone) {
-                // console.log('mouseup----0000----002---002222--000', this.localPointsBatchData.length)
+        let willConsume = false;
+        for (const [workId, {state}] of this.localPointsBatchData.entries()) {
+            if (this.isAbled() && state !== EvevtWorkState.Pending) {
+                const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
+                this.pushLocalPoint(workId, _point, state === EvevtWorkState.Start ? EvevtWorkState.Doing : state, viewId);
+                willConsume = true;
             }
-            !this.delayWorkStateToDone && this.runAnimation();
+        }
+        if (willConsume) {
+            this.runAnimation();
             return;
         }
-        this.hoverCursor(point, viewId);
+        if (!this.useTasksqueue){
+            this.hoverCursor(point, viewId);
+        }
     }
     private onLocalEventStart(point: [number, number], viewId:string): void {
         if (this.viewContainerManager.focuedViewId !== viewId) {
             this.viewContainerManager.setFocuedViewId(viewId);
         }
-        this.clearLocalPointsBatchData();
+        if (this.isCanDrawWork && this.control.room && !this.control.room.disableDeviceInputs){
+            this.control.room.disableDeviceInputs = true;
+        }
+        const workId = this.currentToolsData?.toolsType === EToolsKey.Selector ? Storage_Selector_key : Date.now();
+        const opt = this.setZIndex(viewId);
+        this.setCurrentLocalWorkData({
+            workState: EvevtWorkState.Start,
+            toolsOpt: opt,
+            viewId,
+        });
         const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
-        this.pushPoint(_point);
+        this.pushLocalPoint(workId, _point, EvevtWorkState.Start, viewId, opt);
         if (this.currentToolsData?.toolsType === EToolsKey.Text) {
             return ;
         }
         this.control.textEditorManager.checkEmptyTextBlur();
-        const workId = this.currentToolsData?.toolsType === EToolsKey.Selector ? Storage_Selector_key : Date.now();
-        const opt = this.setZIndex();
-        this.setCurrentLocalWorkData({
-            workId,
-            workState: EvevtWorkState.Start,
-            toolsOpt: opt,
-            viewId,
-            undoTickerId: this.isCanRecordUndoRedo && (workId as number) || undefined,
-        });
-        if ( this.isCanRecordUndoRedo ) {
-            this.internalMsgEmitter.emit('undoTickerStart', workId, viewId);
+        if (this.isCanRecordUndoRedo) {
+            this.internalMsgEmitter.emit('addUndoTicker', workId, viewId);
+        }
+        if (workId && opt && this.currentToolsData?.toolsType && this.isCanStartEventConsum) {
+            // 这里包含了一些特殊的工具类型，比如橡皮擦，选框等
+            this.prepareOnceWork({workId, toolsOpt:opt, viewId}, this.currentToolsData?.toolsType);
         }
         this.maxDrawCount = 0;
-        this.cacheDrawCount = 0;
         this.wokerDrawCount = 0;
         this.subWorkerDrawCount = 0;
         this.reRenders.length = 0;
-        if (workId && opt && this.currentToolsData?.toolsType) {
-            this.prepareOnceWork({workId,toolsOpt:opt, viewId}, this.currentToolsData?.toolsType)
-        }
         if (this.isCanDrawWork) {
             const scenePath = this.viewContainerManager.getCurScenePath(viewId);
-            this.collector?.dispatch({
-                type: EPostMessageType.CreateWork,
-                workId,
-                toolsType: this.currentToolsData?.toolsType,
-                opt,
-                viewId,
-                scenePath
-            })
-            scenePath && this.blurSelector(viewId,scenePath);
-        } else if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
-            this.viewContainerManager.unActiveFloatBar(viewId);
+            if (scenePath && this.collector?.hasSelector(viewId,scenePath)) {
+                this.blurSelector(viewId, scenePath);
+            }
         }
         this.consume();
     }
-    private pushPoint(point: [number, number]): void {
-        this.localPointsBatchData.push(point[0],point[1]);
+    private setLocalPointIsFullWork(workId:IworkId){
+        const data = this.getLocalPointInfo(workId);
+        if (data) {
+            data.isFullWork = true;
+            this.localPointsBatchData.set(workId, data);
+        }
+    }
+    private pushLocalPoint(workId:IworkId, point: [number, number], workState:EvevtWorkState,  viewId:string, opt?:BaseShapeOptions): void {
+        let data = this.getLocalPointInfo(workId);
+        if (workState === EvevtWorkState.Start) {
+            data = {
+                state: EvevtWorkState.Start,
+                points: point,
+                opt: opt || this.currentLocalWorkData.toolsOpt,
+                isFullWork: false,
+                viewId,
+            };
+        } else if (data) {
+            data.state = workState;
+            data.points.push(point[0],point[1]);   
+        }
+        data && this.localPointsBatchData.set(workId, data);
+    }
+    private deleteLocalPoint(workId:IworkId): void {
+        this.localPointsBatchData.delete(workId);
+    }
+    private getLocalPointInfo(workId:IworkId){
+        return this.localPointsBatchData.get(workId);
+    }
+    getLocalPointsInfo(){
+        return this.localPointsBatchData;
+    }
+    private correctStorage(store: ISerializableStorageData, viewId:string, scenePath:string) {
+        const updateMap: Map<string,BaseCollectorReducerAction> = new Map();
+        const willCorrectArr:Array<[string,number]> = [];
+        Object.keys(store).forEach(s=>{
+            const zIndex = store[s]?.opt?.zIndex;
+            if (isNumber(zIndex)) {
+                willCorrectArr.push([s,zIndex]);
+            }
+        })
+        const correctedArr = willCorrectArr.length && this.zIndexNodeMethod?.correct(willCorrectArr) || [];
+        if (this.zIndexNodeMethod && correctedArr.length) {
+            this.zIndexNodeMethod.setMinZIndex(correctedArr[0][1] || 0, viewId);
+            this.zIndexNodeMethod.setMaxZIndex(correctedArr[correctedArr.length - 1][1] || 0, viewId);
+        }
+        for (const [key,number] of correctedArr) {
+            if (!store[key]) {
+                continue;
+            }
+            const item = store[key] as BaseCollectorReducerAction;
+            if (!item.opt) {
+                continue;
+            }
+            if (!isNumber(item.opt.zIndex)) {
+                continue;
+            }
+            if (item.opt.zIndex !== number) {
+                item['opt']['zIndex'] = number;
+                updateMap.set(key, item);
+            }
+        }
+        if (updateMap.size) {
+            updateMap.forEach((value,key)=>{
+                this.collector?.updateValue(key, value, {
+                    viewId,
+                    scenePath,
+                    isSync:true,
+                })
+                store[key] = value;
+            })
+        }
+        return store;
     }
     async originalEventLintener(workState: EvevtWorkState, point:[number,number], viewId:string):Promise<void> {
         if (!this.isAbled()) {
@@ -643,7 +818,6 @@ export class MasterControlForWorker extends MasterController{
                 break;
             case EvevtWorkState.Done:
                 if (viewId && viewId === this.getLocalWorkViewId()) {
-                    // console.log('mouseup----0000----002')
                     await this.onLocalEventEnd(point, viewId);
                 }
                 break;
@@ -654,15 +828,22 @@ export class MasterControlForWorker extends MasterController{
     getLocalWorkViewId(){
         return this.localWorkViewId
     }
-    setLocalWorkViewId(viewId:string){
+    setLocalWorkViewId(viewId?:string){
         this.localWorkViewId = viewId
     }
     setCurrentToolsData(currentToolsData: IActiveToolsDataType) {
         const toolsType = currentToolsData.toolsType;
         const isChangeToolsType = this.currentToolsData?.toolsType !== currentToolsData.toolsType;
+        // if (!this.isActive && isChangeToolsType) {
+        //     // why?
+        //     setTimeout(()=>{
+        //         this.setCurrentToolsData(currentToolsData);
+        //     },50)
+        //     return;
+        // }
         super.setCurrentToolsData(currentToolsData);
-        const views = this.viewContainerManager?.getAllViews();
         if(isChangeToolsType) {
+            const views = this.viewContainerManager?.getAllViews();
             for (const view of views) {
                 if (view) {
                     const {id, focusScenePath} = view;
@@ -685,15 +866,16 @@ export class MasterControlForWorker extends MasterController{
             this.runAnimation();
         }
     }
-    setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType) {
-        super.setCurrentLocalWorkData(currentLocalWorkData);
-        const { workId } = currentLocalWorkData
-        if(!this.isAbled() || !workId) {
-            this.clearLocalPointsBatchData();
-        }
-    }
-    prepareOnceWork(currentLocalWorkData: Required<Pick<IActiveWorkDataType,'toolsOpt' | 'viewId' | 'workId'>>, toolsType:EToolsKey){
-        const {workId, toolsOpt, viewId} = currentLocalWorkData
+    private prepareOnceWork(currentLocalWorkData: Required<Pick<IActiveWorkDataType,'toolsOpt' | 'viewId' | 'workId'>>, toolsType:EToolsKey){
+        const {workId, toolsOpt, viewId} = currentLocalWorkData;
+        this.queryTaskBatchData({
+            msgType: EPostMessageType.CreateWork,
+            dataType: EDataType.Local,
+            viewId,
+            toolsType
+        }).forEach(task=>{
+            this.taskBatchData.delete(task);
+        })
         this.taskBatchData.add({
             msgType: EPostMessageType.CreateWork,
             workId,
@@ -718,16 +900,25 @@ export class MasterControlForWorker extends MasterController{
             isRunSubWork: true,
             isSafari: navigator.userAgent.indexOf('Safari') !== -1 && navigator.userAgent.indexOf('Chrome') === -1
         });
-        this.runAnimation();
+        if (this.isBusy) {
+            this.destroyTaskQueue();
+        }
+        this.consume();
     }
     destroyViewWorker(viewId: string, isLocal:boolean= false):void {
+        if (this.getLocalWorkViewId() === viewId) {
+            this.setLocalWorkViewId(undefined);
+        }
+        if (this.zIndexNodeMethod) {
+            this.zIndexNodeMethod.clearZIndex(viewId);
+        }
         this.taskBatchData.add({
             msgType: EPostMessageType.Destroy,
             dataType: EDataType.Local,
             viewId,
             isRunSubWork: true,
         });
-        this.runAnimation();
+        this.consume();
         if (!isLocal) {
             this.collector?.dispatch({
                 type: EPostMessageType.Clear,
@@ -735,7 +926,7 @@ export class MasterControlForWorker extends MasterController{
             })
         }
     }
-    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void {
+    onServiceDerive(key: string, data: DiffOneData<BaseCollectorReducerAction | undefined>): void {
         const {newValue, oldValue, viewId, scenePath} = data;
         const msg:BaseCollectorReducerAction = cloneDeep(newValue) || {};
         const workId:IworkId = key;
@@ -754,6 +945,9 @@ export class MasterControlForWorker extends MasterController{
             const d: IWorkerMessage & Pick<IWorkerMessage, 'workId'> = msg as IWorkerMessage;
             d.workId = this.collector?.isOwn(workId) ? this.collector?.getLocalId(workId) : workId;
             d.msgType = msgType;
+            if (d.toolsType === EToolsKey.LaserPen) {
+                d.isRunSubWork = true;
+            }
             d.dataType = EDataType.Service;
             d.viewId = viewId;
             d.scenePath = scenePath;
@@ -763,130 +957,131 @@ export class MasterControlForWorker extends MasterController{
                 })
             }
             if ((d && d.toolsType === EToolsKey.Text) || oldValue?.toolsType === EToolsKey.Text) {
-                // console.log('onServiceDerive', d, workId, this.collector?.uid)
                 this.control.textEditorManager.onServiceDerive(d);
                 return;
             }
-            // console.log('onServiceDerive', d.workId, d.msgType, d.scenePath, d)
+            // console.log('onServiceDerive', d)
             this.taskBatchData.add(d);
         }
         this.runAnimation();
-        if (this.zIndexNodeMethod) {
-            let minZIndex:number|undefined;
-            let maxZIndex:number|undefined;
-            if (data.newValue && data.newValue.opt?.zIndex) {
-                maxZIndex =  Math.max(maxZIndex || 0, data.newValue.opt.zIndex);
-                minZIndex = Math.min(minZIndex || Infinity, data.newValue.opt.zIndex);
-            }
-            if (maxZIndex) this.zIndexNodeMethod.maxZIndex = maxZIndex;
-            if (minZIndex) this.zIndexNodeMethod.minZIndex = minZIndex;
+        const zIndex = data.newValue && data.newValue.opt?.zIndex;
+        if (this.zIndexNodeMethod && isNumber(zIndex)) {
+            const minZIndex:number|undefined = this.zIndexNodeMethod.getMinZIndex(viewId);
+            const maxZIndex:number|undefined = this.zIndexNodeMethod.getMaxZIndex(viewId);
+            if (maxZIndex < zIndex) this.zIndexNodeMethod.setMaxZIndex(zIndex, viewId); 
+            if (minZIndex > zIndex) this.zIndexNodeMethod.setMinZIndex(zIndex, viewId);
         }
     }
-    pullServiceData(viewId: string, scenePath: string): void {
-        const store = this.collector?.storage[viewId] && this.collector?.storage[viewId][scenePath] || undefined;
-        // console.log('pullServiceData',viewId,  scenePath, store)
+    pullServiceData(viewId: string, scenePath: string, options:{
+        isAsync?:boolean;
+        useAnimation?:boolean;
+    } = {
+        isAsync: false,
+        useAnimation: false
+    }): void {
+        let store = this.collector?.getStorageData(viewId, scenePath);
+        const {isAsync, useAnimation} = options;
         if (store) {
-            let minZIndex:number|undefined;
-            let maxZIndex:number|undefined;
+            store = this.correctStorage(store, viewId, scenePath);
             const keys = Object.keys(store);
             for (const key of keys) {
                 const msgType = store[key]?.type
                 if (msgType && key) {
-                    const data:IWorkerMessage & Pick<IWorkerMessage, 'workId'> = cloneDeep(store[key]) as IWorkerMessage;
+                    const data:IWorkerMessage & Pick<IWorkerMessage, 'workId'> = store[key] as IWorkerMessage;
                     data.workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
                     data.msgType = msgType;
                     data.dataType = EDataType.Service;
                     data.viewId = viewId;
                     data.scenePath = scenePath;
-                    data.useAnimation = false;
+                    data.useAnimation = !!useAnimation;
                     if (data.selectIds) {
                         data.selectIds = data.selectIds.map(id=>{
                             return this.collector?.isOwn(id) ? this.collector?.getLocalId(id) : id;
                         })
                     }
                     if (data.toolsType === EToolsKey.Text) {
-                        // console.log('onServiceDerive---00', data, viewId, this.collector?.uid)
                         this.control.textEditorManager.onServiceDerive(data)
                         continue;
                     }
                     this.taskBatchData.add(data);
-                    if (data.opt?.zIndex) {
-                        maxZIndex = Math.max(maxZIndex || 0, data.opt.zIndex);
-                        minZIndex = Math.min(minZIndex || Infinity, data.opt.zIndex);
-                    }
                 }
                 this.internalMsgEmitter.emit("excludeIds", keys, viewId);
             }
-            this.runAnimation();
-            if (this.zIndexNodeMethod) {
-                if (maxZIndex) this.zIndexNodeMethod.maxZIndex = maxZIndex;
-                if (minZIndex) this.zIndexNodeMethod.minZIndex = minZIndex;
+            if (isAsync) {
+                this.consume();
+            } else {
+                this.runAnimation();
             }
         }
     }
     runAnimation(){
-        if (!this.animationId) {
+        if (!this.animationId && !this.isBusy){
             this.animationId = requestAnimationFrame(this.consume.bind(this));
         }
     }
     consume(): void {
         this.animationId = undefined;
-        const {workState, viewId, workId, undoTickerId} = this.currentLocalWorkData;
-        !this.isAbled() && this.clearLocalPointsBatchData();
-        if (!this.delayWorkStateToDone) {
-            if (workState !== EvevtWorkState.Pending && this.localPointsBatchData.length && viewId) {
-                let isAble = false;
-                if (this.wokerDrawCount !== Infinity && this.wokerDrawCount <= this.subWorkerDrawCount && this.cacheDrawCount < this.maxDrawCount) {
-                    isAble = true;
+        const {viewId} = this.currentLocalWorkData;
+        // 如果是使用任务队列,则优先使用
+        if (this.tasksqueue.size) {
+            const taskBatchData = this.consumeQueue();
+            const willClear = !!taskBatchData.size;
+            // 服务端同步数据需要和队列任务一起消费
+            if(this.taskBatchData.size){
+                for (const task of this.taskBatchData.values()) {
+                    if (task.dataType === EDataType.Service) {
+                        taskBatchData.add(task);
+                        this.taskBatchData.delete(task);
+                    }
                 }
-                if (!this.maxDrawCount) {
-                    isAble = true;
+            }
+            if (taskBatchData.size) {
+                this.post(taskBatchData);
+                if (willClear) {
+                    this.tasksqueue.clear();
                 }
-                // if (this.cacheDrawCount === this.maxDrawCount) {
-                //     console.log('originalEventLintener----444', isAble, this.wokerDrawCount, this.subWorkerDrawCount,this.cacheDrawCount,  this.maxDrawCount, workState, this.localPointsBatchData.length, this.viewContainerManager.focuedViewId, !this.delayWorkStateToDone);
-                // }
-                if (isAble) {
+            } else if ( this.tasksqueue.size ) {
+                this.animationId = requestAnimationFrame(this.consume.bind(this));
+            }
+            return;
+        }
+        if (this.isAbled() && this.localPointsBatchData.size && viewId) {
+            for (const [workId, { state, isFullWork, points, opt}] of this.localPointsBatchData.entries()) {
+                if (state === EvevtWorkState.Done && !isFullWork) {
+                    continue;
+                }
+                if (state === EvevtWorkState.Start && !this.isCanStartEventConsum) {
+                    continue;
+                }
+                const op = points.map(p=>p);
+                if (op.length) {
+                    if (this.delayWorkStateToDoneResolve && state === EvevtWorkState.Done) {
+                        this.delayWorkStateToDoneResolve(true);
+                        this.setLockSentEventCursor(true);
+                    }
                     this.taskBatchData.add({
-                        op: this.localPointsBatchData.map(n=>n),
-                        workState,
+                        op,
+                        workState: state,
                         workId,
                         dataType: EDataType.Local,
                         msgType: EPostMessageType.DrawWork,
                         isRunSubWork: this.isRunSubWork,
-                        undoTickerId: workState === EvevtWorkState.Done && undoTickerId || undefined,
+                        toolsType: this.currentToolsData?.toolsType,
                         viewId,
-                        scenePath: viewId && this.viewContainerManager.getCurScenePath(viewId)
+                        scenePath: viewId && this.viewContainerManager.getCurScenePath(viewId),
+                        opt,
+                        isLockSentEventCursor: this.getLockSentEventCursor(),
+                        syncUnitTime: this.maxLastSyncTime
                     })
-                    if (this.delayWorkStateToDoneResolve && workState === EvevtWorkState.Done) {
-                        // console.log('mouseup----0000----002---002---end', this.localPointsBatchData.length);
-                        this.delayWorkStateToDoneResolve(true);
-                    }
-                    this.clearLocalPointsBatchData();
-                    this.cacheDrawCount = this.maxDrawCount;
-                }
-            }
-            if (this.taskBatchData.size) {
-                this.post(this.taskBatchData);
-                for (const value of this.taskBatchData.values()) {
-                    if (value.msgType === EPostMessageType.TasksQueue) {
-                        this.tasksqueue.clear();
-                        break;
-                    }
-                }
-                // console.log('consume-selector---originalEventLintener----555', [...this.taskBatchData.values()].filter(m=>m.msgType!==EPostMessageType.CursorHover))
-                this.taskBatchData.clear();
-                if (undoTickerId && workState === EvevtWorkState.Done) {
-                    this.setCurrentLocalWorkData({...this.currentLocalWorkData, undoTickerId:undefined});
+                    points.length = 0;
                 }
             }
         }
-        if (this.tasksqueue.size) {
-            this.consumeQueue();
+        if (this.taskBatchData.size) {
+            this.post(this.taskBatchData);
+            this.taskBatchData.clear();
         }
-        if (this.tasksqueue.size ||
-            this.taskBatchData.size ||
-            this.localPointsBatchData.length 
-        ) {
+        if ( this.taskBatchData.size ) {
             this.animationId = requestAnimationFrame(this.consume.bind(this));
         }
     }
@@ -900,7 +1095,24 @@ export class MasterControlForWorker extends MasterController{
         return this.currentLocalWorkData.workState !== EvevtWorkState.Unwritable;
     }
     post(msg: Set<IWorkerMessage>): void {
-        // console.log('post-msg1',cloneDeep(msg))
+        const cls = [...msg].filter(m=>m.msgType !== EPostMessageType.CursorHover)
+        if (cls.length) {
+            console.log('post', cls.map(c=>c.msgType),cls)
+        }
+        if(!this.control.hasOffscreenCanvas()){
+            if (!this.mainThread){
+                let unPostMsg:IWorkerMessage[] = [];
+                unPostMsg = cloneDeep([...msg]);
+                setTimeout(()=>{
+                    for (const value of unPostMsg) {
+                        this.taskBatchData.add(value);
+                    }
+                },0)
+                return;
+            }
+            this.mainThread.consume(msg)
+            return;
+        }
         this.fullWorker.postMessage(msg);
         const subMsg = new Set<IWorkerMessage>();
         for (const value of msg.values()) {
@@ -915,16 +1127,7 @@ export class MasterControlForWorker extends MasterController{
                 subMsg.add(value);
             }
         }
-        // console.log('post-sub', cloneDeep(subMsg))
         subMsg.size && this.subWorker.postMessage(subMsg);
-    }
-    destroy(): void {
-        this.unWritable();
-        this.taskBatchData.clear();
-        this.clearLocalPointsBatchData();
-        this.fullWorker.terminate();
-        this.subWorker.terminate();
-        this.isActive = false;
     }
     updateNode(workId:IworkId, updateNodeOpt:IUpdateNodeOpt, viewId:string, scenePath:string) {
         this.taskBatchData.add({
@@ -937,53 +1140,97 @@ export class MasterControlForWorker extends MasterController{
         })
         this.runAnimation();
     }
+    destroyTaskQueue(){
+        this.useTasksqueue = false;
+        if (this.useTasksClockId){
+            clearTimeout(this.useTasksClockId)
+            this.useTasksClockId = undefined;
+        }
+        this.mainTasksqueueCount = undefined;
+        this.workerTasksqueueCount = undefined;
+    }
     updateCamera(viewId: string, cameraOpt: ICameraOpt): void {
         if (!this.useTasksqueue) {
+            this.methodBuilder?.pause();
+            this.blurCursor(viewId);
+            this.checkDrawingWork(viewId);
             this.useTasksqueue = true;
-            this.mianTasksqueueCount = 1;
+            this.mainTasksqueueCount = 1;
             this.workerTasksqueueCount = 1;
         }
         if (this.useTasksqueue) {
-            // console.log('updateCamera', first)
             this.tasksqueue.set(viewId,{
                 msgType: EPostMessageType.UpdateCamera,
                 dataType: EDataType.Local,
-                cameraOpt,
+                cameraOpt: {
+                    ...cameraOpt,
+                    width: cameraOpt.width,
+                    height: cameraOpt.height
+                },
+                scenePath: this.viewContainerManager.getCurScenePath(viewId),
                 isRunSubWork: true,
                 viewId
             });
-            this.control.textEditorManager.onCameraChange(cameraOpt, viewId)
-            this.runAnimation();
+            this.consume();
+            // this.control.textEditorManager.onCameraChange(cameraOpt, viewId);
             if (this.useTasksClockId) {
                 clearTimeout(this.useTasksClockId);
             }
-            this.useTasksClockId = setTimeout(() => {
-                this.useTasksClockId = undefined;
-                this.tasksqueue.clear();
-                this.useTasksqueue = false;
-                this.mianTasksqueueCount = undefined;
-                this.workerTasksqueueCount = undefined;
-            }, this.maxLastSyncTime) as unknown as number;
+            this.updateCameraDone()
         }
     }
-    private consumeQueue(): void {
-        if (this.mianTasksqueueCount && this.workerTasksqueueCount) {
-            if(this.mianTasksqueueCount === this.workerTasksqueueCount){
-                this.mianTasksqueueCount++;
-                // console.log('updateCamera', viewId, cameraOpt)
-                this.taskBatchData.add({
-                    msgType: EPostMessageType.TasksQueue,
-                    dataType: EDataType.Local,
-                    isRunSubWork: true,
-                    mainTasksqueueCount: this.mianTasksqueueCount,
-                    tasksqueue: this.tasksqueue,
-                    viewId: ''
-                })
-            }   
+    private updateCameraDone(){
+        this.useTasksClockId = setTimeout(() => {
+            this.useTasksClockId = undefined;
+            if (this.mainTasksqueueCount === this.workerTasksqueueCount) {
+                if (this.tasksqueue.size) {
+                    this.consume()
+                }
+                this.useTasksqueue = false;
+                this.mainTasksqueueCount = undefined;
+                this.workerTasksqueueCount = undefined;
+                this.methodBuilder?.recover();
+                this.runAnimation();
+            } else {
+                this.updateCameraDone();
+            }
+        }, this.maxLastSyncTime) as unknown as number;
+    }
+    private consumeQueue(): Set<IWorkerMessage> {
+        const taskBatchData: Set<IWorkerMessage> = new Set();
+        let isAddTasks = !this.isBusy;
+        if(this.isBusy && this.mainTasksqueueCount && this.workerTasksqueueCount && this.mainTasksqueueCount <= this.workerTasksqueueCount){
+            isAddTasks = true;
         }
+        if(isAddTasks){
+            if (this.mainTasksqueueCount && this.workerTasksqueueCount) {
+                this.mainTasksqueueCount++;
+            }
+            taskBatchData.add({
+                msgType: EPostMessageType.TasksQueue,
+                dataType: EDataType.Local,
+                isRunSubWork: true,
+                mainTasksqueueCount: this.mainTasksqueueCount,
+                tasksqueue: this.tasksqueue,
+                viewId: ''
+            })
+            for (const [viewId, value] of this.tasksqueue.entries()) {
+                if (value.cameraOpt) {
+                    this.control.textEditorManager.onCameraChange(value.cameraOpt, viewId);
+                }
+            }
+        } 
+        return taskBatchData
     }
     async clearViewScenePath(viewId: string, justLocal?: boolean | undefined): Promise<void> {
         this.control.textEditorManager.clear(viewId, justLocal);
+        this.queryTaskBatchData({
+            msgType: EPostMessageType.Clear,
+            dataType: EDataType.Local,
+            viewId
+        }).forEach(task=>{
+            this.taskBatchData.delete(task);
+        })
         this.taskBatchData.add({
             dataType: EDataType.Local,
             msgType: EPostMessageType.Clear,
@@ -999,39 +1246,135 @@ export class MasterControlForWorker extends MasterController{
             })
         }
         if (this.zIndexNodeMethod) {
-            this.zIndexNodeMethod.maxZIndex = 0;
-            this.zIndexNodeMethod.minZIndex = 0;
+            this.zIndexNodeMethod.clearZIndex(viewId);
         }
-        this.clearLocalPointsBatchData();
+        this.localPointsBatchData.clear();
         await new Promise<string>((resolve)=>{
-            this.clearAllResolve = resolve;
-        }).then(()=>{
-            this.clearAllResolve = undefined;
+            const resolveInfo = this.clearAllResolveMap.get(viewId) || {
+                resolve: undefined,
+                timer: undefined
+            };
+            if (resolveInfo.timer) {
+                clearTimeout(resolveInfo.timer);
+            }
+            resolveInfo.resolve = resolve;
+            resolveInfo.timer = setTimeout(() => {
+                const resolveInfo = this.clearAllResolveMap.get(viewId)
+                if (resolveInfo?.resolve) {
+                    resolveInfo.resolve(viewId);
+                }
+            }, this.maxLastSyncTime) as unknown as number;
+            this.clearAllResolveMap.set(viewId, resolveInfo);
+        }).then((viewId)=>{
+            this.clearAllResolveMap.delete(viewId);
         })
     }
     private internalMsgEmitterListener () {
         this.methodBuilder = new MethodBuilderMain([
             EmitEventType.CopyNode, EmitEventType.SetColorNode, EmitEventType.DeleteNode, 
             EmitEventType.RotateNode, EmitEventType.ScaleNode, EmitEventType.TranslateNode, 
-            EmitEventType.ZIndexActive, EmitEventType.ZIndexNode, EmitEventType.RotateNode,
+            EmitEventType.ZIndexNode, EmitEventType.RotateNode,
             EmitEventType.SetFontStyle, EmitEventType.SetPoint, EmitEventType.SetLock,
             EmitEventType.SetShapeOpt
         ]).registerForMainEngine(InternalMsgEmitterType.MainEngine, this.control);
         this.zIndexNodeMethod = this.methodBuilder?.getBuilder(EmitEventType.ZIndexNode) as ZIndexNodeMethod;
     }
-    private setZIndex(){
+    private setZIndex(viewId:string){
         const opt:BaseShapeOptions | undefined = this.currentToolsData && cloneDeep(this.currentToolsData.toolsOpt);
         if(opt && this.zIndexNodeMethod && this.isUseZIndex ){
-            this.zIndexNodeMethod.addMaxLayer();
-            opt.zIndex = this.zIndexNodeMethod.maxZIndex;
+            this.zIndexNodeMethod.addMaxLayer(viewId);
+            opt.zIndex = this.zIndexNodeMethod.getMaxZIndex(viewId);
         }
         return opt;
     }
-    clearLocalPointsBatchData(){
-        this.localPointsBatchData.length = 0;
+    checkDrawingWork(vId:string){
+        let isCanDrawWork:boolean = false;
+        const removeIds:string[] = [];
+        for (const [workId, {state, viewId, points, opt}] of this.localPointsBatchData.entries()) {
+            if (vId === viewId && state === EvevtWorkState.Start || state === EvevtWorkState.Doing) {
+                if (state === EvevtWorkState.Doing && this.isCanDrawWork) {
+                    // 三帧之内认为是无效的绘制
+                    if (Number(workId) && Number(workId) + 60 > Date.now()) {
+                        removeIds.push(workId.toString()); 
+                        this.taskBatchData.add({
+                            msgType: EPostMessageType.RemoveNode,
+                            workId,
+                            viewId,
+                            dataType: EDataType.Local,
+                            isRunSubWork: true
+                        })
+                    }
+                    const op = points.map(p=>p);
+                    this.taskBatchData.add({
+                        op,
+                        workState: EvevtWorkState.Done,
+                        workId,
+                        dataType: EDataType.Local,
+                        msgType: EPostMessageType.DrawWork,
+                        isRunSubWork: this.isRunSubWork,
+                        toolsType: this.currentToolsData?.toolsType,
+                        viewId,
+                        opt,
+                        scenePath: viewId && this.viewContainerManager.getCurScenePath(viewId)
+                    })
+                    isCanDrawWork = true;
+                }
+                this.deleteLocalPoint(workId);
+            }
+        }
+        if(isCanDrawWork || removeIds.length){
+            this.consume();
+            if (removeIds.length) {
+                const scenePath = this.viewContainerManager.getView(vId)?.focusScenePath;
+                this.collector?.dispatch({
+                    type: EPostMessageType.RemoveNode,
+                    removeIds, 
+                    viewId: vId, 
+                    scenePath
+                });
+            }
+        }
+    }
+    removeDrawingWork(vId:string){
+        const removeIds:string[] = [];
+        for (const [workId, {state, viewId}] of this.localPointsBatchData.entries()) {
+            if (vId === viewId && state === EvevtWorkState.Start || state === EvevtWorkState.Doing) {
+                this.deleteLocalPoint(workId);
+                if (state === EvevtWorkState.Doing && this.isCanDrawWork) {
+                    removeIds.push(workId.toString());
+                    this.taskBatchData.add({
+                        msgType: EPostMessageType.RemoveNode,
+                        workId,
+                        viewId,
+                        dataType: EDataType.Local,
+                        isRunSubWork: true
+                    })
+                }
+            }
+        }
+        if (removeIds.length) {
+            this.consume();
+            const scenePath = this.viewContainerManager.getView(vId)?.focusScenePath;
+            this.collector?.dispatch({
+                type: EPostMessageType.RemoveNode,
+                removeIds, 
+                viewId: vId, 
+                scenePath
+            });
+        }
     }
     hoverCursor(point: [number, number], viewId: string){
         if (this.currentToolsData?.toolsType === EToolsKey.Selector) {
+            const view = this.viewContainerManager.getView(viewId);
+            if (view && view.displayer && view.displayer.vDom) {
+                const floatBarData = view.displayer.vDom.state.floatBarData;
+                if (floatBarData) {
+                    const {x,y,w,h} = floatBarData;
+                    if (isIntersectForPoint(point, { x, y, w, h })) {
+                        return;
+                    }
+                }
+            }
             const _point:[number,number] = this.viewContainerManager.transformToScenePoint(point, viewId);
             const data:IWorkerMessage = {
                 msgType: EPostMessageType.CursorHover,
@@ -1054,6 +1397,26 @@ export class MasterControlForWorker extends MasterController{
             this.runAnimation();
         }
     }
+    blurCursor(viewId:string){
+        if (this.currentToolsData?.toolsType !== EToolsKey.Selector) {
+            return;
+        }
+        const data:IWorkerMessage = {
+            msgType: EPostMessageType.CursorBlur,
+            dataType: EDataType.Local,
+            isRunSubWork: false,
+            viewId
+        }
+        this.queryTaskBatchData({
+            msgType: EPostMessageType.CursorHover,
+            dataType: EDataType.Local,
+            viewId
+        }).forEach(task=>{
+            this.taskBatchData.delete(task);
+        })
+        this.taskBatchData.add(data);
+        this.consume();
+    }
     sendCursorEvent(p:[number|undefined,number|undefined], viewId:string) {
         if (!this.currentLocalWorkData) {
             return;
@@ -1065,10 +1428,9 @@ export class MasterControlForWorker extends MasterController{
             return;
         }
         let point:[number|undefined,number|undefined] = [undefined,undefined];
-        if ( this.currentToolsData && (this.isCanDrawWork || this.currentToolsData.toolsType === EToolsKey.Text)) {
-            if (this.currentLocalWorkData.workState !== EvevtWorkState.Start && this.currentLocalWorkData.workState !== EvevtWorkState.Doing ) {
+        if ( this.currentToolsData && (this.isCanDrawWork || this.currentToolsData.toolsType === EToolsKey.Text) ) {
+            if (!this.localPointsBatchData.size && !this.getLockSentEventCursor()) {
                 point = p;
-                // console.log('sendCursorEvent', point)
                 this.control.cursor.sendEvent(point,viewId); 
             }
         }
@@ -1124,7 +1486,7 @@ export class MasterControlForWorker extends MasterController{
                 }
             })
             if (Object.keys(scenes).length) {
-                const view = this.viewContainerManager.getView(viewId) || this.viewContainerManager.focuedView;
+                const view = this.viewContainerManager.mainView;
                 if (!view) {
                     return;
                 }
@@ -1143,8 +1505,8 @@ export class MasterControlForWorker extends MasterController{
                         height: h,
                     } as ICameraOpt || view.cameraOpt,
                     isRunSubWork: true,
-                    viewId,
-                    maxZIndex: this.zIndexNodeMethod?.maxZIndex
+                    viewId: view.id,
+                    // maxZIndex: this.zIndexNodeMethod?.getMaxZIndex(viewId)
                 }
                 this.taskBatchData.add(data);
                 this.runAnimation();
@@ -1180,13 +1542,17 @@ export class MasterControlForWorker extends MasterController{
         const viewId = mainView?.id;
         const focusScenePath = mainView?.focusScenePath;
         if (viewId && focusScenePath) {
-            // this.undoTickerId = Date.now();
-            this.setCurrentLocalWorkData({...this.currentLocalWorkData, undoTickerId: Date.now()})
-            BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', this.undoTickerId, viewId);
+            const {src,uuid} = imageInfo;
+            if (uuid && !src) {
+                this.tmpImageConfigMap.set(uuid, imageInfo);
+                return;
+            }
+            const undoTickerId = Date.now();
+            BaseApplianceManager.InternalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
             const opt = {...imageInfo} as ImageOptions;
-            if(this.zIndexNodeMethod){
-                this.zIndexNodeMethod.addMaxLayer();
-                opt.zIndex = this.zIndexNodeMethod.maxZIndex;
+            if (this.zIndexNodeMethod) {
+                this.zIndexNodeMethod.addMaxLayer(viewId);
+                opt.zIndex = this.zIndexNodeMethod.getMaxZIndex(viewId);
             }
             this.taskBatchData.add({
                 msgType: EPostMessageType.FullWork,
@@ -1195,7 +1561,6 @@ export class MasterControlForWorker extends MasterController{
                 workId: imageInfo.uuid,
                 opt,
                 viewId,
-                undoTickerId: imageInfo.src && this.undoTickerId || undefined,
                 willRefresh: true,
                 willSyncService: true
             });
@@ -1214,7 +1579,7 @@ export class MasterControlForWorker extends MasterController{
             for (const [key,value] of Object.entries(storage)) {
                 if (value && value.toolsType === EToolsKey.Image && (value.opt as ImageOptions).uuid === uuid) {
                     const undoTickerId = Date.now();
-                    BaseTeachingAidsManager.InternalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+                    BaseApplianceManager.InternalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
                     const workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
                     const opt = {...value.opt, locked} as ImageOptions;
                     this.taskBatchData.add({
@@ -1224,7 +1589,6 @@ export class MasterControlForWorker extends MasterController{
                         workId,
                         opt,
                         viewId,
-                        undoTickerId,
                         willRefresh: true,
                         willSyncService: true
                     });
@@ -1238,30 +1602,14 @@ export class MasterControlForWorker extends MasterController{
         const mainView = this.viewContainerManager.mainView;
         const viewId = mainView?.id;
         const focusScenePath = mainView?.focusScenePath;
-        if (viewId && focusScenePath && this.collector){
-            const storage = this.collector.getStorageData(viewId, focusScenePath);
-            if (!storage) {
-                return;
+        if (viewId && focusScenePath) {
+            const imageInfo = this.tmpImageConfigMap.get(uuid);
+            if (imageInfo) {
+                imageInfo.src = src;
+                this.insertImage(imageInfo);
+                this.tmpImageConfigMap.delete(uuid);
             }
-            for (const [key,value] of Object.entries(storage)) {
-                if (value && value.toolsType === EToolsKey.Image && (value.opt as ImageOptions).uuid === uuid) {
-                    const workId = this.collector?.isOwn(key) ? this.collector?.getLocalId(key) : key;
-                    const opt = {...value.opt, src} as ImageOptions;
-                    this.taskBatchData.add({
-                        msgType: EPostMessageType.FullWork,
-                        dataType: EDataType.Local,
-                        toolsType: EToolsKey.Image,
-                        workId,
-                        opt,
-                        viewId,
-                        undoTickerId: this.undoTickerId,
-                        willRefresh: true,
-                        willSyncService: true
-                    });
-                    this.runAnimation();
-                    break;
-                }
-            }
+            return;
         }
     }
     getImagesInformation(scenePath: string): ImageInformation[] {
@@ -1289,28 +1637,35 @@ export class MasterControlForWorker extends MasterController{
         }
         return result;
     }
-    setShapeSelectorByWorkId(workId:string,viewId:string, undoTickerId?: number){
+    setShapeSelectorByWorkId(workId:string,viewId:string){
         this.taskBatchData.add({
             workId: Storage_Selector_key,
             selectIds: [workId],
             msgType: EPostMessageType.Select,
-            dataType: EDataType.Service,
+            dataType: EDataType.Local,
             viewId,
-            willSyncService: true,
-            undoTickerId
+            willSyncService: true
         })
         this.runAnimation();
     }
-    blurSelector(viewId: string, scenePath:string, undoTickerId?: number) {
+    blurSelector(viewId: string, scenePath:string) {
         this.taskBatchData.add({
             workId: Storage_Selector_key,
             selectIds: [],
             msgType: EPostMessageType.Select,
             dataType: EDataType.Service,
             viewId,
-            scenePath,
-            undoTickerId
+            scenePath
         })
         this.runAnimation();
+    }
+    consoleWorkerInfo(){
+        this.taskBatchData.add({
+            msgType: EPostMessageType.Console,
+            dataType: EDataType.Local,
+            isRunSubWork: true,
+            viewId:''
+        })
+        this.consume();
     }
 }

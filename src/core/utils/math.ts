@@ -82,8 +82,8 @@ export function getSafetyRect(oldRect:IRectType, tolerance:number = 10) {
   return {
       x: Math.floor(oldRect.x - tolerance),
       y: Math.floor(oldRect.y - tolerance),
-      w: Math.floor(oldRect.w + tolerance * 2),
-      h: Math.floor(oldRect.h + tolerance * 2)
+      w: Math.ceil(oldRect.w + tolerance * 2),
+      h: Math.ceil(oldRect.h + tolerance * 2)
   }
 }
 export function getRectTranslated(rect:IRectType, translate:[number,number]) {
@@ -94,7 +94,7 @@ export function getRectTranslated(rect:IRectType, translate:[number,number]) {
     h: rect.h,
   }
 }
-export function getRectRotated(rect:IRectType, angle:number) {
+export function getRectRotatedPoints(rect:IRectType, angle:number) {
   const p1 = new Vec2d(rect.x, rect.y);
   const p2 = new Vec2d(rect.x + rect.w, rect.y);
   const p3 = new Vec2d(rect.x + rect.w, rect.y + rect.h);
@@ -105,7 +105,11 @@ export function getRectRotated(rect:IRectType, angle:number) {
   const np2 = Vec2d.RotWith(p2,cp,dir);
   const np3 = Vec2d.RotWith(p3,cp,dir);
   const np4 = Vec2d.RotWith(p4,cp,dir);
-  return getRectFromPoints([np1,np2,np3,np4])
+  return [np1,np2,np3,np4];
+}
+export function getRectRotated(rect:IRectType, angle:number) {
+  const points = getRectRotatedPoints(rect,angle);
+  return getRectFromPoints(points)
 }
 
 export function getRectScaleed(rect:IRectType, scale:[number,number]) {
@@ -121,6 +125,28 @@ export function getRectScaleed(rect:IRectType, scale:[number,number]) {
   const np4 = Vec2d.ScaleWOrigin(p4, sv, cp);
   return getRectFromPoints([np1,np2,np3,np4])
 }
+
+export function getScalePoints(points:Vec2d[], originPos:Vec2d, scale:[number,number]) {
+  const newPoints:Vec2d[] = [];
+  for (let i = 0; i < points.length; i ++) {
+    const p = points[i];
+    const sv =  new Vec2d(scale[0], scale[1]);
+    const np = Vec2d.ScaleWOrigin(p, sv, originPos);
+    newPoints.push(np)
+  }
+  return newPoints;
+}
+export function getRotatePoints(points:Vec2d[], originPos:Vec2d, angle:number) {
+  const newPoints:Vec2d[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const dir = Math.PI * angle / 180;
+    const np = Vec2d.RotWith(p, originPos, dir);
+    newPoints.push(np)
+  }
+  return newPoints;
+}
+
 
 export function rotatePoints(points:number[], originPos:[number,number], angle:number) {
   const cp = new Vec2d(originPos[0], originPos[1]);
@@ -138,15 +164,15 @@ export function scalePoints(points:number[], originPos:[number,number], scale:[n
   for (let i = 0; i < points.length; i += 3) {
     const p = new Vec2d(points[i], points[i + 1]);
     const sv =  new Vec2d(scale[0], scale[1]);
-    if (i < points.length - 3) {
-        const p1 = new Vec2d(points[i + 3], points[i + 4]);
-        const r = Vec2d.Tan(p1, p).per().mul(points[i+2]).mulV(sv).len();
-        points[i + 2] = r; 
-    } else if (i === points.length - 3) {
-        const p0 = new Vec2d(points[i - 3], points[i - 2]);
-        const r = Vec2d.Tan(p, p0).per().mul(points[i + 2]).mulV(sv).len();
-        points[i + 2] = r; 
-    }
+    // if (i < points.length - 3) {
+    //     const p1 = new Vec2d(points[i + 3], points[i + 4]);
+    //     const r = Vec2d.Tan(p1, p).per().mul(points[i + 2]).mulV(sv).len();
+    //     points[i + 2] = r; 
+    // } else if (i === points.length - 3) {
+    //     const p0 = new Vec2d(points[i - 3], points[i - 2]);
+    //     const r = Vec2d.Tan(p, p0).per().mul(points[i + 2]).mulV(sv).len();
+    //     points[i + 2] = r; 
+    // }
     const np = Vec2d.ScaleWOrigin(p, sv, cp);
     points[i] = np.x;
     points[i + 1] = np.y;
@@ -157,7 +183,6 @@ export function getNodeRect(key:string, layer?: Group, safeBorderPadding:number 
   let rect: IRectType | undefined;
   layer?.getElementsByName(key).forEach(f => {
     const r = (f as ShapeNodes)?.getBoundingClientRect();
-    // console.log('getNodeRect', r)
     if (r) {
       if (f.tagName === 'GROUP') {
         rect = computRect(rect, {
@@ -240,4 +265,15 @@ export function getWHRatio(w:number,h:number):[number,number] {
   const wRatio = w <= h ? 1 : w / h;
   const hRatio = h <= w ? 1 : h / w;
   return [wRatio, hRatio];
+}
+export function checkOp(op:number[]):boolean{
+  for (const num of op) {
+      if (isNaN(num)) {
+          return false;
+      }
+      if (num === Infinity || num === -Infinity) {
+        return false;
+    }
+  }
+  return true;
 }

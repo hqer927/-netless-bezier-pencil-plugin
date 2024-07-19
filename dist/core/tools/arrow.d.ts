@@ -1,8 +1,8 @@
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 export interface ArrowOptions extends BaseShapeOptions {
     thickness: number;
@@ -20,13 +20,42 @@ export declare class ArrowShape extends BaseShapeTool {
     constructor(props: BaseShapeToolProps);
     consume(props: {
         data: IWorkerMessage;
-        isFullWork?: boolean | undefined;
-        isClearAll?: boolean | undefined;
-        isSubWorker?: boolean | undefined;
-    }): IMainMessage;
-    consumeAll(props: {
-        data?: IWorkerMessage | undefined;
-    }): IMainMessage;
+        isFullWork?: boolean;
+        isSubWorker?: boolean;
+        isMainThread?: boolean;
+    }): {
+        type: EPostMessageType;
+    } | {
+        type: EPostMessageType;
+        dataType: EDataType;
+        op: number[];
+        isSync: boolean;
+        index: number;
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+    } | {
+        type: EPostMessageType;
+        dataType: EDataType;
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: IRectType | undefined;
+    };
+    consumeAll(): {
+        type: EPostMessageType;
+        removeIds: string[];
+    } | {
+        type: EPostMessageType;
+        dataType: EDataType;
+        ops: string;
+        isSync: boolean;
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: IRectType;
+        removeIds?: undefined;
+    };
     private draw;
     private computDrawPoints;
     private computFullArrowPoints;
@@ -35,7 +64,6 @@ export declare class ArrowShape extends BaseShapeTool {
     consumeService(props: {
         op: number[];
         isFullWork: boolean;
-        isTemp?: boolean;
     }): IRectType | undefined;
     clearTmpPoints(): void;
     static updateNodeOpt(param: {

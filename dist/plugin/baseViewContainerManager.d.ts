@@ -2,7 +2,7 @@
 /// <reference types="lodash" />
 import type EventEmitter2 from "eventemitter2";
 import { ICameraOpt, ILayerOptionType, IMainMessageRenderData, IOffscreenCanvasOptionType } from "../core/types";
-import { BaseSubWorkModuleProps, TeachingAidsManagerLike } from "./types";
+import { BaseSubWorkModuleProps, ApplianceManagerLike } from "./types";
 import type { CameraState, View } from "./types";
 import { ShowFloatBarMsgValue } from "../displayer/types";
 import { UndoRedoMethod } from "../undo";
@@ -22,19 +22,18 @@ export declare abstract class ViewContainerManager {
     static defaultScreenCanvasOpt: Pick<IOffscreenCanvasOptionType, 'autoRender' | 'contextType'>;
     static defaultLayerOpt: Pick<ILayerOptionType, 'offscreen' | 'handleEvent' | 'depth'>;
     internalMsgEmitter: EventEmitter2;
-    control: TeachingAidsManagerLike;
+    control: ApplianceManagerLike;
     abstract focuedViewId?: string;
     abstract focuedView?: ViewInfo;
     mainView?: ViewInfo;
     appViews: Map<string, ViewInfo>;
     constructor(props: BaseSubWorkModuleProps);
     undoTickerStart(id: number, viewId: string): void;
-    undoTickerEnd(id: number, viewId: string, isSync?: boolean): void;
     addExcludeIds(ids: string[], viewId: string): void;
     undo(): number;
     redo(): number;
     protected validator(target: ViewInfo, key: string, value: any): void;
-    abstract mountView(viewIde: string): void;
+    abstract mountView(viewIde: string): Promise<void>;
     destroyAppView(viewId: string, justLocal?: boolean): void;
     createMianView(originMainView: ViewInfo): void;
     createAppView(originAppView: ViewInfo): void;
@@ -58,9 +57,7 @@ export declare abstract class ViewContainerManager {
     /** 是否绘制浮动选框 */
     showFloatBar(viewId: string, isShow: boolean, opt?: Partial<ShowFloatBarMsgValue>): void;
     /** 激活浮动选框 */
-    activeFloatBar(viewId: string): void;
     /** 销毁浮动选框 */
-    unActiveFloatBar(viewId: string): void;
     /** 激活刷新文字编辑器 */
     setActiveTextEditor(viewId: string, activeTextId?: string): void;
 }
@@ -70,16 +67,17 @@ export declare abstract class AppViewDisplayerManager {
     abstract dpr: number;
     abstract width: number;
     abstract height: number;
-    readonly control: TeachingAidsManagerLike;
+    readonly control: ApplianceManagerLike;
     readonly internalMsgEmitter: EventEmitter2;
     readonly commiter: UndoRedoMethod;
     abstract vDom?: BaseViewDisplayer;
     abstract eventTragetElement?: HTMLDivElement;
+    abstract canvasContainerRef: React.RefObject<HTMLDivElement>;
+    abstract canvasTopRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
-    abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: {
         x: number;
         y: number;
@@ -87,7 +85,7 @@ export declare abstract class AppViewDisplayerManager {
     private cachePoint?;
     private cacheCursorPoint?;
     private active;
-    constructor(viewId: string, control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
+    constructor(viewId: string, control: ApplianceManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
     mountView(): void;
@@ -120,9 +118,8 @@ export declare abstract class AppViewDisplayerManager {
 }
 /** 主容器管理器抽象 */
 export declare abstract class MainViewDisplayerManager {
-    static readonly viewId: string;
     readonly viewId: string;
-    readonly control: TeachingAidsManagerLike;
+    readonly control: ApplianceManagerLike;
     readonly internalMsgEmitter: EventEmitter2;
     readonly commiter: UndoRedoMethod;
     abstract dpr: number;
@@ -130,11 +127,13 @@ export declare abstract class MainViewDisplayerManager {
     abstract height: number;
     abstract vDom?: BaseViewDisplayer;
     abstract eventTragetElement?: HTMLDivElement;
+    abstract snapshotContainerRef?: React.RefObject<HTMLDivElement>;
+    abstract canvasContainerRef: React.RefObject<HTMLDivElement>;
+    abstract canvasTopRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasServiceFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasFloatRef: React.RefObject<HTMLCanvasElement>;
     abstract canvasBgRef: React.RefObject<HTMLCanvasElement>;
     abstract floatBarRef: React.RefObject<HTMLDivElement>;
-    abstract floatBarCanvasRef: React.RefObject<HTMLCanvasElement>;
     abstract containerOffset: {
         x: number;
         y: number;
@@ -142,7 +141,7 @@ export declare abstract class MainViewDisplayerManager {
     private cachePoint?;
     private cacheCursorPoint?;
     private active;
-    constructor(control: TeachingAidsManagerLike, internalMsgEmitter: EventEmitter2);
+    constructor(control: ApplianceManagerLike, internalMsgEmitter: EventEmitter2);
     abstract setCanvassStyle(): void;
     bindToolsClass(): void;
     mountView(): void;

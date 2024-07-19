@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import type { HotKeys, Point, MemberState, BaseSubWorkModuleProps } from "../plugin/types";
+import type { HotKeys, Point, MemberState, BaseSubWorkModuleProps, _MemberState } from "../plugin/types";
 import { EmitEventType, InternalMsgEmitterType } from "../plugin/types";
-import { ApplianceNames } from "../plugin/external";
-import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
+import { ApplianceNames } from "../plugin/types";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 import type EventEmitter2 from "eventemitter2";
 import { EToolsKey, ICameraOpt } from "../core";
 import { MethodBuilderMain } from "../core/msgEvent";
@@ -33,7 +33,7 @@ export type HotKeyCheckerNode = {
 
 export interface HotkeyManager {
     readonly internalMsgEmitter: EventEmitter2;
-    readonly control: BaseTeachingAidsManager;
+    readonly control: BaseApplianceManager;
     readonly roomHotkeyCheckers: HotKeyCheckerNode[];
     onActiveHotkey(hotKey: keyof HotKeys):void;
     onSelfActiveHotkey(hotKey: keyof HotKeys):void;
@@ -41,7 +41,7 @@ export interface HotkeyManager {
 }
 export class HotkeyManagerImpl implements HotkeyManager {
     internalMsgEmitter: EventEmitter2;
-    control: BaseTeachingAidsManager;
+    control: BaseApplianceManager;
     roomHotkeyCheckers: HotKeyCheckerNode[];
     private tmpCopyStore:Map<string,BaseCollectorReducerAction>= new Map();
     private tmpCopyCoordInfo?: {
@@ -81,7 +81,6 @@ export class HotkeyManagerImpl implements HotkeyManager {
         return 'KeyUp';
     }
     onActiveHotkey(hotKey: keyof HotKeys): void {
-        console.log('onActiveHotkey---sdk', hotKey)
         const viewId = this.control.viewContainerManager.focuedViewId;
         const focusScenePath = this.control.viewContainerManager.focuedView?.focusScenePath;
         if (viewId && focusScenePath) {
@@ -116,7 +115,6 @@ export class HotkeyManagerImpl implements HotkeyManager {
         }
     }
     onSelfActiveHotkey(hotKey: keyof HotKeys): void {
-        console.log('onActiveHotkey---self', hotKey)
         switch (hotKey) {
             case 'changeToPencil':
                 this.setMemberState({currentApplianceName:ApplianceNames.pencil, useNewPencil:true});
@@ -216,6 +214,8 @@ export class HotkeyManagerImpl implements HotkeyManager {
             const newCameraOpt = view.viewData.camera;
             offset.x = offset.x + newCameraOpt.centerX - oldCameraOpt.centerX;
             offset.y = offset.y + newCameraOpt.centerY - oldCameraOpt.centerY;
+            const undoTickerId = Date.now();
+            this.control.worker.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
             copyNodeMethod.pasteSelector({
                 viewId,
                 scenePath,
@@ -223,11 +223,12 @@ export class HotkeyManagerImpl implements HotkeyManager {
                 copyCoordInfo: {
                     offset,
                     cameraOpt: newCameraOpt
-                }
+                },
+                undoTickerId
             })
         }
     }
     private setMemberState(modifyState: Partial<MemberState>): void {
-        this.control.room?.setMemberState(modifyState);
+        this.control.room?.setMemberState(modifyState as _MemberState);
     }
 }

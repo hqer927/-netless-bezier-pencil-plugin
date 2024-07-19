@@ -47,15 +47,11 @@ export declare enum EvevtWorkState {
     Start = 1,
     Doing = 2,
     Done = 3,
-    /** 冻结,不能本地输入事件,camera、clear等任务还是可以执行 */
-    Freeze = 4,
     /** 只读状态 */
-    Unwritable = 5
+    Unwritable = 4
 }
 /**
- * 消息变化顺序: init => Scene事件 => work事件 => node事件
- * 本地数据: Init、Transform、UpdateTools
- * 服务端数据:
+ * 事件消息类型
  */
 export declare enum EPostMessageType {
     /** 什么也不需要做 */
@@ -90,12 +86,16 @@ export declare enum EPostMessageType {
     Cursor = 14,
     /** 更新文本 */
     TextUpdate = 15,
-    /** 获取获奖的文本信息 */
+    /** 获取获焦的文本信息 */
     GetTextActive = 16,
     /** 批量队列化处理 */
     TasksQueue = 17,
     /** 指针hover元素事件 */
-    CursorHover = 18
+    CursorHover = 18,
+    /** 丢失焦点事件 */
+    CursorBlur = 19,
+    /** 前端日志 */
+    Console = 20
 }
 export declare enum ECanvasContextType {
     Webgl2 = "webgl2",
@@ -103,15 +103,15 @@ export declare enum ECanvasContextType {
     Canvas2d = "2d"
 }
 export declare enum ECanvasShowType {
-    /** 本地前置画布 */
-    Float = 1,
+    None = 0,
     /** 背景画布 */
-    Bg = 2,
-    /** 选择框中的画布 */
-    Selector = 3,
+    Bg = 1,
     /** 服务端前置画布 */
-    ServiceFloat = 4,
-    None = 5
+    ServiceFloat = 2,
+    /** 本地前置画布 */
+    Float = 3,
+    /** 绝对最顶层 */
+    TopFloat = 4
 }
 export declare enum EventMessageType {
     /** cursor事件 */
@@ -132,4 +132,17 @@ export declare enum EScaleType {
     both = 3,
     /** 等比例 */
     proportional = 4
+}
+export declare enum EvevtWorkType {
+    Pending = 0,
+    Start = 1,
+    Doing = 2,
+    Done = 3,
+    /** 只读状态 */
+    Unwritable = 4
+}
+export declare enum EMatrixrRelationType {
+    inside = 0,
+    outside = 1,
+    intersect = 2
 }

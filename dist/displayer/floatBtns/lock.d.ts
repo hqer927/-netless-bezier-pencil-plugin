@@ -1,7 +1,7 @@
 import React from "react";
-import { TeachingAidsViewManagerLike } from "../../plugin/types";
+import { ApplianceViewManagerLike } from "../../plugin/types";
 export declare const LockBtn: (props: {
     workIds?: string[];
-    maranger: TeachingAidsViewManagerLike;
+    maranger: ApplianceViewManagerLike;
     islocked?: boolean;
 }) => React.JSX.Element;

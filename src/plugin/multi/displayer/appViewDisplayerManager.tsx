@@ -4,7 +4,7 @@ import React from "react";
 import { BaseViewDisplayer } from "../../displayerView";
 import { AppViewDisplayerManager } from "../../baseViewContainerManager";
 import { EventEmitter2 } from "eventemitter2";
-import { TeachingAidsMultiManager } from "../teachingAidsMultiManager";
+import { ApplianceMultiManager } from "../applianceMultiManager";
 import { getRatioWithContext } from "../../../core/utils";
 
 export class AppViewDisplayerManagerImpl extends AppViewDisplayerManager {
@@ -13,39 +13,57 @@ export class AppViewDisplayerManagerImpl extends AppViewDisplayerManager {
     height: number = 1000;
     vDom?: BaseViewDisplayer;
     eventTragetElement?: HTMLDivElement;
+    canvasContainerRef = React.createRef<HTMLDivElement>();
+    canvasTopRef = React.createRef<HTMLCanvasElement>();
     canvasServiceFloatRef = React.createRef<HTMLCanvasElement>();
     canvasFloatRef = React.createRef<HTMLCanvasElement>();
     canvasBgRef = React.createRef<HTMLCanvasElement>();
     floatBarRef = React.createRef<HTMLDivElement>();
-    floatBarCanvasRef = React.createRef<HTMLCanvasElement>();
     containerOffset: { x: number; y: number } = { x: 0, y: 0 };
-    constructor(viewId:string, control: TeachingAidsMultiManager, internalMsgEmitter:EventEmitter2){
+    constructor(viewId:string, control: ApplianceMultiManager, internalMsgEmitter:EventEmitter2){
         super(viewId, control,internalMsgEmitter);
     }
     setCanvassStyle() {
         if (this.eventTragetElement) {
+            if (this.canvasContainerRef.current) {
+                const width = this.eventTragetElement.offsetWidth || this.width;
+                const height = this.eventTragetElement.offsetHeight || this.height;
+                if (width && height && (width !== this.width || height !== this.height)) {
+                    this.width = width;
+                    this.height = height;
+                    this.dpr = getRatioWithContext();
+                    this.canvasContainerRef.current.style.width = `${width}px`;
+                    this.canvasContainerRef.current.style.height = `${height}px`;
+                }
+            }
             if (this.canvasBgRef.current) {
                 this.dpr = getRatioWithContext(this.canvasBgRef.current.getContext('2d') as CanvasRenderingContext2D);
                 const width = this.eventTragetElement.offsetWidth || this.width;
                 const height = this.eventTragetElement.offsetHeight || this.height;
-                if (width && height) {
+                if (width && height && (width !== this.width || height !== this.height)) {
                     this.width = width;
                     this.height = height;
-                    this.canvasBgRef.current.style.width = `${width}px`;
-                    this.canvasBgRef.current.style.height = `${height}px`;
+                    // this.canvasBgRef.current.style.width = `${width}px`;
+                    // this.canvasBgRef.current.style.height = `${height}px`;
                     this.canvasBgRef.current.width = width * this.dpr;
                     this.canvasBgRef.current.height = height * this.dpr;
                     if (this.canvasFloatRef.current) {
-                        this.canvasFloatRef.current.style.width = `${width}px`;
-                        this.canvasFloatRef.current.style.height = `${height}px`;
+                        // this.canvasFloatRef.current.style.width = `${width}px`;
+                        // this.canvasFloatRef.current.style.height = `${height}px`;
                         this.canvasFloatRef.current.width = width * this.dpr;
                         this.canvasFloatRef.current.height = height * this.dpr;
                     }
                     if (this.canvasServiceFloatRef.current) {
-                        this.canvasServiceFloatRef.current.style.width = `${width}px`;
-                        this.canvasServiceFloatRef.current.style.height = `${height}px`;
+                        // this.canvasServiceFloatRef.current.style.width = `${width}px`;
+                        // this.canvasServiceFloatRef.current.style.height = `${height}px`;
                         this.canvasServiceFloatRef.current.width = width * this.dpr;
                         this.canvasServiceFloatRef.current.height = height * this.dpr;
+                    }
+                    if (this.canvasTopRef.current) {
+                        // this.canvasTopRef.current.style.width = `${width}px`;
+                        // this.canvasTopRef.current.style.height = `${height}px`;
+                        this.canvasTopRef.current.width = width * this.dpr;
+                        this.canvasTopRef.current.height = height * this.dpr;
                     }
                 }
             }
@@ -63,7 +81,8 @@ export class AppViewDisplayerManagerImpl extends AppViewDisplayerManager {
             canvasFloatRef: this.canvasFloatRef,
             canvasBgRef: this.canvasBgRef,
             floatBarRef: this.floatBarRef,
-            floatBarCanvasRef:this.floatBarCanvasRef
+            canvasTopRef: this.canvasTopRef,
+            canvasContainerRef: this.canvasContainerRef
         }}/>, appViewDisplayer);
         if (this.control.room) {
             this.bindDisplayerEvent(this.eventTragetElement);

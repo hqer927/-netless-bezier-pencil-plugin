@@ -1,3 +1,5 @@
+import { EMatrixrRelationType } from '../enum';
+import { IRectType } from '../types';
 import { Box2d } from './primitives/Box2d';
 import { Vec2d, VecLike } from './primitives/Vec2d';
 export * from "./math";
@@ -361,4 +363,12 @@ export declare function toFixed(v: number): number;
  */
 export declare const isSafeFloat: (n: number) => boolean;
 export declare const requestAsyncCallBack: (callBack: () => void, timeout: number) => Promise<void>;
-export declare const getRatioWithContext: (context: CanvasRenderingContext2D) => number;
+export declare const getRatioWithContext: (context?: CanvasRenderingContext2D) => number;
+export declare const getRectMatrixrRelation: (rect: IRectType, BoxRect: IRectType) => EMatrixrRelationType;
+export declare function strlen(str: string): number;
+export declare const getInSertRect: (rect: IRectType, boxRect: IRectType) => {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+} | undefined;

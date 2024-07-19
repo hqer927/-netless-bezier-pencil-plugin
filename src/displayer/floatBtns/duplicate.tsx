@@ -8,7 +8,9 @@ export const Duplicate = (props:{workIds?:string[]; viewId:string;}) => {
     const {workIds, viewId} = props;
     return (<div className="button normal-button"
         onClick={(e)=>{
-            e.preventDefault();
+            if (e.cancelable) {
+                e.preventDefault();
+            }
             e.stopPropagation();
             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
                 EmitEventType.CopyNode, {workIds: workIds || [Storage_Selector_key], viewId})

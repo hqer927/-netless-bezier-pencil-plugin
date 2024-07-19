@@ -1,24 +1,28 @@
 {
   "name": "@hqer/bezier-pencil-plugin",
-  "version": "0.0.45-beta.3",
+  "version": "1.0.0",
   "main": "./dist/bezier-pencil-plugin.js",
   "module": "./dist/bezier-pencil-plugin.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "vite",
-    "types": "cross-env NODE_ENV=production tsc --declaration --emitDeclarationOnly --jsx react --esModuleInterop --outDir dist",
-    "build": "tsc && vite build && npm run types",
+    "dev": "vite --force",
+    "types:bundler": "tsc --emitDeclarationOnly",
+    "build:bundler": "vite build --config vite.config.bundler.js && yarn types:bundler",
+    "types:worker": "tsc --noEmit",
+    "build:worker": "vite build --config vite.config.worker.js",
+    "build": "cross-env NODE_ENV=production tsc && yarn build:worker && yarn build:bundler",
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@netless/window-manager": "0.4.73-beta.0",
+    "@babel/core": "^7.24.7",
+    "@babel/preset-env": "^7.24.7",
+    "@netless/window-manager": "^0.4.73",
+    "@rollup/plugin-babel": "^6.0.4",
     "@types/lodash": "^4.14.202",
-    "@types/react": "^18.2.38",
-    "@types/react-dom": "^18.2.23",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
     "cross-env": "^7.0.3",
     "less": "^4.2.0",
-    "rollup-plugin-bundle-worker": "^0.1.0",
-    "spritejs": "^3.8.3",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",
     "white-web-sdk": "^2.16.51"
@@ -36,7 +40,8 @@
     "re-resizable": "^6.9.11",
     "react": ">=17",
     "react-dom": ">=17",
-    "react-draggable": "^4.4.6"
+    "react-draggable": "^4.4.6",
+    "spritejs": "^3.8.3"
   },
   "description": "",
   "directories": {

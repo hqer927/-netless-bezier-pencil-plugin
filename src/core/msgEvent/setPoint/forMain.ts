@@ -11,6 +11,7 @@ export type SetPointEmtData = {
     viewId: string
 }
 export class SetPointMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.SetPoint;
     private undoTickerId?:number;
     collect(data: SetPointEmtData): void {
@@ -29,7 +30,7 @@ export class SetPointMethod extends BaseMsgMethod {
         const undoTickerId = workState === EvevtWorkState.Start && Date.now() || undefined;
         if (undoTickerId) {
             this.undoTickerId = undoTickerId;
-            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         }
         const curKey = workId;
         if (!curKey) {

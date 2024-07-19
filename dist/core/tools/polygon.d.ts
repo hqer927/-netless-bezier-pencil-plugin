@@ -1,8 +1,8 @@
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 export interface PolygonOptions extends BaseShapeOptions {
     thickness: number;
@@ -21,13 +21,43 @@ export declare class PolygonShape extends BaseShapeTool {
     constructor(props: BaseShapeToolProps);
     consume(props: {
         data: IWorkerMessage;
-        isFullWork?: boolean | undefined;
-        isClearAll?: boolean | undefined;
-        isSubWorker?: boolean | undefined;
-    }): IMainMessage;
-    consumeAll(props: {
-        data?: IWorkerMessage | undefined;
-    }): IMainMessage;
+        isFullWork?: boolean;
+        isClearAll?: boolean;
+        isSubWorker?: boolean;
+        isMainThread?: boolean;
+    }): {
+        type: EPostMessageType;
+    } | {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        type: EPostMessageType;
+        dataType: EDataType;
+        op: number[];
+        isSync: boolean;
+        index: number;
+    } | {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: IRectType | undefined;
+        type: EPostMessageType;
+        dataType: EDataType;
+    };
+    consumeAll(): {
+        type: EPostMessageType;
+        removeIds: string[];
+    } | {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        rect: IRectType;
+        type: EPostMessageType;
+        dataType: EDataType;
+        ops: string;
+        isSync: boolean;
+        removeIds?: undefined;
+    };
     private draw;
     private computDrawPoints;
     private updateTempPoints;

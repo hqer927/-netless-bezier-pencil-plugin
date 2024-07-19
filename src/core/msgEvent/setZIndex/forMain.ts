@@ -13,26 +13,55 @@ export type ZIndexNodeEmtData = {
     viewId: string;
 }
 export class ZIndexNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.ZIndexNode;
-    private min = 0;
-    private max = 0;
-    get minZIndex() : number {
-        return this.min
+    private zIndexMap: Map<string, {
+        min: number,
+        max: number
+    }> = new Map();
+    clearZIndex(viewId: string) {
+        this.zIndexMap.delete(viewId);
     }
-    get maxZIndex() : number {
-        return this.max
+    getMinZIndex(viewId: string) : number {
+        return this.zIndexMap.get(viewId)?.min || 0;
     }
-    set maxZIndex(max : number) {
-        this.max = max;
+    getMaxZIndex(viewId: string) : number {
+        return this.zIndexMap.get(viewId)?.max|| 0;
     }
-    set minZIndex(min : number) {
-        this.min = min;
+    setMaxZIndex(max: number, viewId: string) {
+        const min = this.getMinZIndex(viewId)
+        this.zIndexMap.set(viewId, {
+            min,
+            max
+        })
     }
-    addMaxLayer() : void {
-        this.max = this.max + 1;
+    setMinZIndex(min: number, viewId: string) {
+        const max = this.getMaxZIndex(viewId)
+        this.zIndexMap.set(viewId, {
+            min,
+            max
+        })
     }
-    addMinLayer() : void {
-        this.min = this.min - 1;
+    addMaxLayer(viewId: string): void {
+        const max = this.getMaxZIndex(viewId) + 1;
+        this.setMaxZIndex(max, viewId)
+    }
+    addMinLayer(viewId: string): void {
+        const min = this.getMinZIndex(viewId) - 1;
+        this.setMinZIndex(min, viewId)
+    }
+    correct(data:Array<[string,number]>): Array<[string,number]> {
+       const arr = data.sort((a,b)=>{
+            return a[1] - b[1];
+        });
+        for (let i = 1; i < arr.length; i++) {
+            const curZIndex = arr[i][1];
+            const perZIndex = arr[i-1][1];
+            if (curZIndex <= perZIndex) {
+                arr[i][1] = perZIndex + 1;
+            }
+        }
+        return arr;
     }
     collect(data: ZIndexNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
@@ -94,11 +123,11 @@ export class ZIndexNodeMethod extends BaseMsgMethod {
                         updateNodeOpt?: IUpdateNodeOpt;
                     }> = new Map();
                     if (layer === ElayerType.Top) {
-                        this.addMaxLayer();
-                        zIndex = this.max;
+                        this.addMaxLayer(viewId);
+                        zIndex = this.getMaxZIndex(viewId);
                     } else {
-                        this.addMinLayer();
-                        zIndex = this.min;
+                        this.addMinLayer(viewId);
+                        zIndex = this.getMinZIndex(viewId);
                     }
                     selectIds.forEach((name)=> {
                         const isLocalId = this.serviceColloctor?.isLocalId(name);

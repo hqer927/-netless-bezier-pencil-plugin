@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useContext, useMemo, useRef } from "react"
+import React, { useContext, useEffect, useMemo, useRef } from "react"
 import { Del } from "./del"
 import { Duplicate } from "./duplicate"
 import { Layer } from "./layer"
-import { FillColors, StrokeColors, TextColors } from "./colors"
+import { FillColors, StrokeColors, TextBgColors, TextColors } from "./colors"
 import { DisplayerContext } from "../../plugin/displayerView";
 import { TextOptions } from "../../component/textEditor"
 import { FontStyleBtn } from "./fontStyle"
@@ -35,33 +35,36 @@ export const FloatBtns = React.memo((props:{
   const {textOpt, workIds, noLayer, position} = props;
   const {floatBarData, maranger} = useContext(DisplayerContext);
   const [openType, setOpenType] = React.useState<EOpenType>(EOpenType.none)
+  const [style, setStyle] = React.useState<React.CSSProperties | undefined>();
   const ref = useRef<HTMLDivElement>(null);
-  const style = useMemo(()=>{
+  useEffect(()=>{
     const value:React.CSSProperties = {};
     const inputW = floatBarData?.w || textOpt?.boxSize?.[0] || 0;
     const inputH = floatBarData?.h || textOpt?.boxSize?.[1] || 0;
     if (position && inputW && inputH && maranger?.width && maranger?.height) {
       if (position.y < 60) {
-        if (position.y + inputW < maranger.height - 60) {
+        if (position.y + inputH < maranger.height - 60) {
           value.bottom = -120;
         } else if ( position.y + inputH < maranger.height) {
           value.bottom = -58;
         } else if ( position.y > 0) {
-          value.top = 62
+          value.top = 62;
         } else {
           value.top = - position.y + 62;
         }
+      } else {
+        value.top = 0;
       }
       if (position.x < 0) {
         value.left = -position.x + 3;
       } else if (position.x + (ref.current?.offsetWidth || inputW) > maranger.width) {
-        const right = inputW + position.x - maranger.width;
-        value.left = 'initial';
-        value.right = right
+        const left = maranger.width - (ref.current?.offsetWidth || inputW) - position.x;
+        value.left = left;
       }
-      return value;
+      setStyle(value);
+      return;
     }
-    return undefined
+    setStyle(undefined);
   },[ref, position, floatBarData?.w,floatBarData?.h, maranger?.width, maranger?.height, textOpt?.boxSize])
   const useFillColors = useMemo(()=>{
     if(floatBarData?.fillColor) {
@@ -99,18 +102,18 @@ export const FloatBtns = React.memo((props:{
     }
     return null;
   }, [textOpt, openType, workIds, maranger, ref])
-  // const useTextBgColors = useMemo(()=>{
-  //   if(textOpt?.fontBgColor) {
-  //     return <TextBgColors open={openType === EOpenType.TextBgColor} setOpen={(bol: boolean) => {
-  //       if (bol === true) {
-  //         setOpenType(EOpenType.TextBgColor)
-  //       } else {
-  //         setOpenType(EOpenType.none)
-  //       }
-  //     } } floatBarColors={floatBarColors} textOpt={textOpt} workIds={workIds}/>
-  //   }
-  //   return null;
-  // }, [textOpt, openType, floatBarColors, workIds])
+  const useTextBgColors = useMemo(()=>{
+    if(textOpt?.fontBgColor && maranger?.viewId) {
+      return <TextBgColors floatBarRef={ref} open={openType === EOpenType.TextBgColor} setOpen={(bol: boolean) => {
+        if (bol === true) {
+          setOpenType(EOpenType.TextBgColor)
+        } else {
+          setOpenType(EOpenType.none)
+        }
+      } } textOpt={textOpt} workIds={workIds}/>
+    }
+    return null;
+  }, [textOpt, openType, workIds, maranger, ref])
   const useFontStyle = useMemo(()=>{
     if(textOpt && maranger?.viewId) {
       return <FontStyleBtn open={openType === EOpenType.FontStyle} setOpen={(bol: boolean) => {
@@ -171,6 +174,21 @@ export const FloatBtns = React.memo((props:{
     <div
       className={'bezier-pencil-plugin-floatbtns'} style={ style }
       ref={ref}
+      onMouseOver={(e)=>{
+        e.stopPropagation();
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        maranger?.control.worker.blurCursor(maranger.viewId);
+        return false;
+      }}
+      onMouseMove={(e)=>{
+        e.stopPropagation();
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        return false;
+      }}
     >
       {maranger && <Del workIds={workIds} maranger={maranger}/>}
       {useLayer}
@@ -180,7 +198,7 @@ export const FloatBtns = React.memo((props:{
       {useFontSize}
       {useFontStyle}
       {useTextColors}
-      {/* {useTextBgColors} */}
+      {useTextBgColors}
       {useStrokeColors}
       {useFillColors}
     </div>

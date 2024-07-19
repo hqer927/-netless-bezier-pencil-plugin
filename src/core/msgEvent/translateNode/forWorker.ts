@@ -7,21 +7,10 @@ import { SelectorShape } from "../../tools";
 export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
     readonly emitEventType: EmitEventType = EmitEventType.TranslateNode;
     consume(data: IWorkerMessage): boolean | undefined {
-        const {msgType, dataType, emitEventType, undoTickerId} = data;
+        const {msgType, dataType, emitEventType} = data;
         if (msgType !== EPostMessageType.UpdateNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data).finally(()=>{
-                if (undoTickerId) {
-                    setTimeout(()=>{
-                        this.localWork?._post({
-                            sp:[{
-                                type: EPostMessageType.None,
-                                undoTickerId,
-                            }]
-                        })
-                    },0)
-                }
-            })
+            this.consumeForLocalWorker(data);
             return true;
         }        
     }
@@ -38,7 +27,7 @@ export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
     }
     private updateSelectorCallback(props:IUpdateSelectorCallbackPropsType){
         const {param, postData, newServiceStore, workShapeNode, res} = props;
-        const {willSyncService, isSync, updateSelectorOpt, willSerializeData, textUpdateForWoker} = param;
+        const {willSyncService, isSync, updateSelectorOpt, textUpdateForWoker} = param;
         const workState = updateSelectorOpt.workState;
         const render: IMainMessageRenderData[] = postData.render || [];
         const sp: IMainMessage[] = postData.sp || [];
@@ -50,22 +39,20 @@ export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
         }
         const selectRect:IRectType|undefined = res?.selectRect;
         if (willSyncService) {
-            if (willSerializeData) {
-                const points = workShapeNode.getChildrenPoints();
-                if (points) {
-                    sp.push({
-                        type: EPostMessageType.Select,
-                        selectIds: workShapeNode.selectIds,
-                        selectRect,
-                        willSyncService: false,
-                        isSync,
-                        points
-                    })
-                }
-            }
+            // if (workState === EvevtWorkState.Doing) {
+
+            // }
+            sp.push({
+                type: EPostMessageType.Select,
+                selectIds: workShapeNode.selectIds,
+                selectRect,
+                willSyncService: true,
+                isSync: true,
+                points: workState === EvevtWorkState.Done && workShapeNode.getChildrenPoints() || undefined,
+                textOpt: workShapeNode.textOpt
+            })
             for (const [workId, info] of newServiceStore.entries()) {
                 if (textUpdateForWoker && info.toolsType === EToolsKey.Text) {
-                    // console.log('TranslateNode', info)
                     sp.push({
                         ...info,
                         workId,
@@ -88,7 +75,6 @@ export class TranslateNodeMethodForWorker extends BaseMsgMethodForWorker {
                 } 
             }
         }
-        // console.log('updateSelector---0---0--TranslateNode', render, sp)
         return {
             render,
             sp

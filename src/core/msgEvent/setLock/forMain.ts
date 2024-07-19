@@ -10,6 +10,7 @@ export type SetLockEmitData = {
     viewId: string;
 }
 export class SetLockMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.SetLock;
     collect(data: SetLockEmitData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
@@ -59,7 +60,7 @@ export class SetLockMethod extends BaseMsgMethod {
                 }]);
             }
         }
-        this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+        this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
         if (localMsgs.length) {
             this.collectForLocalWorker(localMsgs);
         }

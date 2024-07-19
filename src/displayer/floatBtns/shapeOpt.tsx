@@ -1,16 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { IconURL } from "../icons";
-import { EmitEventType, InternalMsgEmitterType, SpeechBalloonPlacement, TeachingAidsViewManagerLike } from "../../plugin/types";
+import { EmitEventType, InternalMsgEmitterType, SpeechBalloonPlacement, ApplianceViewManagerLike } from "../../plugin/types";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import { Storage_Selector_key } from "../../collector";
 import { EToolsKey } from "../../core";
-import isEqual from "lodash/isEqual";
 import { DisplayerContext } from "../../plugin/displayerView";
 import { ShapeOptButProps, ShapeOptType } from "../types";
-import isBoolean from "lodash/isBoolean";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
-import throttle from "lodash/throttle";
+import {throttle, isNumber, isEqual, isBoolean} from "lodash";
 import { SpeechBalloonPlacements } from "../const";
 const InputNumberBtn = (props: {
     icon:string;
@@ -47,7 +45,9 @@ const InputNumberBtn = (props: {
                 e.nativeEvent.stopImmediatePropagation()
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
             }}
@@ -71,7 +71,9 @@ const InputNumberBtn = (props: {
                         const range = selection?.getRangeAt(0);
                         // 检查是否有选区文本，如果有则正常删除
                         if (range?.collapsed) {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             // 执行删除操作，这里可以根据具体需求调整删除逻辑
                             document.execCommand('delete', false);
                             return false;
@@ -147,7 +149,9 @@ const InputRangeUIBtn = (props: {
         setPosition({x: value * 100, y: 0})
     },[])
     const onDragHandler = throttle((e, pos) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         let isRightX = Math.floor(Math.max(pos.x, min * 100));
         isRightX = Math.floor(Math.min(isRightX, max * 100));
@@ -155,18 +159,20 @@ const InputRangeUIBtn = (props: {
             setPosition({x: isRightX,y:0})
         }
         const curValue = isRightX / 100;
-        console.log('first1--doing', pos, pos.x, isRightX, curValue)
         if (value!== curValue) {
             onInputHandler(curValue)
         }
     }, 100, {'leading':false})
     const onDragStartHandler = (e: DraggableEvent) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
     }
-    const onDragEndHandler = throttle((e: DraggableEvent,
-        pos: DraggableData) => {
-        e.preventDefault();
+    const onDragEndHandler = throttle((e: DraggableEvent, pos: DraggableData) => {
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         let isRightX = Math.floor(Math.max(pos.x, min * 100));
         isRightX = Math.floor(Math.min(isRightX, max * 100));
@@ -174,12 +180,10 @@ const InputRangeUIBtn = (props: {
             setPosition({x: isRightX,y:0})
         }
         const curValue = isRightX / 100;
-        console.log('first1--end', pos, pos.x, isRightX, curValue)
         if (value!== curValue) {
             onInputHandler(curValue)
         }
     }, 100, {'leading':false})
-    console.log('position', position)
     return (
         <div className={'range-number-container'}
             onClick={(e)=>{
@@ -188,7 +192,6 @@ const InputRangeUIBtn = (props: {
                 isRightX = Math.floor(Math.min(isRightX, max * 100));
                 setPosition({x: isRightX, y: 0})
                 const curValue = isRightX / 100;
-                console.log('first1', e.nativeEvent.offsetX, isRightX, curValue)
                 if (value!== curValue) {
                     onInputHandler(curValue)
                 }
@@ -255,13 +258,21 @@ const SelectPlacementBtn = (props: {
         <div className="button input-button">
             <img src={IconURL(icon)}/>
             <input readOnly className="input-number" type="text" ref={ref}
-                onTouchEnd={()=>{
+                onTouchEnd={(e)=>{
+                    if (e.cancelable) {
+                        e.preventDefault();
+                    }
+                    e.stopPropagation();
                     if (ref.current) {
                         ref.current.focus();
                         // setShowSubBtn(!showSubBtn);
                     }
                 }}
-                onClick={()=>{
+                onClick={(e)=>{
+                    if (e.cancelable) {
+                        e.preventDefault();
+                    }
+                    e.stopPropagation();
                     if (ref.current) {
                         ref.current.focus();
                         setShowSubBtn(!showSubBtn);
@@ -270,18 +281,34 @@ const SelectPlacementBtn = (props: {
             />
             <div className="input-number-btns">
                 <div className="input-number-add" 
-                    onClick={()=>{
+                    onClick={(e)=>{
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
+                        e.stopPropagation();
                         checkValue(optionIndex+1)
                     }} 
-                    onTouchEnd={()=>{
+                    onTouchEnd={(e)=>{
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
+                        e.stopPropagation();
                         checkValue(optionIndex+1)
                     }}
                 ></div>
                 <div className="input-number-cut" 
-                    onClick={()=>{
+                    onClick={(e)=>{
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
+                        e.stopPropagation();
                         checkValue(optionIndex-1)
                     }}
-                    onTouchEnd={()=>{
+                    onTouchEnd={(e)=>{
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
+                        e.stopPropagation();
                         checkValue(optionIndex-1)
                     }}
                 ></div>
@@ -299,11 +326,16 @@ const SelectOptionBtns = (props:{
     return (
         <div className="select-option-menu" style={ style }
             onTouchEnd={(e)=>{
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
             }}
@@ -311,8 +343,20 @@ const SelectOptionBtns = (props:{
             {
                 options.map((s,index)=>(
                     <div className="select-option-btn" key={s} 
-                        onClick={()=>{onClickHandler(index)}}
-                        onTouchEnd={()=>{onClickHandler(index)}}
+                        onClick={(e)=>{
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
+                            e.stopPropagation();
+                            onClickHandler(index)
+                        }}
+                        onTouchEnd={(e)=>{
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
+                            e.stopPropagation();
+                            onClickHandler(index)
+                        }}
                     >{s}</div>
                 ))
             }
@@ -323,23 +367,20 @@ const StarFormView = (props: {
     vertices: number;
     innerVerticeStep: number;
     innerRatio: number;
-    maranger: TeachingAidsViewManagerLike;
+    maranger: ApplianceViewManagerLike;
 }) => {
     const {maranger, innerRatio, innerVerticeStep, vertices} = props;
     const onInputVerticesHandler=(vertices:number)=>{
-        console.log('onInputHandler', vertices)
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.SetShapeOpt, {workIds:[Storage_Selector_key], toolsType: EToolsKey.Star, 
             viewId:maranger.viewId, vertices})
     }
     const onInputInnerVertexHandler=(innerVerticeStep:number)=>{
-        console.log('onInputHandler', innerVerticeStep)
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.SetShapeOpt, {workIds:[Storage_Selector_key], toolsType: EToolsKey.Star, 
             viewId:maranger.viewId, innerVerticeStep})
     }
     const onInputInnerRatioHandler=(innerRatio:number)=>{
-        console.log('onInputHandler', innerRatio)
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.SetShapeOpt, {workIds:[Storage_Selector_key], toolsType: EToolsKey.Star, 
             viewId:maranger.viewId, innerRatio})
@@ -354,7 +395,7 @@ const StarFormView = (props: {
 }
 const PolygonFormView = (props: {
     vertices: number;
-    maranger: TeachingAidsViewManagerLike
+    maranger: ApplianceViewManagerLike
 }) => {
     const {maranger, vertices} = props;
     const onInputHandler=(vertices:number)=>{
@@ -368,12 +409,11 @@ const PolygonFormView = (props: {
 }
 const SpeechBalloonFormView = (props: {
     placement: SpeechBalloonPlacement;
-    maranger: TeachingAidsViewManagerLike;
+    maranger: ApplianceViewManagerLike;
 }) => {
     const {maranger, placement} = props;
 
     const onChangeHandler=(placement:SpeechBalloonPlacement)=>{
-        console.log('onChangeHandler-SpeechBalloonFormView', placement)
         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
             EmitEventType.SetShapeOpt, {workIds:[Storage_Selector_key], toolsType: EToolsKey.SpeechBalloon, 
             viewId:maranger.viewId, placement})
@@ -399,7 +439,7 @@ const SubBtns = (props:{
     shapeOpt: ShapeOptType;
     toolsTypes: EToolsKey[];
     style?: React.CSSProperties;
-    maranger: TeachingAidsViewManagerLike
+    maranger: ApplianceViewManagerLike
 }) => {
     const {toolsTypes, style, maranger, shapeOpt} = props;
     const [toolsType, setToolsType] = useState<EToolsKey>();
@@ -414,7 +454,9 @@ const SubBtns = (props:{
         }
     },[toolsTypes])
     const onClickTabHandler = (type:EToolsKey, e:any) => {
-        e?.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e?.stopPropagation();
         setToolsType(type);
     }
@@ -441,7 +483,9 @@ const SubBtns = (props:{
             onClick={(e)=>{
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation();
-                e?.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
             }}
         >
             <div className="shapeOpt-sub-menu-tabs">
@@ -466,18 +510,18 @@ const SubBtns = (props:{
 
 export const ShapeOpt = (props:ShapeOptButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn, floatBarRef, toolsTypes, shapeOpt} = props;
-    const {floatBarData, maranger, position} = useContext(DisplayerContext);
+    const {floatBarData, maranger} = useContext(DisplayerContext);
     const [selectIds,setSelectIds] = useState<string[]>([]);
     const [oldDisableDeviceInputs, setOldDisableDeviceInputs] = useState<boolean>();
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 200) {
+        if (floatBarRef?.current && isNumber(floatBarData?.x) && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 200) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData?.y < 140){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
@@ -485,7 +529,7 @@ export const ShapeOpt = (props:ShapeOptButProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.x, floatBarData?.y, maranger?.height])
     const SubBtnUI = useMemo(() => {
         if (showSubBtn && toolsTypes && maranger && shapeOpt) {
             if (maranger.control.room && !maranger.control.room.disableDeviceInputs) {
@@ -496,12 +540,13 @@ export const ShapeOpt = (props:ShapeOptButProps) => {
         }
         if( maranger?.control.room && isBoolean(oldDisableDeviceInputs)) {
             maranger.control.room.disableDeviceInputs = oldDisableDeviceInputs;
-            console.log('showSubBtn---false---001', showSubBtn)
         }
         return null
     }, [showSubBtn, subBtnStyle, toolsTypes, maranger, shapeOpt])
     const onClickHandler = (e:any) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
         const isActive = !showSubBtn;
@@ -526,7 +571,6 @@ export const ShapeOpt = (props:ShapeOptButProps) => {
             if (showSubBtn) {
                 if( maranger?.control.room && isBoolean(oldDisableDeviceInputs)) {
                     maranger.control.room.disableDeviceInputs = oldDisableDeviceInputs;
-                    console.log('showSubBtn---false---002', showSubBtn)
                 }
             }
         }

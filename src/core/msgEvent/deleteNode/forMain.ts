@@ -8,6 +8,7 @@ export type DeleteNodeEmtData = {
     viewId: string;
 }
 export class DeleteNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType = EmitEventType.DeleteNode;
     collect(data: DeleteNodeEmtData): void {
         if (!this.serviceColloctor || !this.mainEngine) {
@@ -53,10 +54,9 @@ export class DeleteNodeMethod extends BaseMsgMethod {
                 dataType: EDataType.Local,
                 willSyncService: true,
                 willRefresh: true,
-                undoTickerId,
                 viewId
             },undefined]);
-            this.mainEngine.internalMsgEmitter.emit('undoTickerStart', undoTickerId, viewId);
+            this.mainEngine.internalMsgEmitter.emit('addUndoTicker', undoTickerId, viewId);
             this.collectForLocalWorker(localMsgs);
         }
     }

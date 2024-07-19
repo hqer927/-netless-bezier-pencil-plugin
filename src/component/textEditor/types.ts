@@ -49,4 +49,5 @@ export enum ETextEditorType {
     dataType?:EDataType;
     translate?:[number,number];
     justLocal?:boolean;
+   //  waitWorker?:boolean;
  }

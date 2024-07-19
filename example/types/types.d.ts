@@ -5,7 +5,7 @@ declare global {
       player: any;
       room: any;
       syncedStore: any;
-      pluginRoom: any;
+      appliancePlugin: any;
       manager: any;
     }
 }

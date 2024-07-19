@@ -7,6 +7,7 @@ export type SetLockEmitData = {
     viewId: string;
 };
 export declare class SetLockMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
     collect(data: SetLockEmitData): void;
 }

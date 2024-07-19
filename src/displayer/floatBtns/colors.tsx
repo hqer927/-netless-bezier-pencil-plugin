@@ -4,11 +4,11 @@ import { EmitEventType, InternalMsgEmitterType } from "../../plugin/types";
 import { colorRGBA2Hex, hexToRgba, rgbToHex } from "../../collector/utils/color";
 import { MethodBuilderMain } from "../../core/msgEvent";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
-import throttle from "lodash/throttle";
 import { EvevtWorkState } from "../../core";
 import { Storage_Selector_key } from "../../collector";
 import { IconURL } from "../icons";
 import { SubButProps, TextButProps } from "../types";
+import { isNumber, throttle } from "lodash";
 
 const HighlightSvg = () => (
     <svg style={{marginLeft: '2px'}} viewBox="0 0 1025 1024" width="14" height="14">
@@ -56,7 +56,9 @@ const OpacityBtn = (props: {
         return null;
     }
     const onDragHandler = throttle((e, pos) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         if (pos.x !== position?.x) {
             setPosition({x: pos.x,y:0})
@@ -67,13 +69,16 @@ const OpacityBtn = (props: {
         }
     }, 100, {'leading':false})
     const onDragStartHandler = (e: DraggableEvent) => {
-        e.preventDefault();
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         setCurOpacity(opacity, activeColor, EvevtWorkState.Start)
     }
-    const onDragEndHandler = throttle((e: DraggableEvent,
-        pos: DraggableData) => {
-        e.preventDefault();
+    const onDragEndHandler = throttle((e: DraggableEvent, pos: DraggableData) => {
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         e.stopPropagation();
         if (pos.x !== position?.x) {
             setPosition({x: pos.x,y:0})
@@ -84,7 +89,6 @@ const OpacityBtn = (props: {
     return (
         <div className={'font-color-opacity'} style={{marginLeft: '10px'}}
             onClick={(e)=>{
-                // console.log('first1', e.nativeEvent.offsetX)
                 const x = e.nativeEvent.offsetX;
                 const curOpacity = Math.min(Math.max(x - 12, 0), 100) / 100;
                 setPosition({x: curOpacity * 100 + 8, y: 0})
@@ -109,8 +113,10 @@ const OpacityBtn = (props: {
                             backgroundColor: hexToRgba(activeColor, opacity)
                         }}
                         onClick={(e)=>{
-                            e?.preventDefault();
-                            e?.stopPropagation();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
+                            e.stopPropagation();
                         }}
                     ></div>
                 </Draggable>
@@ -120,27 +126,26 @@ const OpacityBtn = (props: {
 }
 export const StrokeColors = (props:SubButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn, floatBarRef} = props;
-    const {floatBarData, floatBarColors, maranger, position, setFloatBarData} = useContext(DisplayerContext);
+    const {floatBarData, floatBarColors, maranger , setFloatBarData} = useContext(DisplayerContext);
     // const [showSubBtn, setShowSubBtn] = useState(open);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
         if (floatBarData?.strokeColor) {
             const [hex, opacity] = colorRGBA2Hex(floatBarData.strokeColor);
-            // console.log('useEffect', floatBarData?.strokeColor, hex, opacity)
             setColor(hex);
             setOpacity(opacity);
         }
     }, [floatBarData])
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+        if (floatBarRef?.current && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 180) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData.y < 120){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
@@ -148,7 +153,7 @@ export const StrokeColors = (props:SubButProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.y, maranger])
     const SubOpacityBtn = useMemo(()=>{
         return <OpacityBtn key={'strokeColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
             if (workState === EvevtWorkState.Start && maranger?.control.room) {
@@ -176,7 +181,9 @@ export const StrokeColors = (props:SubButProps) => {
                         e.nativeEvent.stopImmediatePropagation()
                     }}
                     onClick={(e)=>{
-                        e.preventDefault();
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -195,10 +202,12 @@ export const StrokeColors = (props:SubButProps) => {
                                             setFloatBarData({strokeColor});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor, viewId:maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, strokeColor, viewId:maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
-                                        e.preventDefault();
+                                        if (e.cancelable) {
+                                            e.preventDefault();
+                                        }
                                         e.stopPropagation();
                                         setColor(curColor);
                                         const strokeColor = hexToRgba(curColor,opacity);
@@ -207,7 +216,7 @@ export const StrokeColors = (props:SubButProps) => {
                                             setFloatBarData({strokeColor});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], strokeColor, viewId:maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, strokeColor, viewId:maranger?.viewId})
                                     }}
                                 />
                             )
@@ -237,7 +246,9 @@ export const StrokeColors = (props:SubButProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
@@ -250,7 +261,7 @@ export const StrokeColors = (props:SubButProps) => {
 }
 export const FillColors = (props:SubButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn, floatBarRef} = props;
-    const { floatBarData, floatBarColors, maranger, position, setFloatBarData} = useContext(DisplayerContext);
+    const { floatBarData, floatBarColors, maranger, setFloatBarData} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
@@ -261,14 +272,14 @@ export const FillColors = (props:SubButProps) => {
         }
     }, [floatBarData])
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 200) {
+        if (floatBarRef?.current && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 200) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData.y < 140){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
@@ -276,7 +287,7 @@ export const FillColors = (props:SubButProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.y, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if( activeColor && activeColor !== 'transparent'){
             return <OpacityBtn key={'fillColors'} opacity={opacity || 0} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
@@ -307,7 +318,9 @@ export const FillColors = (props:SubButProps) => {
                         e.nativeEvent.stopImmediatePropagation()
                     }}
                     onClick={(e)=>{
-                        e.preventDefault();
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -322,10 +335,12 @@ export const FillColors = (props:SubButProps) => {
                                 setFloatBarData({fillColor});
                             }
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor, viewId:maranger?.viewId})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, fillColor, viewId:maranger?.viewId})
                         }}
                         onClickHandler={(e) => {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             e.stopPropagation();
                             setColor('transparent');
                             const fillColor = 'transparent';
@@ -334,7 +349,7 @@ export const FillColors = (props:SubButProps) => {
                                 setFloatBarData({fillColor});
                             }
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor, viewId:maranger?.viewId})
+                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, fillColor, viewId:maranger?.viewId})
                         }}
                     />
                     {
@@ -343,6 +358,9 @@ export const FillColors = (props:SubButProps) => {
                             return (
                                 <ColorBtn key={index} color={curColor} activeColor={activeColor} 
                                     onTouchEndHandler={(e) => {
+                                        if (e.cancelable) {
+                                            e.preventDefault();
+                                        }
                                         e.stopPropagation();
                                         setColor(curColor);
                                         const fillColor = hexToRgba(curColor,opacity);
@@ -351,10 +369,12 @@ export const FillColors = (props:SubButProps) => {
                                             setFloatBarData({fillColor});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor, viewId:maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, fillColor, viewId:maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
-                                        e.preventDefault();
+                                        if (e.cancelable) {
+                                            e.preventDefault();
+                                        }
                                         e.stopPropagation();
                                         setColor(curColor);
                                         const fillColor = hexToRgba(curColor,opacity);
@@ -363,7 +383,7 @@ export const FillColors = (props:SubButProps) => {
                                             setFloatBarData({fillColor});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fillColor, viewId:maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], workState:EvevtWorkState.Done, fillColor, viewId:maranger?.viewId})
                                     }}
                                 />
                             )
@@ -391,7 +411,9 @@ export const FillColors = (props:SubButProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
@@ -404,26 +426,25 @@ export const FillColors = (props:SubButProps) => {
 }
 export const TextColors = (props:TextButProps) => {
     const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef} = props;
-    const { floatBarColors, maranger, position, setFloatBarData, floatBarData} = useContext(DisplayerContext);
+    const { floatBarColors, maranger, setFloatBarData, floatBarData} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
         if (textOpt?.fontColor) {
             const [hex, opacity] = textOpt?.fontColor === 'transparent' && ['transparent', 0] || colorRGBA2Hex(textOpt.fontColor);
-            // console.log('useEffect', textOpt?.fontColor, hex, opacity)
             setColor(hex);
             setOpacity(opacity);
         }
     }, [textOpt?.fontColor])
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 180) {
+        if (floatBarRef?.current && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 180) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 120){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData.y < 120){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
@@ -431,7 +452,7 @@ export const TextColors = (props:TextButProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.y, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
             return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
@@ -469,7 +490,9 @@ export const TextColors = (props:TextButProps) => {
                         e.nativeEvent.stopImmediatePropagation()
                     }}
                     onClick={(e)=>{
-                        e.preventDefault();
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -488,10 +511,12 @@ export const TextColors = (props:TextButProps) => {
                                             setFloatBarData({textOpt:floatBarData.textOpt});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor, viewId: maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontColor, viewId: maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
-                                        e.preventDefault();
+                                        if (e.cancelable) {
+                                            e.preventDefault();
+                                        }
                                         e.stopPropagation();
                                         setColor(curColor);
                                         const fontColor = hexToRgba(curColor,opacity);
@@ -500,7 +525,7 @@ export const TextColors = (props:TextButProps) => {
                                             setFloatBarData({textOpt:floatBarData.textOpt});
                                         }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], fontColor, viewId: maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontColor, viewId: maranger?.viewId})
                                     }}
                                 />
                             )
@@ -528,7 +553,9 @@ export const TextColors = (props:TextButProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
@@ -541,27 +568,26 @@ export const TextColors = (props:TextButProps) => {
     )
 }
 export const TextBgColors = (props:TextButProps) => {
-    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, floatBarRef} = props;
-    const { floatBarColors, maranger, position} = useContext(DisplayerContext);
+    const {open: showSubBtn, setOpen: setShowSubBtn, textOpt, workIds, floatBarRef} = props;
+    const { floatBarColors, maranger, setFloatBarData, floatBarData} = useContext(DisplayerContext);
     const [activeColor,setColor] = useState<string>();
     const [opacity,setOpacity] = useState<number>(1);
     useEffect(()=>{
         if (textOpt?.fontBgColor) {
-            const [hex, opacity] = textOpt?.fontBgColor === 'transparent' && ['transparent', 0] || colorRGBA2Hex(textOpt.fontBgColor);
-            // console.log('useEffect', floatBarData?.strokeColor, hex, opacity)
+            const [hex, opacity] = textOpt?.fontBgColor === 'transparent' && ['transparent', 1] || colorRGBA2Hex(textOpt.fontBgColor);
             setColor(hex);
             setOpacity(opacity);
         }
     }, [textOpt?.fontBgColor])
     const subBtnStyle = useMemo(()=>{
-        if (floatBarRef?.current && position && maranger?.height) {
-            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + position.y > 150) {
+        if (floatBarRef?.current && isNumber(floatBarData?.y) && maranger?.height) {
+            if (floatBarRef.current.offsetTop && floatBarRef.current.offsetTop + floatBarData.y > 180) {
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
                 return value;
             } 
-            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - position.y < 140){
+            else if (!floatBarRef.current.offsetTop && maranger?.height - floatBarRef.current.offsetTop - floatBarData.y < 120){
                 const value:React.CSSProperties = {};
                 value.top = 'inherit';
                 value.bottom = 50;
@@ -569,10 +595,10 @@ export const TextBgColors = (props:TextButProps) => {
             }
         }
         return undefined;
-    }, [floatBarRef, position, maranger])
+    }, [floatBarRef, floatBarData?.y, maranger])
     const SubOpacityBtn = useMemo(()=>{
         if (activeColor && activeColor !== 'transparent') {
-            return <OpacityBtn key={'fontColors'} opacity={opacity} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
+            return <OpacityBtn key={'fontBgColor'} opacity={opacity || 0} activeColor={activeColor} setCurOpacity={(curOpacity, curColor, workState)=>{
                 if (workState === EvevtWorkState.Start && maranger?.control.room) {
                     maranger.control.room.disableDeviceInputs = true;
                 }
@@ -580,12 +606,23 @@ export const TextBgColors = (props:TextButProps) => {
                     maranger.control.room.disableDeviceInputs = false;
                 }
                 setOpacity(curOpacity);
+                const fontBgColor = hexToRgba(curColor,curOpacity);
+                if ( floatBarData?.textOpt) {
+                    floatBarData.textOpt.fontBgColor = fontBgColor;
+                    setFloatBarData({textOpt:floatBarData.textOpt});
+                }
                 MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                    EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: activeColor && hexToRgba(curColor,curOpacity), workState, viewId:maranger?.viewId})
+                    EmitEventType.SetColorNode, {
+                        workIds: workIds || [Storage_Selector_key], 
+                        fontBgColor: activeColor && hexToRgba(curColor,curOpacity), 
+                        workState, 
+                        viewId:maranger?.viewId
+                    }
+                )
             }} />
         }
         return null
-    },[activeColor, opacity, maranger])
+    },[activeColor, opacity, maranger?.control.room, maranger?.viewId, floatBarData?.textOpt, workIds])
     const SubBtns = useMemo(() => {
         if (showSubBtn) {
             return (
@@ -595,7 +632,9 @@ export const TextBgColors = (props:TextButProps) => {
                         e.nativeEvent.stopImmediatePropagation()
                     }}
                     onClick={(e)=>{
-                        e.preventDefault();
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation()
                     }}
@@ -603,16 +642,28 @@ export const TextBgColors = (props:TextButProps) => {
                     <NoneColorBtn activeColor={activeColor} 
                         onTouchEndHandler={(e) => {
                             e.stopPropagation();
-                            setColor('transparent');
+                            const fontBgColor = 'transparent';
+                            setColor(fontBgColor);
+                            if ( floatBarData?.textOpt) {
+                                floatBarData.textOpt.fontBgColor = fontBgColor;
+                                setFloatBarData({textOpt:floatBarData.textOpt});
+                            }
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent', viewId: maranger?.viewId})
+                                EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontBgColor, viewId: maranger?.viewId})
                         }}
                         onClickHandler={(e) => {
-                            e.preventDefault();
+                            if (e.cancelable) {
+                                e.preventDefault();
+                            }
                             e.stopPropagation();
-                            setColor('transparent');
+                            const fontBgColor = 'transparent';
+                            setColor(fontBgColor);
+                            if ( floatBarData?.textOpt) {
+                                floatBarData.textOpt.fontBgColor = fontBgColor;
+                                setFloatBarData({textOpt:floatBarData.textOpt});
+                            }
                             MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: 'transparent', viewId: maranger?.viewId})
+                                EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontBgColor, viewId: maranger?.viewId})
                         }}
                     />
                     {
@@ -623,15 +674,27 @@ export const TextBgColors = (props:TextButProps) => {
                                     onTouchEndHandler={(e) => {
                                         e.stopPropagation();
                                         setColor(curColor);
+                                        const fontBgColor = hexToRgba(curColor,opacity);
+                                        if ( floatBarData?.textOpt) {
+                                            floatBarData.textOpt.fontBgColor = fontBgColor;
+                                            setFloatBarData({textOpt:floatBarData.textOpt});
+                                        }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                     onClickHandler={(e) => {
-                                        e.preventDefault();
+                                        if (e.cancelable) {
+                                            e.preventDefault();
+                                        }
                                         e.stopPropagation();
                                         setColor(curColor);
+                                        const fontBgColor = hexToRgba(curColor,opacity);
+                                        if ( floatBarData?.textOpt) {
+                                            floatBarData.textOpt.fontBgColor = fontBgColor;
+                                            setFloatBarData({textOpt:floatBarData.textOpt});
+                                        }
                                         MethodBuilderMain.emitMethod(InternalMsgEmitterType.MainEngine, 
-                                            EmitEventType.SetColorNode, {workIds: [Storage_Selector_key], fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
+                                            EmitEventType.SetColorNode, {workIds: workIds || [Storage_Selector_key], workState:EvevtWorkState.Done, fontBgColor: hexToRgba(curColor,opacity), viewId: maranger?.viewId})
                                     }}
                                 />
                             )
@@ -642,7 +705,7 @@ export const TextBgColors = (props:TextButProps) => {
             )
         }
         return null
-    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, maranger, subBtnStyle])
+    }, [showSubBtn, floatBarColors, SubOpacityBtn, opacity, activeColor, floatBarData?.textOpt, workIds, maranger?.viewId, subBtnStyle])
     const ColorBar = useMemo(() => {
         const backgroundColor = activeColor && activeColor !== 'transparent' && hexToRgba(activeColor, opacity) || 'transparent';
         return (
@@ -659,7 +722,9 @@ export const TextBgColors = (props:TextButProps) => {
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);
             }}
             onClick={(e)=>{
-                e.preventDefault();
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation()
                 showSubBtn ? setShowSubBtn(false) : setShowSubBtn(true);

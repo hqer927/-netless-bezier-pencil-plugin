@@ -1,31 +1,32 @@
 import React, { FocusEventHandler, KeyboardEventHandler } from "react";
 import { TextEditorInfo, TextOptions } from "./types";
-import { TeachingAidsViewManagerLike } from "../../plugin/types";
+import { ApplianceViewManagerLike, EmitEventType } from "../../plugin/types";
+export declare const Max_Font_Size = 80;
 export interface TextSelectorManagerProps {
     selectIds: string[];
     className?: string;
     editors?: Map<string, TextEditorInfo>;
     activeTextId?: string;
-    position?: {
+    box?: {
         x: number;
         y: number;
+        w: number;
+        h: number;
     };
-    textRef?: React.RefObject<HTMLDivElement>;
-    manager: TeachingAidsViewManagerLike;
+    manager: ApplianceViewManagerLike;
     showFloatBtns?: boolean;
+    operationType?: EmitEventType;
 }
 export interface TextViewProps {
     workId: string;
     data: TextEditorInfo;
     isSelect?: boolean;
     isActive?: boolean;
-    manager: TeachingAidsViewManagerLike;
+    manager: ApplianceViewManagerLike;
 }
 export interface TextSelectorViewProps extends TextViewProps {
-    position?: {
-        x: number;
-        y: number;
-    };
+    left: string;
+    top: string;
     selectIds?: string[];
     updateOptInfo: (param: {
         activeTextId: string;
@@ -37,6 +38,7 @@ export interface TextEditorProps extends TextViewProps {
     showFloatBtns: boolean;
     handleKeyUp: KeyboardEventHandler<HTMLDivElement>;
     handleFocus: FocusEventHandler<HTMLDivElement>;
+    runAnimation: () => void;
     updateOptInfo: (param: {
         activeTextId: string;
         update: Partial<TextOptions>;
@@ -60,7 +62,10 @@ export declare class TextViewInSelector extends React.Component<TextSelectorMana
     render(): React.JSX.Element;
 }
 export declare class TextEditorContainer extends TextViewInSelector {
+    ref: React.RefObject<HTMLDivElement> | undefined;
+    isRunAnimation?: number;
     constructor(props: TextSelectorManagerProps);
+    runAnimation(): void;
     handleKeyUp(e: any): void;
     handleFocus(e: any): void;
     get editorUI(): JSX.Element[] | null;

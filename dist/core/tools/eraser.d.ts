@@ -1,7 +1,7 @@
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { EScaleType, EToolsKey } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType } from "../types";
-import type { ServiceWorkForFullWorker } from "../worker/fullWorkerService";
+import { EPostMessageType, EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IRectType, IworkId } from "../types";
+import type { ServiceThreadSubWork } from "./utils";
 export interface EraserOptions extends BaseShapeOptions {
     thickness: number;
     isLine: boolean;
@@ -10,7 +10,7 @@ export declare class EraserShape extends BaseShapeTool {
     readonly canRotate: boolean;
     readonly scaleType: EScaleType;
     readonly toolsType: EToolsKey;
-    readonly serviceWork?: ServiceWorkForFullWorker;
+    readonly serviceWork?: ServiceThreadSubWork;
     private static readonly eraserSizes;
     protected tmpPoints: Array<number>;
     protected workOptions: EraserOptions;
@@ -18,7 +18,7 @@ export declare class EraserShape extends BaseShapeTool {
     worldScaling: [number, number];
     eraserRect: IRectType | undefined;
     eraserPolyline?: [number, number, number, number];
-    constructor(props: BaseShapeToolProps, serviceWork?: ServiceWorkForFullWorker);
+    constructor(props: BaseShapeToolProps, serviceWork?: ServiceThreadSubWork);
     combineConsume(): undefined;
     consumeService(): IRectType | undefined;
     setWorkOptions(setWorkOptions: EraserOptions): void;
@@ -32,10 +32,46 @@ export declare class EraserShape extends BaseShapeTool {
     private remove;
     consume(props: {
         data: IWorkerMessage;
-    }): IMainMessage;
+    }): {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        type: EPostMessageType;
+        rect?: undefined;
+        removeIds?: undefined;
+        newWorkDatas?: undefined;
+    } | {
+        type: EPostMessageType;
+        rect: IRectType;
+        removeIds: string[];
+        newWorkDatas: Map<string, {
+            op: number[];
+            opt: BaseShapeOptions;
+            workId: IworkId;
+            toolsType: EToolsKey;
+        }>;
+    };
     consumeAll(props: {
         data: IWorkerMessage;
-    }): IMainMessage;
+    }): {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        type: EPostMessageType;
+        rect?: undefined;
+        removeIds?: undefined;
+        newWorkDatas?: undefined;
+    } | {
+        type: EPostMessageType;
+        rect: IRectType;
+        removeIds: string[];
+        newWorkDatas: Map<string, {
+            op: number[];
+            opt: BaseShapeOptions;
+            workId: IworkId;
+            toolsType: EToolsKey;
+        }>;
+    };
     clearTmpPoints(): void;
     private getUnLockNodeMap;
 }

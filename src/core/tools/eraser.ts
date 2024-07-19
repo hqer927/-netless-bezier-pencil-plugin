@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
-import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
-import { IWorkerMessage, IMainMessage, IRectType, BaseNodeMapItem, IworkId } from "../types";
+import { EPostMessageType, EScaleType, EToolsKey } from "../enum";
+import { IWorkerMessage, IRectType, BaseNodeMapItem, IworkId } from "../types";
 import { computRect, getRectFromPoints, isIntersect } from "../utils";
 import { Vec2d } from "../utils/primitives/Vec2d";
 import lineclip from "lineclip";
 import type { Size } from "../types";
 import { Point2d } from "../utils/primitives/Point2d";
 import cloneDeep from "lodash/cloneDeep";
-import type { ServiceWorkForFullWorker } from "../worker/fullWorkerService";
+import type { ServiceThreadSubWork } from "./utils";
 
 export interface EraserOptions extends BaseShapeOptions {
     thickness: number;
@@ -18,7 +18,8 @@ export class EraserShape extends BaseShapeTool{
     readonly canRotate: boolean = false;
     readonly scaleType: EScaleType = EScaleType.none;
     readonly toolsType: EToolsKey = EToolsKey.Eraser;
-    readonly serviceWork?: ServiceWorkForFullWorker;
+    readonly serviceWork?: ServiceThreadSubWork;
+    // 来源于white-sdk
     private static readonly eraserSizes: readonly Size[] = Object.freeze([
       Object.freeze({ width: 18, height: 26 }),
       Object.freeze({ width: 26, height: 34 }),
@@ -30,7 +31,7 @@ export class EraserShape extends BaseShapeTool{
     worldScaling:[number, number];
     eraserRect:IRectType | undefined;
     eraserPolyline?:[number,number,number,number];
-    constructor(props:BaseShapeToolProps, serviceWork?:ServiceWorkForFullWorker) {
+    constructor(props:BaseShapeToolProps, serviceWork?:ServiceThreadSubWork) {
       super(props);
       this.serviceWork = serviceWork
       this.workOptions = props.toolsOpt as EraserOptions;
@@ -138,11 +139,9 @@ export class EraserShape extends BaseShapeTool{
         return result;
       }
       function isSameLine(line1:[Vec2d, Vec2d], line2:[Vec2d, Vec2d]) {
-        // console.log('isSameLine1', line1, line2)
         const Vec1 = Vec2d.Sub(line1[1], line1[0]);
         const Vec2 = Vec2d.Sub(line2[1], line2[0]);
         const Vec3 = Vec2d.Sub(line2[0], line1[0]);
-        // console.log('isSameLine', Vec1, Vec2, Vec3)
         if (Math.abs(Vec2d.Cpr(Vec1,Vec2)) < 0.1 && Math.abs(Vec2d.Cpr(Vec1,Vec3)) < 0.1) {
           return true;
         }
@@ -215,7 +214,6 @@ export class EraserShape extends BaseShapeTool{
               if (polyline.length > 1) {
                 const intersect = lineclip.polyline(polyline.map(p=>p.XY), this.eraserPolyline);
                 if (intersect.length) {
-                  //console.log('remove', np.name)
                   removeIds.add(np.name);
                   if (!_isLine) {
                     const intersectArr = this.translateIntersect(intersect);
@@ -262,17 +260,19 @@ export class EraserShape extends BaseShapeTool{
         }
         return r;
     }
-    consume(props:{data: IWorkerMessage}): IMainMessage {
+    consume(props:{data: IWorkerMessage}) {
       const {op} = props.data;
       if(!op || op.length === 0){
         return { 
-          type: EPostMessageType.None
+          type: EPostMessageType.None,
+          ...this.baseConsumeResult
         }
       }
       const oldTmpLength = this.tmpPoints.length;
       if (oldTmpLength > 1 && this.isNear([op[0],op[1]], [this.tmpPoints[oldTmpLength-2],this.tmpPoints[oldTmpLength-1]])) {
         return { 
-          type: EPostMessageType.None
+          type: EPostMessageType.None,
+          ...this.baseConsumeResult
         }
       }
       if (oldTmpLength === 4) {
@@ -289,6 +289,12 @@ export class EraserShape extends BaseShapeTool{
         workId: IworkId;
         toolsType: EToolsKey;
       }> = new Map();
+      if(!this.vNodes){
+        return {
+          type: EPostMessageType.None,
+          ...this.baseConsumeResult
+        };
+      }
       this.vNodes.setTarget();
       const curNodeMap = this.getUnLockNodeMap(this.vNodes.getLastTarget());
       for (let i = 0; i < points.length-1; i+=2) {
@@ -303,20 +309,19 @@ export class EraserShape extends BaseShapeTool{
             newWorkDatas.delete(key);
           }
         }
-        // console.log('totalRemoveIds', totalRemoveIds)
         return {
           type: EPostMessageType.RemoveNode,
-          dataType: EDataType.Local,
           rect: totalRect,
           removeIds: [...removeIds],
           newWorkDatas
         }
       }
       return {
-        type: EPostMessageType.None
+        type: EPostMessageType.None,
+        ...this.baseConsumeResult
       }
     }
-    consumeAll(props: { data: IWorkerMessage}): IMainMessage {
+    consumeAll(props: { data: IWorkerMessage}) {
       return this.consume(props);
     }
     clearTmpPoints(): void {

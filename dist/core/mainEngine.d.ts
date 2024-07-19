@@ -1,24 +1,28 @@
 import EventEmitter2 from "eventemitter2";
-import { BaseCollectorReducerAction, DiffOne } from "../collector";
-import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
-import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
+import { BaseCollectorReducerAction, DiffOneData } from "../collector";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
+import { IActiveToolsDataType, IActiveWorkDataType, ICameraOpt, IMainMessage, IRectType, IUpdateNodeOpt, IWorkerMessage, IqueryTask, IworkId, ViewWorkerOptions } from "./types";
 import { BaseSubWorkModuleProps } from "../plugin/types";
 import type { ImageInformation } from "../plugin/types";
 import { MethodBuilderMain } from "./msgEvent";
-import { EToolsKey, EvevtWorkState } from "./enum";
+import { EvevtWorkState } from "./enum";
+import { BaseShapeOptions } from "./tools";
 export declare abstract class MasterController {
     /** 异步同步时间间隔 */
     maxLastSyncTime: number;
     /** 插件管理器 */
-    readonly abstract control: BaseTeachingAidsManager;
+    readonly abstract control: BaseApplianceManager;
     readonly abstract internalMsgEmitter: EventEmitter2;
     /** worker线程管理器 */
     /** 本地原始点数据批任务数据池 */
-    protected abstract localPointsBatchData: number[];
+    protected abstract localPointsBatchData: Map<IworkId, {
+        state: EvevtWorkState;
+        points: number[];
+        isFullWork: boolean;
+        viewId: string;
+    }>;
     /** 事件任务处理批量池 */
     abstract taskBatchData: Set<IWorkerMessage>;
-    /** 设备像素比 */
-    protected abstract dpr: number;
     /** 主线程和工作线程通信机 */
     protected abstract fullWorker: Worker;
     /** 子线程和工作线程通信机 */
@@ -29,6 +33,7 @@ export declare abstract class MasterController {
     protected abstract currentLocalWorkData: IActiveWorkDataType;
     /** 设置当前选中的工具配置数据 */
     setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
+    getCurrentToolsData(): IActiveToolsDataType | undefined;
     /** 设置当前绘制任务数据 */
     protected setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType): void;
     /** 获取当前激活的工作任务id */
@@ -36,7 +41,7 @@ export declare abstract class MasterController {
     /** 获取当前work的工作状态 */
     getWorkState(): EvevtWorkState;
     /** 用于接收服务端同步的数据 */
-    abstract onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
+    abstract onServiceDerive(key: string, data: DiffOneData<BaseCollectorReducerAction | undefined>): void;
     /** 消费批处理池数据 */
     abstract consume(): void;
     /** 运行异步动画逻辑 */
@@ -50,7 +55,10 @@ export declare abstract class MasterController {
     /** 销毁 */
     abstract destroy(): void;
     /** 服务端拉取数据初始化 */
-    abstract pullServiceData(viewId: string, scenePath: string): void;
+    abstract pullServiceData(viewId: string, scenePath: string, options: {
+        isAsync?: boolean;
+        useAnimation?: boolean;
+    }): void;
     /** 主线程和工作线程通信,推送 */
     abstract post(msg: Set<IWorkerMessage>): void;
     /** 主线程和工作线程通信,接收 */
@@ -74,43 +82,57 @@ export declare abstract class MasterController {
     abstract lockImage(uuid: string, locked: boolean): void;
     abstract completeImageUpload(uuid: string, src: string): void;
     abstract getImagesInformation(scenePath: string): ImageInformation[];
+    /** 移除正在绘制的流程 */
+    abstract removeDrawingWork(viewId: string): void;
+    /** 修正绘制异常任务 */
+    abstract checkDrawingWork(viewId: string): void;
 }
 export declare class MasterControlForWorker extends MasterController {
     isActive: boolean;
     currentToolsData?: IActiveToolsDataType;
     protected currentLocalWorkData: IActiveWorkDataType;
-    control: BaseTeachingAidsManager;
+    control: BaseApplianceManager;
     internalMsgEmitter: EventEmitter2;
     taskBatchData: Set<IWorkerMessage>;
-    protected dpr: number;
     protected fullWorker: Worker;
     protected subWorker: Worker;
+    private fullWorkerUrl;
+    private subWorkerUrl;
     methodBuilder?: MethodBuilderMain;
     private zIndexNodeMethod?;
     /** master\fullwoker\subworker 三者高频绘制时队列化参数 */
     private subWorkerDrawCount;
     private wokerDrawCount;
     private maxDrawCount;
-    private cacheDrawCount;
     private reRenders;
     private localWorkViewId?;
-    protected localPointsBatchData: number[];
+    protected localPointsBatchData: Map<IworkId, {
+        state: EvevtWorkState;
+        points: number[];
+        /** 完整的绘制 */
+        isFullWork: boolean;
+        viewId: string;
+        opt?: BaseShapeOptions;
+    }>;
     /** end */
     /** 是否任务队列化参数 */
     private tasksqueue;
     private useTasksqueue;
     private useTasksClockId?;
-    private mianTasksqueueCount?;
+    private mainTasksqueueCount?;
     private workerTasksqueueCount?;
     /** end */
     private snapshotMap;
     private boundingRectMap;
-    private clearAllResolve?;
-    private delayWorkStateToDone?;
+    private clearAllResolveMap;
     private delayWorkStateToDoneResolve?;
-    private undoTickerId?;
     private animationId;
+    private tmpImageConfigMap;
+    private mainThread?;
+    private willSelectorWorkId?;
+    private isLockSentEventCursor;
     constructor(props: BaseSubWorkModuleProps);
+    destroy(): void;
     private get viewContainerManager();
     private get collector();
     private get isRunSubWork();
@@ -118,39 +140,64 @@ export declare class MasterControlForWorker extends MasterController {
     private get isUseZIndex();
     private get isCanRecordUndoRedo();
     private get isCanSentCursor();
-    init(): void;
-    on(): void;
-    private collectorSyncData;
+    private get isCanStartEventConsum();
+    init(): Promise<void>;
+    on(): Promise<void>;
+    private clearReRenders;
+    get isBusy(): boolean;
+    getLockSentEventCursor(): boolean;
+    setLockSentEventCursor(bol: boolean): void;
+    getTasksqueueState(): EvevtWorkState.Doing | EvevtWorkState.Done;
+    setMaxDrawCount(num: number): void;
+    setWorkerTasksqueueCount(num: number): void;
+    collectorSyncData(sp: IMainMessage[]): void;
     private collectorAsyncData;
     private onLocalEventEnd;
     private onLocalEventDoing;
     private onLocalEventStart;
-    private pushPoint;
+    private setLocalPointIsFullWork;
+    private pushLocalPoint;
+    private deleteLocalPoint;
+    private getLocalPointInfo;
+    getLocalPointsInfo(): Map<IworkId, {
+        state: EvevtWorkState;
+        points: number[];
+        /** 完整的绘制 */
+        isFullWork: boolean;
+        viewId: string;
+        opt?: BaseShapeOptions | undefined;
+    }>;
+    private correctStorage;
     originalEventLintener(workState: EvevtWorkState, point: [number, number], viewId: string): Promise<void>;
     getLocalWorkViewId(): string | undefined;
-    setLocalWorkViewId(viewId: string): void;
+    setLocalWorkViewId(viewId?: string): void;
     setCurrentToolsData(currentToolsData: IActiveToolsDataType): void;
-    setCurrentLocalWorkData(currentLocalWorkData: IActiveWorkDataType): void;
-    prepareOnceWork(currentLocalWorkData: Required<Pick<IActiveWorkDataType, 'toolsOpt' | 'viewId' | 'workId'>>, toolsType: EToolsKey): void;
+    private prepareOnceWork;
     createViewWorker(viewId: string, options: ViewWorkerOptions): void;
     destroyViewWorker(viewId: string, isLocal?: boolean): void;
-    onServiceDerive(key: string, data: DiffOne<BaseCollectorReducerAction | undefined>): void;
-    pullServiceData(viewId: string, scenePath: string): void;
+    onServiceDerive(key: string, data: DiffOneData<BaseCollectorReducerAction | undefined>): void;
+    pullServiceData(viewId: string, scenePath: string, options?: {
+        isAsync?: boolean;
+        useAnimation?: boolean;
+    }): void;
     runAnimation(): void;
     consume(): void;
     unWritable(): void;
     abled(): void;
     isAbled(): boolean;
     post(msg: Set<IWorkerMessage>): void;
-    destroy(): void;
     updateNode(workId: IworkId, updateNodeOpt: IUpdateNodeOpt, viewId: string, scenePath: string): void;
+    destroyTaskQueue(): void;
     updateCamera(viewId: string, cameraOpt: ICameraOpt): void;
+    private updateCameraDone;
     private consumeQueue;
     clearViewScenePath(viewId: string, justLocal?: boolean | undefined): Promise<void>;
     private internalMsgEmitterListener;
     private setZIndex;
-    clearLocalPointsBatchData(): void;
+    checkDrawingWork(vId: string): void;
+    removeDrawingWork(vId: string): void;
     hoverCursor(point: [number, number], viewId: string): void;
+    blurCursor(viewId: string): void;
     sendCursorEvent(p: [number | undefined, number | undefined], viewId: string): void;
     getBoundingRect(scenePath: string): Promise<IRectType> | undefined;
     getSnapshot(scenePath: string, width?: number, height?: number, camera?: Pick<ICameraOpt, "centerX" | "centerY" | "scale">): Promise<ImageBitmap> | undefined;
@@ -159,6 +206,7 @@ export declare class MasterControlForWorker extends MasterController {
     lockImage(uuid: string, locked: boolean): void;
     completeImageUpload(uuid: string, src: string): void;
     getImagesInformation(scenePath: string): ImageInformation[];
-    setShapeSelectorByWorkId(workId: string, viewId: string, undoTickerId?: number): void;
-    blurSelector(viewId: string, scenePath: string, undoTickerId?: number): void;
+    setShapeSelectorByWorkId(workId: string, viewId: string): void;
+    blurSelector(viewId: string, scenePath: string): void;
+    consoleWorkerInfo(): void;
 }

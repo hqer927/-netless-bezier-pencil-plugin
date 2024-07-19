@@ -1,6 +1,6 @@
 import React,  { useEffect, useMemo, useState } from "react";
-import { InternalMsgEmitterType, type RoomMember, type TeachingAidsViewManagerLike } from "../../plugin/types";
-import { ApplianceNames } from "../../plugin/external";
+import { InternalMsgEmitterType, type RoomMember, type ApplianceViewManagerLike } from "../../plugin/types";
+import { ApplianceNames } from "../../plugin/types";
 import pencilCursor from "./assets/pencil-cursor.png";
 import shapeCursor from "./assets/shape-cursor.svg";
 import textCursor from "./assets/text-cursor.svg";
@@ -194,7 +194,6 @@ export const CursorManagerComponent = (props:{
 }) => {
     const { className, info } = props;
     const { roomMember, ...position } = info || {};
-    // console.log('CursorManager', position, roomMember)
     return (
         <div className={`${className}`} style={ position ? {
             transform: `translate(${position.x}px, ${position.y}px)`
@@ -208,20 +207,17 @@ export const CursorManagerComponent = (props:{
 
 export const CursorManager = (props:{
     className: string;
-    manager: TeachingAidsViewManagerLike;
+    manager: ApplianceViewManagerLike;
 }) => {
     const { className, manager} = props;
     const [cursorInfo, setCursorInfo] = useState<{x?:number,y?:number, roomMember?:RoomMember}[]>();
     useEffect(()=>{
-        // console.log('CursorManager---on', manager.viewId)
         manager.internalMsgEmitter.on([InternalMsgEmitterType.Cursor, manager.viewId], cursorInfoListener);
         return ()=> {
-            // console.log('CursorManager---off', manager.viewId)
-            manager.internalMsgEmitter.off([InternalMsgEmitterType.Cursor,manager.viewId],cursorInfoListener);
+            manager.internalMsgEmitter.off([InternalMsgEmitterType.Cursor, manager.viewId], cursorInfoListener);
         }
     },[manager])
     function cursorInfoListener(cursorInfos:{x?:number,y?:number, roomMember?:RoomMember}[]) {
-        // console.log('cursorInfoMap---on---1', manager.viewId, cursorInfos)
         setCursorInfo(cursorInfos); 
     }
     const UI = useMemo(()=>{

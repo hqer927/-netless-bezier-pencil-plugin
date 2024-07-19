@@ -1,24 +1,27 @@
 import { ViewContainerManager, ViewInfo } from "../baseViewContainerManager";
 import type { View } from "../types";
 import { BaseSubWorkModuleProps } from "../types";
-import { TeachingAidsMultiManager } from "./teachingAidsMultiManager";
-import type { WindowManager } from './teachingAidsMultiManager';
+import { ApplianceMultiManager } from "./applianceMultiManager";
+import type { WindowManager } from './applianceMultiManager';
 export declare class ViewContainerMultiManager extends ViewContainerManager {
     focuedViewId?: string;
     focuedView?: ViewInfo;
-    control: TeachingAidsMultiManager;
+    control: ApplianceMultiManager;
     /** 针对windowmanager的focusedChange先于onAppViewMounted*/
     tmpFocusedViewId?: string;
     private checkScaleTimer?;
     constructor(props: BaseSubWorkModuleProps);
-    mountView(viewId: string): void;
+    mountView(viewId: string): Promise<void>;
     listenerWindowManager(windowManager: WindowManager): void;
     private onMainViewRelease;
+    private mainViewDestroy;
     onMainViewMounted: (bindMainView: View) => void;
     private onMainViewSizeUpdated;
     private onMainViewCameraUpdated;
-    onAppViewMounted: (payload: any) => void;
+    private updateMainViewCamera;
+    onAppViewMounted: (payload: any) => Promise<void>;
     private onAppViewSizeUpdated;
     private onAppViewCameraUpdated;
+    private updateAppCamera;
     private onActiveHotkeyChange;
 }

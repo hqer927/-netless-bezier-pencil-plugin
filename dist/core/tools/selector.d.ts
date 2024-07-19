@@ -3,10 +3,11 @@ import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt, IServiceWorkItem } from "../types";
 import { Point2d } from "../utils/primitives/Point2d";
-import { VNodeManager } from "../worker/vNodeManager";
+import type { VNodeManager } from "../vNodeManager";
 import { TextOptions } from "../../component/textEditor/types";
 import { LocalWorkForFullWorker } from "../worker/fullWorkerLocal";
 import { ShapeOptType } from "../../displayer/types";
+import type { SubLocalThread } from "../mainThread/subLocalThread";
 export interface SelectorOptions extends BaseShapeOptions {
 }
 export declare class SelectorShape extends BaseShapeTool {
@@ -15,6 +16,7 @@ export declare class SelectorShape extends BaseShapeTool {
     static selectorBorderId: string;
     protected tmpPoints: Array<Point2d>;
     protected workOptions: BaseShapeOptions;
+    vNodes: VNodeManager;
     selectIds?: string[];
     selectorColor?: string;
     strokeColor?: string;
@@ -37,16 +39,63 @@ export declare class SelectorShape extends BaseShapeTool {
     getChildrenPoints(): [number, number][] | undefined;
     consume(props: {
         data: IWorkerMessage;
-    }): IMainMessage;
-    consumeAll(props?: {
-        hoverId?: string;
-    }): IMainMessage;
+    }): {
+        type: EPostMessageType;
+    } | {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        type: EPostMessageType;
+        dataType: EDataType;
+        rect: IRectType | undefined;
+        selectIds: never[] | string[];
+        selectRect: IRectType | undefined;
+        selectorColor: string | undefined;
+        strokeColor: string | undefined;
+        fillColor: string | undefined;
+        textOpt: TextOptions | undefined;
+        canTextEdit: boolean;
+        canRotate: boolean;
+        canLock: boolean;
+        scaleType: EScaleType;
+        willSyncService: boolean;
+        points: [number, number][] | undefined;
+        isLocked: boolean | undefined;
+        toolsTypes: EToolsKey[] | undefined;
+        shapeOpt: ShapeOptType | undefined;
+    };
+    consumeAll(): {
+        workId: string;
+        toolsType: EToolsKey;
+        opt: import("./utils").ShapeOptions;
+        type: EPostMessageType;
+        dataType: EDataType;
+        rect: IRectType | undefined;
+        selectIds: string[] | undefined;
+        selectorColor: string | undefined;
+        selectRect: IRectType | undefined;
+        strokeColor: string | undefined;
+        fillColor: string | undefined;
+        textOpt: TextOptions | undefined;
+        canTextEdit: boolean;
+        canRotate: boolean;
+        canLock: boolean;
+        scaleType: EScaleType;
+        willSyncService: boolean;
+        points: [number, number][] | undefined;
+        isLocked: boolean | undefined;
+        toolsTypes: EToolsKey[] | undefined;
+        shapeOpt: ShapeOptType | undefined;
+    } | {
+        type: EPostMessageType;
+    };
     consumeService(): undefined;
     clearTmpPoints(): void;
     clearSelectData(): void;
     private selectSingleTool;
-    private backToFullLayer;
-    private sealToDrawLayer;
+    private unSelectedAllIds;
+    private unSelectedByIds;
+    private selectedByIds;
     private getSelectorRect;
     isCanFillColor(toolsType?: EToolsKey): boolean;
     updateSelector(param: {
@@ -54,9 +103,10 @@ export declare class SelectorShape extends BaseShapeTool {
         vNodes: VNodeManager;
         selectIds?: string[];
         willSerializeData?: boolean;
-        worker?: LocalWorkForFullWorker;
+        worker?: LocalWorkForFullWorker | SubLocalThread;
         offset?: [number, number];
         scene?: Scene;
+        isMainThread?: boolean;
     }): Promise<IMainMessage | undefined>;
     blurSelector(): {
         type: EPostMessageType;
@@ -65,7 +115,7 @@ export declare class SelectorShape extends BaseShapeTool {
         selectIds: never[];
         willSyncService: boolean;
     };
-    private getRightServiceId;
+    getRightServiceId(serviceWorkId: string): string;
     selectServiceNode(workId: string, workItem: Pick<IServiceWorkItem, 'selectIds'>, isService: boolean): IRectType | undefined;
     reRenderSelector(): IRectType | undefined;
     updateSelectIds(nextSelectIds: string[]): {

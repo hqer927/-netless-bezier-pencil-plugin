@@ -2,6 +2,7 @@ import { Button, Flex, Select } from "antd";
 import { useState } from "react";
 import { Region, regions } from "./region";
 import { createRoom } from "./api";
+import React from "react";
 const IndexPage = ()=>{
     const [region,setRegion] = useState<Region>('cn-hz');
     const [loading,setLoading] = useState<boolean>(false);

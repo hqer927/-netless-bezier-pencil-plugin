@@ -7,21 +7,10 @@ import { SelectorShape } from "../../tools";
 export class RotateNodeMethodForWorker extends BaseMsgMethodForWorker {
     readonly emitEventType: EmitEventType = EmitEventType.RotateNode;
     consume(data: IWorkerMessage): boolean | undefined {
-        const {msgType, dataType, emitEventType, undoTickerId} = data;
+        const {msgType, dataType, emitEventType} = data;
         if (msgType !== EPostMessageType.UpdateNode) return;
         if (dataType === EDataType.Local && emitEventType === this.emitEventType) {
-            this.consumeForLocalWorker(data).finally(() => {
-                if (undoTickerId) {
-                    setTimeout(()=>{
-                        this.localWork?._post({
-                            sp:[{
-                                type: EPostMessageType.None,
-                                undoTickerId,
-                            }]
-                        })
-                    },0)
-                }
-            });
+            this.consumeForLocalWorker(data);
             return true;
         }        
     }
@@ -48,7 +37,19 @@ export class RotateNodeMethodForWorker extends BaseMsgMethodForWorker {
                         selectRect,
                         willSyncService: true,
                         isSync,
-                        points: workShapeNode.getChildrenPoints()
+                        points: workShapeNode.getChildrenPoints(),
+                        textOpt: workShapeNode.textOpt,
+                        selectorColor: workShapeNode.selectorColor,
+                        strokeColor: workShapeNode.strokeColor,
+                        fillColor: workShapeNode.fillColor,
+                        canTextEdit: workShapeNode.canTextEdit,
+                        canRotate: workShapeNode.canRotate,
+                        scaleType: workShapeNode.scaleType,
+                        opt: workShapeNode.getWorkOptions() || undefined,
+                        canLock: workShapeNode.canLock,
+                        isLocked: workShapeNode.isLocked,
+                        toolsTypes: workShapeNode.toolsTypes,
+                        shapeOpt: workShapeNode.shapeOpt
                     })
                 }
             }
@@ -66,7 +67,6 @@ export class RotateNodeMethodForWorker extends BaseMsgMethodForWorker {
                 )
             }
         }
-        // console.log('updateSelector---0---0--RotateNode', render, sp)
         return {
             render,
             sp

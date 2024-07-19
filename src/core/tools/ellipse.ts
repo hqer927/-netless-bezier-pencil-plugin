@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Ellipse, Group, Path } from "spritejs";
-import { IWorkerMessage, IMainMessage, IRectType, IUpdateNodeOpt } from "../types";
-import { EDataType, EPostMessageType, EScaleType, EToolsKey, EvevtWorkState } from "../enum";
+import { IWorkerMessage, IRectType, IUpdateNodeOpt } from "../types";
+import { EDataType, EPostMessageType, EScaleType, EToolsKey } from "../enum";
 import { Point2d } from "../utils/primitives/Point2d";
 import { BaseShapeOptions, BaseShapeTool, BaseShapeToolProps } from "./base";
 import { computRect, getRectFromPoints } from "../utils";
 import { transformToSerializableData } from "../../collector/utils";
-import { VNodeManager } from "../worker/vNodeManager";
+import { VNodeManager } from "../vNodeManager";
 import { ShapeNodes } from "./utils";
 
 export interface EllipseOptions extends BaseShapeOptions {
@@ -29,26 +29,33 @@ export class EllipseShape extends BaseShapeTool{
         this.syncTimestamp = 0;
         this.syncUnitTime = 50;
     }
-    consume(props: { data: IWorkerMessage; isFullWork?: boolean | undefined; isClearAll?: boolean | undefined; isSubWorker?: boolean | undefined; }): IMainMessage {
-        const {data, isFullWork, isSubWorker}= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return { type: EPostMessageType.None}
-        }
-        const {op, workState} = data;
+    consume(props: { 
+        data: IWorkerMessage; 
+        isFullWork?: boolean; 
+        isSubWorker?: boolean;
+        isMainThread?: boolean; 
+    }) {
+        const {data, isFullWork, isSubWorker, isMainThread}= props;
+        const workId = this.workId;
+        const {op} = data;
         const opl = op?.length;
         if(!opl || opl < 2){
-          return { type: EPostMessageType.None}
+          return { type: EPostMessageType.None }
         }
         let bol:boolean;
-        if (workState === EvevtWorkState.Start) {
+        if (this.tmpPoints.length === 0) {
             this.tmpPoints = [new Point2d(op[0],op[1])];
             bol = false
         } else {
             bol = this.updateTempPoints(op);
         }
         if (!bol) {
-            return { type: EPostMessageType.None}
+            return { type: EPostMessageType.None }
+        }
+        let r: IRectType | undefined;
+        if (isSubWorker || isMainThread) {
+            const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
+            r = this.draw({workId, layer, isDrawing:true});
         }
         if (!isSubWorker) {
             const now = Date.now();
@@ -57,31 +64,25 @@ export class EllipseShape extends BaseShapeTool{
                 return {
                     type: EPostMessageType.DrawWork,
                     dataType: EDataType.Local,
-                    workId,
+                    ...this.baseConsumeResult,
                     op: this.tmpPoints.map(c=>([...c.XY,0])).flat(1),
                     isSync: true,
                     index: 0
                 }
             }
-            return { type: EPostMessageType.None};
+            return { type: EPostMessageType.None };
         }
-        const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
-        const r: IRectType | undefined = this.draw({workId, layer, isDrawing:true});
         const rect = computRect(r, this.oldRect);
         this.oldRect = r;
         return {
             rect,
             type: EPostMessageType.DrawWork,
             dataType: EDataType.Local,
-            workId
+            ...this.baseConsumeResult,
         }
     }
-    consumeAll(props: { data?: IWorkerMessage | undefined}): IMainMessage {
-        const { data }= props;
-        const workId = data?.workId?.toString();
-        if (!workId) {
-            return {type: EPostMessageType.None}
-        }
+    consumeAll() {
+        const workId = this.workId;
         if (this.tmpPoints.length < 2) {
             return { 
                 type: EPostMessageType.RemoveNode,
@@ -93,7 +94,7 @@ export class EllipseShape extends BaseShapeTool{
         this.oldRect = rect;
         const op = this.tmpPoints.map(c=>[...c.XY,0]).flat(1);
         const ops = transformToSerializableData(op);
-        this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,
@@ -106,10 +107,9 @@ export class EllipseShape extends BaseShapeTool{
             rect,
             type: EPostMessageType.FullWork,
             dataType: EDataType.Local,
-            workId,
+            ...this.baseConsumeResult,
             ops,
-            isSync: true,
-            opt: this.workOptions
+            isSync: true
         }
     }
 
@@ -120,10 +120,8 @@ export class EllipseShape extends BaseShapeTool{
         isDrawing: boolean;
     }){
         const {workId, layer, isDrawing} = props;
-        this.fullLayer.getElementsByName(workId).map(o=>o.remove());
-        this.drawLayer?.getElementsByName(workId).map(o=>o.remove());
         const {strokeColor, fillColor, thickness, zIndex, scale, rotate, translate} = this.workOptions;
-        const worldPosition = layer.worldPosition;
+        // const worldPosition = layer.worldPosition;
         const worldScaling = layer.worldScaling;
         const {radius, rect, pos} = this.computDrawPoints(thickness);
         const attr:any = {
@@ -134,28 +132,42 @@ export class EllipseShape extends BaseShapeTool{
             lineWidth: thickness,
             fillColor: fillColor !== 'transparent' && fillColor || undefined, 
             strokeColor: strokeColor,
-            normalize:true,
-            zIndex,
+            normalize: true,
         };
-        const r: IRectType | undefined = {
-            x: Math.floor(rect.x * worldScaling[0] + worldPosition[0] - BaseShapeTool.SafeBorderPadding),
-            y: Math.floor(rect.y * worldScaling[1] + worldPosition[1] - BaseShapeTool.SafeBorderPadding),
-            w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding),
-            h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding)
+        // const r: IRectType | undefined = {
+        //     x: Math.floor(rect.x * worldScaling[0] + worldPosition[0] - BaseShapeTool.SafeBorderPadding),
+        //     y: Math.floor(rect.y * worldScaling[1] + worldPosition[1] - BaseShapeTool.SafeBorderPadding),
+        //     w: Math.floor(rect.w * worldScaling[0] + 2 * BaseShapeTool.SafeBorderPadding),
+        //     h: Math.floor(rect.h * worldScaling[1]  + 2 * BaseShapeTool.SafeBorderPadding)
+        // };
+        // const attr:any = {
+        //     close:true,
+        //     points,
+        //     lineWidth: thickness,
+        //     fillColor: fillColor !== 'transparent' && fillColor || undefined, 
+        //     strokeColor,
+        //     normalize: true,
+        //     lineJoin: 'round'
+        // };
+        const groupAttr:any = {
+            name: workId,
+            id: workId,
+            zIndex, 
+            pos,
+            anchor: [0.5, 0.5],
+            size: [rect.w, rect.h],
         };
+        if (scale) {
+            groupAttr.scale = scale;
+        }
+        if (rotate) {
+            groupAttr.rotate = rotate;
+        }
+        if (translate) {
+            groupAttr.translate = translate;
+        }
+        const group = new Group(groupAttr);
         if (isDrawing) {
-            const {name, id, zIndex, strokeColor} = attr;
-            const centerPos = BaseShapeTool.getCenterPos(r,layer);
-            const group = new Group({
-                name, id, zIndex, 
-                pos: centerPos,
-                anchor: [0.5, 0.5],
-                size: [r.w, r.h]
-            });
-            const node = new Ellipse({
-                ...attr,
-                pos:[0, 0]
-            });
             const anchorCross = new Path({
                 d:'M-4,0H4M0,-4V4',
                 normalize: true,
@@ -164,31 +176,21 @@ export class EllipseShape extends BaseShapeTool{
                 lineWidth: 1,
                 scale:[1 / worldScaling[0], 1 / worldScaling[1]]
             });
-            group.append(node, anchorCross);
-            layer.append(group);
-            return r;
+            group.append(anchorCross);
         }
-        if (scale) {
-            attr.scale = scale;
+        const node = new Ellipse({
+            ...attr,
+            pos:[0, 0]
+        });
+        group.append(node);
+        this.replace(layer, workId, group);
+        const _r = group.getBoundingClientRect();
+        return {
+            x: Math.floor(_r.x - BaseShapeTool.SafeBorderPadding),
+            y: Math.floor(_r.y - BaseShapeTool.SafeBorderPadding),
+            w: Math.floor(_r.width + BaseShapeTool.SafeBorderPadding * 2),
+            h: Math.floor(_r.height + BaseShapeTool.SafeBorderPadding * 2)
         }
-        if (rotate) {
-            attr.rotate = rotate;
-        }
-        if(translate){
-            attr.translate = translate;
-        }
-        const node = new Ellipse(attr);
-        layer.append(node);
-        if (rotate || scale || translate) {
-            const r = node.getBoundingClientRect();
-            return {
-                x: Math.floor(r.x - BaseShapeTool.SafeBorderPadding),
-                y: Math.floor(r.y - BaseShapeTool.SafeBorderPadding),
-                w: Math.floor(r.width + BaseShapeTool.SafeBorderPadding * 2),
-                h: Math.floor(r.height + BaseShapeTool.SafeBorderPadding * 2)
-            }
-        }
-        return r;
     }
     private computDrawPoints(thickness:number):{pos: [number,number], rect: IRectType, radius:[number,number], isDot?: boolean} {
         // const distance = this.tmpPoints[1].distance(this.tmpPoints[0]);
@@ -219,8 +221,8 @@ export class EllipseShape extends BaseShapeTool{
         }
         return true;
     }
-    consumeService(props: { op: number[]; isFullWork: boolean, isTemp?:boolean}): IRectType | undefined {
-        const {op, isFullWork, isTemp} = props;
+    consumeService(props: { op: number[]; isFullWork: boolean}): IRectType | undefined {
+        const {op, isFullWork} = props;
         const workId = this.workId?.toString();
         if (!workId) {
             return;
@@ -232,7 +234,7 @@ export class EllipseShape extends BaseShapeTool{
         const layer = isFullWork ? this.fullLayer : (this.drawLayer || this.fullLayer);
         const rect: IRectType | undefined = this.draw({workId, layer, isDrawing: false});
         this.oldRect = rect;
-        isFullWork && !isTemp && this.vNodes.setInfo(workId, {
+        this.vNodes?.setInfo(workId, {
             rect,
             op,
             opt: this.workOptions,

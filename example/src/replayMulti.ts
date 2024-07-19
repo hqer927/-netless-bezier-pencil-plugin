@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { WhiteWebSdk, DeviceType, RenderEngine} from "white-web-sdk";
+import { WhiteWebSdk, DeviceType, RenderEngine, InvisiblePlugin, InvisiblePluginClass} from "white-web-sdk";
 import polly from "polly-js";
 import { WindowManager } from "@netless/window-manager";
-import { TeachingMulitAidsPlugin } from '@hqer/bezier-pencil-plugin';
 import SlideApp, { addHooks } from "@netless/app-slide";
+import { ApplianceMultiPlugin } from '@hqer/bezier-pencil-plugin';
+import fullWorkerString from '@hqer/bezier-pencil-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@hqer/bezier-pencil-plugin/dist/subWorker.js?raw';
 
 export enum Identity {
     Creator = "creator",
@@ -47,7 +49,7 @@ export async function createReplayMultiWhiteWebSdk(params:{
             region,
             room: uuid,
             roomToken,
-            invisiblePlugins: [WindowManager, TeachingMulitAidsPlugin],
+            invisiblePlugins: [WindowManager as unknown as InvisiblePluginClass<string, any, any, InvisiblePlugin<any, any>>, ApplianceMultiPlugin],
             useMultiViews: true,
         }, {
             onPhaseChanged: (phase) => {
@@ -61,14 +63,25 @@ export async function createReplayMultiWhiteWebSdk(params:{
         src: SlideApp,
         addHooks,
     });
-    const managerPromise = WindowManager.mount({ room:player , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true});
+    const managerPromise = WindowManager.mount({ room:player , container:elm, chessboard: true, cursor: true, supportAppliancePlugin: true});
     player.play();
     const manager = await managerPromise;
-    const plugin = await TeachingMulitAidsPlugin.getInstance(manager);
+    const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+    const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+    const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+    const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+    const plugin = await ApplianceMultiPlugin.getInstance(manager,{
+        options: {
+            cdn:{
+                fullWorkerUrl,
+                subWorkerUrl
+            }
+        },
+    });
     player.pause();
     // await player.seekToProgressTime(1);
     player.play();
-    window.pluginRoom = plugin;
+    window.appliancePlugin = plugin;
     window.manager = manager;
     console.log('player', player)
     return {player, whiteWebSdk}

@@ -6,6 +6,7 @@ export type DeleteNodeEmtData = {
     viewId: string;
 };
 export declare class DeleteNodeMethod extends BaseMsgMethod {
+    protected lastEmtData?: unknown;
     readonly emitEventType: EmitEventType;
     collect(data: DeleteNodeEmtData): void;
 }

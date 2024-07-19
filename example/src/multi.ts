@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import '@netless/window-manager/dist/style.css';
-import { WhiteWebSdk, DeviceType, DefaultHotKeys, HotKeyEvent, KeyboardKind} from "white-web-sdk";
+import { WhiteWebSdk, DeviceType, DefaultHotKeys, HotKeyEvent, KeyboardKind, InvisiblePluginClass, InvisiblePlugin} from "white-web-sdk";
 import { WindowManager } from "@netless/window-manager";
-import { TeachingMulitAidsPlugin, ECanvasContextType } from '@hqer/bezier-pencil-plugin';
+import { ApplianceMultiPlugin } from '@hqer/bezier-pencil-plugin';
+import fullWorkerString from '@hqer/bezier-pencil-plugin/dist/fullWorker.js?raw';
+import subWorkerString from '@hqer/bezier-pencil-plugin/dist/subWorker.js?raw';
 const ctrlShiftHotKeyCheckerWith = (k:string) =>{
     return (event: HotKeyEvent, kind: KeyboardKind) => {
         const { key, altKey, ctrlKey, shiftKey, nativeEvent } = event;
@@ -32,7 +34,6 @@ const ctrlShiftHotKeyCheckerWith = (k:string) =>{
     };
 
 }
-
 export async function createMultiWhiteWebSdk(params:{
     elm:HTMLDivElement;
     uuid:string;
@@ -76,7 +77,7 @@ export async function createMultiWhiteWebSdk(params:{
             changeToArrow: "a",
             changeToHand: "h",
         },
-        invisiblePlugins: [WindowManager, TeachingMulitAidsPlugin],
+        invisiblePlugins: [WindowManager as unknown as InvisiblePluginClass<string, any, any, InvisiblePlugin<any, any>>, ApplianceMultiPlugin],
         disableNewPencil: false,
         useMultiViews: true, 
     })
@@ -85,42 +86,31 @@ export async function createMultiWhiteWebSdk(params:{
     }
     let manager = room.getInvisiblePlugin(WindowManager.kind) as unknown as WindowManager;
     manager?.destroy();
-    manager = await WindowManager.mount({ room , container:elm, chessboard: true, cursor: true, supportTeachingAidsPlugin: true});
+    manager = await WindowManager.mount({ room , container:elm, chessboard: true, cursor: true, supportAppliancePlugin: true});
     if (manager) {
         await manager.switchMainViewToWriter();
-        const plugin = await TeachingMulitAidsPlugin.getInstance(manager,
+        const fullWorkerBlob = new Blob([fullWorkerString], {type: 'text/javascript'});
+        const fullWorkerUrl = URL.createObjectURL(fullWorkerBlob);
+        const subWorkerBlob = new Blob([subWorkerString], {type: 'text/javascript'});
+        const subWorkerUrl = URL.createObjectURL(subWorkerBlob);
+        const plugin = await ApplianceMultiPlugin.getInstance(manager,
             {   // 获取插件实例，全局应该只有一个插件实例，必须在 joinRoom 之后调用
                 options: {
-                    syncOpt: {
-                        interval: 150,
-                    },
-                    canvasOpt: {
-                        contextType: ECanvasContextType.Canvas2d
-                    },
+                    cdn: {
+                        fullWorkerUrl,
+                        subWorkerUrl
+                    }
                 }
             }
         );
         room.disableSerialization = false;
-        plugin.injectMethodToObject(room,'undo');
-        plugin.injectMethodToObject(room,'redo');
-        plugin.injectMethodToObject(room,'callbacks');
-        plugin.injectMethodToObject(room,'cleanCurrentScene');
-        plugin.injectMethodToObject(room,'screenshotToCanvasAsync');
-        plugin.injectMethodToObject(room,'getBoundingRectAsync');
-        plugin.injectMethodToObject(room,'insertImage');
-        // plugin.bindMethodToObject(manager,'undo');
-        // plugin.bindMethodToObject(manager,'redo');
-        // plugin.bindMethodToObject(manager,'callbacks');
-        // plugin.bindMethodToObject(manager,'cleanCurrentScene');
-        // plugin.bindMethodToObject(manager,'screenshotToCanvasAsync');
-        // plugin.bindMethodToObject(manager,'getBoundingRectAsync');
         // room.callbacks.on("onCanUndoStepsUpdate", (step: number): void => {
         //     console.log('onCanUndoStepsUpdate1', step)
         // });
         // room.callbacks.on("onCanRedoStepsUpdate", (step: number): void => {
         //     console.log('onCanRedoStepsUpdate1', step)
         // });
-        window.pluginRoom = plugin;
+        window.appliancePlugin = plugin;
     }
     window.manager = manager;
     return {room, whiteWebSdk, manager}

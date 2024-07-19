@@ -1,5 +1,5 @@
 import type { HotKeys, BaseSubWorkModuleProps } from "../plugin/types";
-import { BaseTeachingAidsManager } from "../plugin/baseTeachingAidsManager";
+import { BaseApplianceManager } from "../plugin/baseApplianceManager";
 import type EventEmitter2 from "eventemitter2";
 import { Collector } from "../collector";
 import { MasterControlForWorker } from "../core/mainEngine";
@@ -22,7 +22,7 @@ export type HotKeyCheckerNode = {
 };
 export interface HotkeyManager {
     readonly internalMsgEmitter: EventEmitter2;
-    readonly control: BaseTeachingAidsManager;
+    readonly control: BaseApplianceManager;
     readonly roomHotkeyCheckers: HotKeyCheckerNode[];
     onActiveHotkey(hotKey: keyof HotKeys): void;
     onSelfActiveHotkey(hotKey: keyof HotKeys): void;
@@ -30,7 +30,7 @@ export interface HotkeyManager {
 }
 export declare class HotkeyManagerImpl implements HotkeyManager {
     internalMsgEmitter: EventEmitter2;
-    control: BaseTeachingAidsManager;
+    control: BaseApplianceManager;
     roomHotkeyCheckers: HotKeyCheckerNode[];
     private tmpCopyStore;
     private tmpCopyCoordInfo?;

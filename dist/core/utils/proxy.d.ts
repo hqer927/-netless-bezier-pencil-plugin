@@ -7,7 +7,7 @@ export type InterceptorsType<T, K> = {
     size(): number;
 };
 export declare class ProxyMap<T, K> {
-    static proxyToRaw: WeakMap<object, any>;
+    static proxyToRaw: WeakMap<WeakKey, any>;
     static interceptors: {
         entries(...arg: any[]): any;
         forEach(...arg: any[]): any;
